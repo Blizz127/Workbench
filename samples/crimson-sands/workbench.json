@@ -1,0 +1,24 @@
+{
+  "name": "Crimson Sands Server Revival",
+  "description": "Server revival for Dark Sun Online: Crimson Sands. Rebuilding the game server from client binaries and archived packet captures so the surviving client can log in, load zones, and play D&D again.",
+  "buildCommand": "dotnet build src/CrimsonServer",
+  "runCommand": "dotnet run --project src/CrimsonServer -- --listen 0.0.0.0:2101",
+  "testCommand": "dotnet test tests/CrimsonServer.Tests",
+  "documentationPaths": [
+    "docs/packets/",
+    "docs/zone-format.md",
+    "docs/character-data.md"
+  ],
+  "aiContextPaths": [
+    "docs/packets/opcode-table.md",
+    "src/CrimsonServer/Protocol/",
+    "notes/client-disassembly.md"
+  ],
+  "tags": [
+    "Game Preservation",
+    "Server Revival",
+    "Reverse Engineering",
+    "MMO",
+    "D&D"
+  ]
+}

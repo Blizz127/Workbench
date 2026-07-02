@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             x:Class="Workbench.App.Views.MilestonesView"
+             x:DataType="vm:MilestonesViewModel">
+
+    <DockPanel Margin="0,8,0,0" MaxWidth="760" HorizontalAlignment="Left">
+        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding ProgressText}" Classes="h2" />
+                <ProgressBar Value="{Binding Progress}" Maximum="100" Height="10" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Classes="card" Margin="0,12,0,0">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Add milestone"
+                        Command="{Binding AddMilestoneCommand}" Margin="8,0,0,0" />
+                <TextBox Text="{Binding NewMilestoneTitle}" Watermark="New milestone title">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding AddMilestoneCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MilestoneItemViewModel">
+                        <Border Classes="card" Margin="0,0,0,6" Padding="10">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="✕" Padding="6,2"
+                                        Command="{Binding RemoveCommand}" />
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding CompletedText}"
+                                           Classes="muted" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <CheckBox IsChecked="{Binding IsCompleted}" Content="{Binding Title}" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

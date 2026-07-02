@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:views="using:Workbench.App.Views"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.ProjectDetailView"
+             x:DataType="vm:ProjectDetailViewModel">
+
+    <DockPanel Margin="16">
+        <!-- Header -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <Button Content="← Back" Command="{Binding GoBackCommand}" />
+                <TextBlock Text="{Binding HeaderName}" Classes="h1" VerticalAlignment="Center" />
+                <Border Classes="chip" VerticalAlignment="Center"
+                        Background="{Binding HeaderStatus, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
+                    <TextBlock Text="{Binding HeaderStatus}" FontSize="12" />
+                </Border>
+            </StackPanel>
+        </DockPanel>
+
+        <TabControl>
+            <TabItem Header="Overview">
+                <views:OverviewView DataContext="{Binding Overview}" />
+            </TabItem>
+            <TabItem Header="Timeline">
+                <views:TimelineView DataContext="{Binding Timeline}" />
+            </TabItem>
+            <TabItem Header="Milestones">
+                <views:MilestonesView DataContext="{Binding Milestones}" />
+            </TabItem>
+            <TabItem Header="Notes">
+                <views:NotesView DataContext="{Binding Notes}" />
+            </TabItem>
+            <TabItem Header="Builds &amp; Tests">
+                <views:HistoryView DataContext="{Binding History}" />
+            </TabItem>
+            <TabItem Header="Handoff">
+                <views:HandoffView DataContext="{Binding Handoff}" />
+            </TabItem>
+            <TabItem Header="Settings">
+                <views:ProjectSettingsView DataContext="{Binding Settings}" />
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</UserControl>

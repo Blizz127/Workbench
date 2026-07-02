@@ -1,0 +1,19 @@
+{
+  "name": "Example Web Service",
+  "description": "An ordinary software project — Workbench does not care whether the frontier is a function address or a feature ticket.",
+  "buildCommand": "npm run build",
+  "runCommand": "npm run dev",
+  "testCommand": "npm test",
+  "documentationPaths": [
+    "README.md",
+    "docs/"
+  ],
+  "aiContextPaths": [
+    "docs/architecture.md",
+    "src/api/routes.ts"
+  ],
+  "tags": [
+    "Software",
+    "Automation"
+  ]
+}

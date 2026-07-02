@@ -1,0 +1,20 @@
+{
+  "name": "Xenogears Decompilation",
+  "description": "Decompilation of Xenogears (PSX) toward a native PC port. Matching functions are verified against the retail binary.",
+  "buildCommand": "make -j8",
+  "runCommand": "./build/xenogears",
+  "testCommand": "python3 tools/check_matches.py",
+  "documentationPaths": [
+    "docs/",
+    "notes/memory-map.md"
+  ],
+  "aiContextPaths": [
+    "docs/decomp-guide.md",
+    "include/"
+  ],
+  "tags": [
+    "Reverse Engineering",
+    "Game Preservation",
+    "PSX"
+  ]
+}
