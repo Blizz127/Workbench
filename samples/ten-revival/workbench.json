@@ -1,0 +1,23 @@
+{
+  "name": "TEN Revival",
+  "description": "Revival of the Total Entertainment Network online service: reverse engineering the client protocol and reimplementing the lobby, matchmaking, and game relay servers so the original clients can connect again.",
+  "buildCommand": "cmake --build build -j8",
+  "runCommand": "./build/ten-server --config server.toml",
+  "testCommand": "python3 tools/protocol_tests.py --captures captures/",
+  "documentationPaths": [
+    "docs/protocol/",
+    "docs/lobby-flow.md",
+    "captures/README.md"
+  ],
+  "aiContextPaths": [
+    "docs/protocol/message-catalog.md",
+    "src/relay/",
+    "include/ten_protocol.h"
+  ],
+  "tags": [
+    "Networking",
+    "Game Preservation",
+    "Reverse Engineering",
+    "Server Revival"
+  ]
+}

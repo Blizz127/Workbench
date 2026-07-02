@@ -115,7 +115,14 @@ automatically; the Settings tab can export/import at any time.
 
 ## Phase boundaries
 
-Out of scope for Phase 1, by design: AI chat, LLM providers, prompt
-generation, automatic coding, patch generation, agent orchestration. The seams
-they will use already exist: `Project.PreferredAiProvider`,
-`Project.AiContextPaths`, and `IHandoffService`.
+Workbench is a standalone tool — not part of Xenogears, TEN, or any project it
+tracks. Out of scope for Phase 1, by design: AI chat, LLM providers, prompt
+generation, automatic coding, patch generation, agent orchestration. Workbench
+records and reports; it never modifies the code of a tracked project.
+
+The seams later phases will use already exist: `Project.PreferredAiProvider`
+(unused reserved field), `Project.AiContextPaths` (declared context inputs,
+read by nothing yet), and `IHandoffService` (the generated handoff document).
+The full five-phase roadmap — import/execution hardening, handoff/prompt
+export, optional provider modules, multi-project cockpit — lives in the
+README.
