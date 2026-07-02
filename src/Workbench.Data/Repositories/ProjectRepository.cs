@@ -118,17 +118,6 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.ExecuteNonQuery();
     }
 
-    /// <summary>Bumps updated_at without touching other fields (e.g. after appending history).</summary>
-    public void Touch(long id)
-    {
-        using var connection = database.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE projects SET updated_at = $now WHERE id = $id;";
-        command.Parameters.AddWithValue("$now", SqliteMapping.ToDb(DateTimeOffset.Now));
-        command.Parameters.AddWithValue("$id", id);
-        command.ExecuteNonQuery();
-    }
-
     private static void BindParameters(SqliteCommand command, Project p)
     {
         command.Parameters.AddWithValue("$name", p.Name);

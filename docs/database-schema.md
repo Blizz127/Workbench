@@ -10,16 +10,28 @@ Location: `%APPDATA%/Workbench/workbench.db` (Windows) or
 
 Conventions:
 
-- Timestamps are ISO-8601 round-trip strings (`TEXT`), read back as
-  `DateTimeOffset`.
+- Timestamps are ISO-8601 round-trip strings (`TEXT`), stored in **UTC** since
+  schema v2 so lexicographic `ORDER BY` matches chronological order. Read back
+  as `DateTimeOffset`.
 - Enums are stored by name (`TEXT`), parsed case-insensitively.
 - List-valued configuration (documentation paths, AI context paths) is a JSON
   array in a `TEXT` column; tags are a separate table so they stay queryable.
 - All child tables cascade on project delete.
 - `build_records` and `test_records` are **append-only** — the repositories
   expose no update or delete.
+- `output_log` columns are excluded from list queries and fetched per record
+  (`GetOutputLog`), so history views never load every stored log. Logs are
+  bounded at capture time by `ProcessRunner` (head + tail, marker line when
+  content is dropped), so a runaway command cannot bloat the database.
 
-## Tables (user_version = 1)
+## Migrations
+
+| user_version | Change |
+|--------------|--------|
+| 1 | Initial schema (all tables below). |
+| 2 | Rewrites all v1 timestamps from local-offset to UTC (same instant, full tick precision, done in C#). Unparseable values are left untouched. |
+
+## Tables (user_version = 2)
 
 ### projects
 

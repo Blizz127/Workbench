@@ -7,10 +7,13 @@ namespace Workbench.Data;
 /// <summary>Shared conversion helpers between CLR values and their SQLite representations.</summary>
 internal static class SqliteMapping
 {
-    public static string ToDb(DateTimeOffset value) => value.ToString("O", CultureInfo.InvariantCulture);
+    // Timestamps are normalized to UTC before storage (since schema v2) so the
+    // ISO-8601 strings sort lexicographically in chronological order.
+    public static string ToDb(DateTimeOffset value) =>
+        value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 
     public static object ToDb(DateTimeOffset? value) =>
-        value is null ? DBNull.Value : value.Value.ToString("O", CultureInfo.InvariantCulture);
+        value is null ? DBNull.Value : ToDb(value.Value);
 
     public static object ToDbNullable(string? value) => (object?)value ?? DBNull.Value;
 

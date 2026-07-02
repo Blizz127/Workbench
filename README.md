@@ -143,16 +143,21 @@ Configure the commands once (Settings or `workbench.json`), then use the
 
 - Commands execute via the platform shell (`cmd.exe` / `/bin/sh`) in the
   repository directory, with stdout/stderr captured interleaved and a timeout.
+  A running command can be cancelled from the UI; cancellation kills the whole
+  process tree and the attempt is recorded like any other outcome.
 - Every invocation is stored **append-only**: command, timestamp, exit code,
-  duration, full output log, and the HEAD commit it ran against. History is
-  never overwritten — a decomp's build log from three months ago is evidence,
-  not clutter.
+  duration, output log, and the HEAD commit it ran against. History is never
+  overwritten — a decomp's build log from three months ago is evidence, not
+  clutter. Logs are capped at capture time (the first and last ~200 KB are
+  kept, with a marker noting what was dropped), so a runaway command can't
+  bloat the database; list views load logs lazily, only for the run you select.
 - Each run also journals a timeline entry automatically (with the tail of the
   output attached on failure).
 - **Regression detection:** if the previous build (or run) with the same kind
   succeeded and the new one fails — or a previously passing test suite stops
-  passing — Workbench journals a `Regression` timeline entry. When you return
-  to a project and ask "when did this break?", the timeline answers.
+  passing — Workbench journals a `Regression` timeline entry. Timeouts count
+  as failures; a cancel you triggered yourself does not. When you return to a
+  project and ask "when did this break?", the timeline answers.
 
 Test results are recorded as Passed / Failed / Error / TimedOut, with optional
 notes (e.g. `1042/1893 functions matching (55.0%)`) and the associated commit.

@@ -56,16 +56,36 @@ public interface INoteRepository
 
 public interface IBuildHistoryRepository
 {
-    /// <summary>Newest first.</summary>
+    /// <summary>
+    /// Newest first. Records returned by list queries have an empty
+    /// <see cref="BuildRecord.OutputLog"/> — logs can be large, so they are
+    /// fetched individually via <see cref="GetOutputLog"/>.
+    /// </summary>
     IReadOnlyList<BuildRecord> GetForProject(long projectId, int limit = 100, ExecutionKind? kind = null);
+
+    /// <summary>Latest record without its output log (see <see cref="GetForProject"/>).</summary>
     BuildRecord? GetLatest(long projectId, ExecutionKind kind = ExecutionKind.Build);
+
+    /// <summary>Full output log for one record, or null if the record does not exist.</summary>
+    string? GetOutputLog(long recordId);
+
     long Add(BuildRecord record);
 }
 
 public interface ITestHistoryRepository
 {
-    /// <summary>Newest first.</summary>
+    /// <summary>
+    /// Newest first. Records returned by list queries have an empty
+    /// <see cref="TestRecord.OutputLog"/> — logs can be large, so they are
+    /// fetched individually via <see cref="GetOutputLog"/>.
+    /// </summary>
     IReadOnlyList<TestRecord> GetForProject(long projectId, int limit = 100);
+
+    /// <summary>Latest record without its output log (see <see cref="GetForProject"/>).</summary>
     TestRecord? GetLatest(long projectId);
+
+    /// <summary>Full output log for one record, or null if the record does not exist.</summary>
+    string? GetOutputLog(long recordId);
+
     long Add(TestRecord record);
 }

@@ -136,6 +136,36 @@ public sealed class RepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public void History_list_queries_omit_logs_which_are_fetched_per_record()
+    {
+        var builds = new BuildHistoryRepository(_fixture.Database);
+        var tests = new TestHistoryRepository(_fixture.Database);
+        var id = AddProject();
+
+        var buildId = builds.Add(new BuildRecord
+        {
+            ProjectId = id, Command = "make", StartedAt = DateTimeOffset.Now,
+            ExitCode = 0, OutputLog = "big build log",
+        });
+        var testId = tests.Add(new TestRecord
+        {
+            ProjectId = id, Command = "pytest", Result = TestResult.Passed,
+            StartedAt = DateTimeOffset.Now, OutputLog = "big test log",
+        });
+
+        // List and latest queries leave OutputLog empty.
+        Assert.All(builds.GetForProject(id), r => Assert.Equal(string.Empty, r.OutputLog));
+        Assert.Equal(string.Empty, builds.GetLatest(id)!.OutputLog);
+        Assert.All(tests.GetForProject(id), r => Assert.Equal(string.Empty, r.OutputLog));
+        Assert.Equal(string.Empty, tests.GetLatest(id)!.OutputLog);
+
+        // Per-record fetch returns the stored log.
+        Assert.Equal("big build log", builds.GetOutputLog(buildId));
+        Assert.Equal("big test log", tests.GetOutputLog(testId));
+        Assert.Null(builds.GetOutputLog(999_999));
+    }
+
+    [Fact]
     public void Build_history_is_append_only_and_latest_is_by_time()
     {
         var builds = new BuildHistoryRepository(_fixture.Database);

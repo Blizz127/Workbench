@@ -75,12 +75,21 @@ container needed at this size).
 
 Runs the configured build/run/test command via `ProcessRunner` (cmd.exe on
 Windows, `/bin/sh` elsewhere; output captured interleaved; configurable
-timeout), then:
+timeout; cancellation kills the process tree). Output capture is **bounded**:
+the first and last ~200 KB are kept with a marker line noting how many lines
+were dropped in between, so a runaway command cannot grow memory or the
+database without bound. Then:
 
 1. appends the record to the append-only history,
 2. journals a timeline entry (with an output-tail detail on failure),
 3. journals a **Regression** entry when a previously green build or previously
-   passing test suite goes red.
+   passing test suite goes red — timeouts count as failures, user-initiated
+   cancels do not.
+
+The UI (Builds & Tests tab) holds a `CancellationTokenSource` per run and
+shows a Cancel button while a command is executing; a cancelled run is
+recorded in history like any other outcome. History list views load records
+without their logs; the full log is fetched per record when selected.
 
 ### Handoff (`Workbench.Core.HandoffService`)
 

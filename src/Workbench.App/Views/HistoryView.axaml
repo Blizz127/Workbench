@@ -12,6 +12,8 @@
                 <Button Content="▶ Build" Command="{Binding RunBuildCommand}" />
                 <Button Content="▶ Run" Command="{Binding RunRunCommand}" />
                 <Button Content="▶ Test" Command="{Binding RunTestsCommand}" />
+                <Button Content="■ Cancel" Command="{Binding CancelRunCommand}"
+                        IsVisible="{Binding IsRunning}" Background="#9E3A38" />
                 <TextBlock Text="{Binding RunStatus}" VerticalAlignment="Center" Classes="muted" />
                 <TextBlock Text="Commands are configured in the Settings tab. History is append-only."
                            VerticalAlignment="Center" Classes="muted" />

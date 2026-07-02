@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace Workbench.Data;
@@ -65,21 +66,31 @@ public sealed class WorkbenchDatabase
         }
 
         var version = GetUserVersion(connection);
-        foreach (var (targetVersion, sql) in Migrations)
+        foreach (var migration in Migrations)
         {
-            if (version >= targetVersion)
+            if (version >= migration.Version)
                 continue;
 
             using var transaction = connection.BeginTransaction();
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = sql;
-            command.ExecuteNonQuery();
+            if (migration.Sql is { } sql)
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = sql;
+                command.ExecuteNonQuery();
+            }
 
-            command.CommandText = $"PRAGMA user_version = {targetVersion};";
-            command.ExecuteNonQuery();
+            migration.Apply?.Invoke(connection, transaction);
+
+            using (var bump = connection.CreateCommand())
+            {
+                bump.Transaction = transaction;
+                bump.CommandText = $"PRAGMA user_version = {migration.Version};";
+                bump.ExecuteNonQuery();
+            }
+
             transaction.Commit();
-            version = targetVersion;
+            version = migration.Version;
         }
     }
 
@@ -90,10 +101,19 @@ public sealed class WorkbenchDatabase
         return (long)(command.ExecuteScalar() ?? 0L);
     }
 
+    /// <summary>
+    /// One schema migration: DDL/DML in <see cref="Sql"/>, and/or a C# step in
+    /// <see cref="Apply"/> for transformations SQL can't express precisely.
+    /// </summary>
+    private sealed record Migration(
+        int Version,
+        string? Sql = null,
+        Action<SqliteConnection, SqliteTransaction>? Apply = null);
+
     /// <summary>Ordered schema migrations. Append new entries; never edit shipped ones.</summary>
-    private static readonly (int Version, string Sql)[] Migrations =
+    private static readonly Migration[] Migrations =
     [
-        (1, """
+        new(1, """
             CREATE TABLE projects (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
                 name                  TEXT NOT NULL,
@@ -197,5 +217,77 @@ public sealed class WorkbenchDatabase
             );
             CREATE INDEX ix_tests_project_time ON test_records(project_id, started_at DESC);
             """),
+
+        // v2: normalize all stored timestamps to UTC. v1 wrote ISO-8601 strings
+        // with the machine's local offset, which sort lexicographically wrong
+        // across offset changes (DST). Done in C# to preserve full tick
+        // precision — SQLite's date functions round to milliseconds.
+        new(2, Apply: (connection, transaction) => NormalizeTimestampsToUtc(connection, transaction)),
     ];
+
+    /// <summary>Every timestamp column in the schema, for the v2 UTC rewrite.</summary>
+    private static readonly (string Table, string[] Columns)[] TimestampColumns =
+    [
+        ("projects", ["created_at", "updated_at"]),
+        ("milestones", ["completed_at"]),
+        ("frontiers", ["created_at", "completed_at"]),
+        ("blockers", ["created_at", "resolved_at"]),
+        ("timeline_entries", ["timestamp"]),
+        ("notes", ["created_at", "updated_at"]),
+        ("build_records", ["started_at"]),
+        ("test_records", ["started_at"]),
+    ];
+
+    /// <summary>
+    /// Rewrites every non-UTC timestamp to its UTC equivalent (same instant,
+    /// zero offset). Values that fail to parse are left untouched so the
+    /// migration can never destroy data. Returns the number of rewritten
+    /// values. Public for testability.
+    /// </summary>
+    public static int NormalizeTimestampsToUtc(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        var rewritten = 0;
+        foreach (var (table, columns) in TimestampColumns)
+        {
+            foreach (var column in columns)
+            {
+                // Buffer the rows needing rewrite before updating: SQLite
+                // dislikes writing while a reader is open on the connection.
+                var updates = new List<(long Id, string Utc)>();
+
+                using (var select = connection.CreateCommand())
+                {
+                    select.Transaction = transaction;
+                    select.CommandText = $"SELECT id, {column} FROM {table} WHERE {column} IS NOT NULL;";
+                    using var reader = select.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        var raw = reader.GetString(1);
+                        if (!DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
+                                DateTimeStyles.RoundtripKind, out var parsed))
+                            continue;
+
+                        if (parsed.Offset == TimeSpan.Zero)
+                            continue;
+
+                        updates.Add((reader.GetInt64(0),
+                            parsed.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
+                    }
+                }
+
+                foreach (var (id, utc) in updates)
+                {
+                    using var update = connection.CreateCommand();
+                    update.Transaction = transaction;
+                    update.CommandText = $"UPDATE {table} SET {column} = $value WHERE id = $id;";
+                    update.Parameters.AddWithValue("$value", utc);
+                    update.Parameters.AddWithValue("$id", id);
+                    update.ExecuteNonQuery();
+                    rewritten++;
+                }
+            }
+        }
+
+        return rewritten;
+    }
 }

@@ -26,7 +26,10 @@ public sealed partial class HistoryViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(RunBuildCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunRunCommand))]
     [NotifyCanExecuteChangedFor(nameof(RunTestsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelRunCommand))]
     private bool _isRunning;
+
+    private CancellationTokenSource? _runCts;
 
     [ObservableProperty] private string _runStatus = string.Empty;
 
@@ -52,12 +55,14 @@ public sealed partial class HistoryViewModel : ViewModelBase
             Tests.Add(new TestRecordViewModel(record));
     }
 
+    // List queries no longer carry output logs; fetch the full log for the
+    // selected record only (an indexed primary-key lookup).
     partial void OnSelectedBuildChanged(BuildRecordViewModel? value)
     {
         if (value is not null)
         {
             SelectedTest = null;
-            SelectedLog = value.Record.OutputLog;
+            SelectedLog = _services.Builds.GetOutputLog(value.Record.Id) ?? string.Empty;
         }
     }
 
@@ -66,7 +71,7 @@ public sealed partial class HistoryViewModel : ViewModelBase
         if (value is not null)
         {
             SelectedBuild = null;
-            SelectedLog = value.Record.OutputLog;
+            SelectedLog = _services.Tests.GetOutputLog(value.Record.Id) ?? string.Empty;
         }
     }
 
@@ -79,28 +84,43 @@ public sealed partial class HistoryViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(CanRunBuild))]
     private async Task RunBuild() => await Execute(
-        () => _services.Execution.RunBuildAsync(_project, ExecutionKind.Build), "Building…");
+        token => _services.Execution.RunBuildAsync(_project, ExecutionKind.Build, cancellationToken: token),
+        "Building…");
 
     [RelayCommand(CanExecute = nameof(CanRunRun))]
     private async Task RunRun() => await Execute(
-        () => _services.Execution.RunBuildAsync(_project, ExecutionKind.Run), "Running…");
+        token => _services.Execution.RunBuildAsync(_project, ExecutionKind.Run, cancellationToken: token),
+        "Running…");
 
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     private async Task RunTests() => await Execute(
-        () => _services.Execution.RunTestsAsync(_project), "Testing…");
+        token => _services.Execution.RunTestsAsync(_project, cancellationToken: token),
+        "Testing…");
 
-    private async Task Execute<T>(Func<Task<T?>> action, string status) where T : class
+    [RelayCommand(CanExecute = nameof(IsRunning))]
+    private void CancelRun()
     {
+        RunStatus = "Cancelling…";
+        _runCts?.Cancel();
+    }
+
+    private async Task Execute<T>(Func<CancellationToken, Task<T?>> action, string status) where T : class
+    {
+        using var cts = new CancellationTokenSource();
+        _runCts = cts;
         IsRunning = true;
         RunStatus = status;
         try
         {
-            await Task.Run(action);
+            // ProcessRunner never throws on cancellation — it returns a
+            // Cancelled result that gets recorded like any other run.
+            await Task.Run(() => action(cts.Token));
         }
         finally
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
+                _runCts = null;
                 IsRunning = false;
                 RunStatus = string.Empty;
                 Reload();
