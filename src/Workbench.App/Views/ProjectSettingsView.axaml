@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             x:Class="Workbench.App.Views.ProjectSettingsView"
+             x:DataType="vm:ProjectSettingsViewModel">
+
+    <ScrollViewer Margin="0,8,0,0">
+        <StackPanel Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Project" Classes="h2" />
+                    <TextBlock Text="Name" Classes="muted" />
+                    <TextBox Text="{Binding Name}" />
+                    <TextBlock Text="Status" Classes="muted" />
+                    <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding Status}" Width="200" />
+                    <TextBlock Text="Description" Classes="muted" />
+                    <TextBox Text="{Binding Description}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" />
+                    <TextBlock Text="Tags (comma separated)" Classes="muted" />
+                    <TextBox Text="{Binding Tags}" Watermark="Reverse Engineering, Game Preservation, Networking…" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Repository &amp; commands" Classes="h2" />
+                    <TextBlock Text="Repository path" Classes="muted" />
+                    <TextBox Text="{Binding RepositoryPath}" Classes="mono" />
+                    <TextBlock Text="Build command" Classes="muted" />
+                    <TextBox Text="{Binding BuildCommand}" Classes="mono" Watermark="make -j8" />
+                    <TextBlock Text="Run command" Classes="muted" />
+                    <TextBox Text="{Binding RunCommand}" Classes="mono" Watermark="./build/app" />
+                    <TextBlock Text="Test command" Classes="muted" />
+                    <TextBox Text="{Binding TestCommand}" Classes="mono" Watermark="ctest / pytest / dotnet test" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Paths" Classes="h2" />
+                    <TextBlock Text="Documentation paths (one per line)" Classes="muted" />
+                    <TextBox Text="{Binding DocumentationPaths}" AcceptsReturn="True" MinHeight="60" Classes="mono" />
+                    <TextBlock Text="AI context paths (one per line — used by provider modules in later phases)" Classes="muted" />
+                    <TextBox Text="{Binding AiContextPaths}" AcceptsReturn="True" MinHeight="60" Classes="mono" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Configuration file" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Each project can carry a workbench.json at its repository root so the configuration travels with the code." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Export workbench.json" Command="{Binding ExportConfigCommand}" />
+                        <Button Content="Import workbench.json" Command="{Binding ImportConfigCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Danger zone" Classes="h2" />
+                    <CheckBox Content="I understand this deletes the project and all its history"
+                              IsChecked="{Binding ConfirmDelete}" />
+                    <Button Content="Delete project" Command="{Binding DeleteProjectCommand}"
+                            Background="#9E3A38" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Save changes" Command="{Binding SaveCommand}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

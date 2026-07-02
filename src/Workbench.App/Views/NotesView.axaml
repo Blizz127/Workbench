@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:core="using:Workbench.Core.Models"
+             x:Class="Workbench.App.Views.NotesView"
+             x:DataType="vm:NotesViewModel">
+
+    <Grid ColumnDefinitions="280,12,*" Margin="0,8,0,0">
+        <!-- Note list -->
+        <DockPanel Grid.Column="0">
+            <TextBox DockPanel.Dock="Top" Text="{Binding FilterText}"
+                     Watermark="Search notes…" Margin="0,0,0,8" />
+            <Button DockPanel.Dock="Bottom" Content="+ New note" Command="{Binding NewNoteCommand}"
+                    HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+            <ListBox ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:Note">
+                        <StackPanel Spacing="2" Margin="0,2">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="muted" FontSize="11"
+                                       Text="{Binding UpdatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- Editor -->
+        <DockPanel Grid.Column="2" IsEnabled="{Binding IsEditorEnabled}">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+                    <Button Content="Save" Command="{Binding SaveNoteCommand}" />
+                    <Button Content="Delete" Command="{Binding DeleteNoteCommand}" />
+                </StackPanel>
+                <TextBox Text="{Binding EditorTitle}" Watermark="Note title" />
+            </DockPanel>
+            <TextBlock DockPanel.Dock="Bottom" Classes="muted" Margin="0,6,0,0"
+                       Text="Markdown supported. Notes are searchable from the global search bar." />
+            <TextBox Text="{Binding EditorContent}"
+                     AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                     FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                     VerticalContentAlignment="Top"
+                     Watermark="# Write markdown here…" />
+        </DockPanel>
+    </Grid>
+</UserControl>

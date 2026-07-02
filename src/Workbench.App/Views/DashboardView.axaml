@@ -1,0 +1,125 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.DashboardView"
+             x:DataType="vm:DashboardViewModel">
+
+    <DockPanel Margin="16">
+        <!-- Filter row -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <ListBox DockPanel.Dock="Left" ItemsSource="{Binding StatusFilters}"
+                     SelectedItem="{Binding SelectedFilter}"
+                     Background="Transparent" Padding="0">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Text="{Binding}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10"
+                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                <TextBlock Text="{Binding SummaryText}" Classes="muted" VerticalAlignment="Center" />
+                <Button Content="+ Add project" Command="{Binding ToggleAddPanelCommand}" />
+            </StackPanel>
+            <Panel />
+        </DockPanel>
+
+        <!-- Add project panel -->
+        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12"
+                IsVisible="{Binding IsAddPanelOpen}">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Register a project" Classes="h2" />
+                <Grid ColumnDefinitions="*,12,*,12,Auto">
+                    <TextBox Grid.Column="0" Watermark="Project name"
+                             Text="{Binding NewProjectName}" />
+                    <TextBox Grid.Column="2" Watermark="Repository path (optional)"
+                             Text="{Binding NewRepositoryPath}" />
+                    <Button Grid.Column="4" Content="Add" Command="{Binding AddProjectCommand}" />
+                </Grid>
+                <TextBlock Text="{Binding AddProjectError}" Foreground="#F16A50"
+                           IsVisible="{Binding AddProjectError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Classes="muted"
+                           Text="If the repository contains a workbench.json, its configuration is imported automatically." />
+            </StackPanel>
+        </Border>
+
+        <!-- Project cards -->
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Cards}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProjectCardViewModel">
+                        <Button Command="{Binding OpenCommand}" Margin="0,0,12,12" Padding="0"
+                                Background="Transparent" BorderThickness="0"
+                                HorizontalContentAlignment="Stretch">
+                            <Border Classes="card" Width="360">
+                                <StackPanel Spacing="6">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Right" Classes="chip"
+                                                Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
+                                            <TextBlock Text="{Binding Status}" FontSize="11" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+
+                                    <TextBlock Text="{Binding RepositoryPath}" Classes="muted mono"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="branch" Classes="muted" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Branch}" Classes="mono"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="commit" Classes="muted" />
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding LastCommit}" Classes="mono"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="build" Classes="muted" />
+                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding LastBuildText}"
+                                                   Foreground="{Binding LastBuildOk, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="tests" Classes="muted" />
+                                        <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding LastTestText}"
+                                                   Foreground="{Binding LastTestOk, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="frontier" Classes="muted" />
+                                        <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding FrontierText}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding ActiveTask}" TextWrapping="Wrap" MaxLines="2" />
+
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding LastUpdated}" Classes="muted" />
+                                        <ItemsControl ItemsSource="{Binding Tags}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <Border Classes="chip" Margin="0,0,4,2">
+                                                        <TextBlock Text="{Binding}" FontSize="10" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
