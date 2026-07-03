@@ -16,9 +16,12 @@ public sealed class ProjectConfig
     public string? BuildCommand { get; set; }
     public string? RunCommand { get; set; }
     public string? TestCommand { get; set; }
+    public string? MatchingBuildCommand { get; set; }
     public List<string> DocumentationPaths { get; set; } = [];
     public List<string> AiContextPaths { get; set; } = [];
     public string? PreferredAiProvider { get; set; }
+    public string? PromptRules { get; set; }
+    public List<LogPatternDefinition> CustomLogPatterns { get; set; } = [];
     public List<string> Tags { get; set; } = [];
 }
 
@@ -77,9 +80,12 @@ public sealed class ProjectConfigService : IProjectConfigService
         project.BuildCommand = config.BuildCommand;
         project.RunCommand = config.RunCommand;
         project.TestCommand = config.TestCommand;
+        project.MatchingBuildCommand = config.MatchingBuildCommand;
         project.DocumentationPaths = [.. config.DocumentationPaths];
         project.AiContextPaths = [.. config.AiContextPaths];
         project.PreferredAiProvider = config.PreferredAiProvider;
+        project.PromptRules = config.PromptRules;
+        project.CustomLogPatterns = [.. config.CustomLogPatterns];
         project.Tags = [.. config.Tags];
     }
 
@@ -91,9 +97,12 @@ public sealed class ProjectConfigService : IProjectConfigService
         BuildCommand = project.BuildCommand,
         RunCommand = project.RunCommand,
         TestCommand = project.TestCommand,
+        MatchingBuildCommand = project.MatchingBuildCommand,
         DocumentationPaths = [.. project.DocumentationPaths],
         AiContextPaths = [.. project.AiContextPaths],
         PreferredAiProvider = project.PreferredAiProvider,
+        PromptRules = project.PromptRules,
+        CustomLogPatterns = [.. project.CustomLogPatterns],
         Tags = [.. project.Tags],
     };
 }

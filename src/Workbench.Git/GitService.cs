@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using LibGit2Sharp;
 using Workbench.Core.Models;
 using Workbench.Core.Services;
@@ -9,7 +10,7 @@ namespace Workbench.Git;
 /// types stay inside this assembly; callers only see Core models, so the git
 /// backend can be swapped (e.g. for a CLI abstraction) without touching the UI.
 /// </summary>
-public sealed class GitService : IGitService
+public sealed partial class GitService : IGitService
 {
     public RepositorySnapshot GetSnapshot(string? repositoryPath, int recentCommitCount = 10)
     {
@@ -50,6 +51,9 @@ public sealed class GitService : IGitService
                 .OrderBy(c => c.Path, StringComparer.Ordinal)
                 .ToList();
 
+            var tracking = repo.Head.TrackingDetails;
+            var (diffStat, diffCheckWarnings) = ComputeDiff(repo);
+
             return new RepositorySnapshot(
                 IsValid: true,
                 BranchName: branchName,
@@ -57,7 +61,11 @@ public sealed class GitService : IGitService
                 RecentCommits: recentCommits,
                 ModifiedFiles: changes,
                 IsDirty: changes.Count > 0,
-                Error: null);
+                Error: null,
+                AheadBy: tracking.AheadBy,
+                BehindBy: tracking.BehindBy,
+                DiffStat: diffStat,
+                DiffCheckWarnings: diffCheckWarnings);
         }
         catch (Exception ex) when (ex is LibGit2SharpException or IOException or UnauthorizedAccessException)
         {
@@ -100,5 +108,73 @@ public sealed class GitService : IGitService
         if (state.HasFlag(FileStatus.RenamedInWorkdir) || state.HasFlag(FileStatus.RenamedInIndex)) return "Renamed";
         if (state.HasFlag(FileStatus.ModifiedInWorkdir) || state.HasFlag(FileStatus.ModifiedInIndex)) return "Modified";
         return state.ToString();
+    }
+
+    /// <summary>
+    /// Computes a <c>git diff --stat</c>-style summary and a <c>git diff
+    /// --check</c>-style warning list (trailing whitespace / conflict markers
+    /// on added lines), comparing HEAD against the index and working
+    /// directory combined — i.e. all uncommitted changes, staged or not.
+    /// </summary>
+    private static (string? DiffStat, IReadOnlyList<DiffCheckWarning> Warnings) ComputeDiff(Repository repo)
+    {
+        if (repo.Head.Tip is null)
+            return (null, []);
+
+        using var patch = repo.Diff.Compare<Patch>(
+            repo.Head.Tip.Tree, DiffTargets.Index | DiffTargets.WorkingDirectory);
+
+        var fileCount = 0;
+        var warnings = new List<DiffCheckWarning>();
+
+        foreach (var entry in patch)
+        {
+            fileCount++;
+            warnings.AddRange(FindDiffCheckWarnings(entry.Path, entry.Patch));
+        }
+
+        var diffStat = $"{fileCount} file(s) changed, +{patch.LinesAdded}/-{patch.LinesDeleted}";
+        return (diffStat, warnings);
+    }
+
+    [GeneratedRegex(@"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")]
+    private static partial Regex HunkHeaderPattern();
+
+    [GeneratedRegex(@"^(<{7}|={7}|>{7})(?!=)")]
+    private static partial Regex ConflictMarkerPattern();
+
+    private static IEnumerable<DiffCheckWarning> FindDiffCheckWarnings(string path, string patchText)
+    {
+        var warnings = new List<DiffCheckWarning>();
+        var newLineNumber = 0;
+
+        foreach (var line in patchText.Split('\n'))
+        {
+            var headerMatch = HunkHeaderPattern().Match(line);
+            if (headerMatch.Success)
+            {
+                newLineNumber = int.Parse(headerMatch.Groups[1].Value) - 1;
+                continue;
+            }
+
+            if (line.StartsWith("+++", StringComparison.Ordinal) || line.StartsWith("---", StringComparison.Ordinal))
+                continue;
+
+            if (line.StartsWith('+'))
+            {
+                newLineNumber++;
+                var content = line[1..].TrimEnd('\r');
+                if (content.Length > 0 && (content[^1] == ' ' || content[^1] == '\t'))
+                    warnings.Add(new DiffCheckWarning(path, newLineNumber, "trailing whitespace"));
+                else if (ConflictMarkerPattern().IsMatch(content))
+                    warnings.Add(new DiffCheckWarning(path, newLineNumber, "unresolved conflict marker"));
+            }
+            else if (line.StartsWith(' '))
+            {
+                newLineNumber++;
+            }
+        }
+
+        return warnings;
     }
 }

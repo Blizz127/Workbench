@@ -31,6 +31,9 @@
                     <TextBox Text="{Binding RunCommand}" Classes="mono" Watermark="./build/app" />
                     <TextBlock Text="Test command" Classes="muted" />
                     <TextBox Text="{Binding TestCommand}" Classes="mono" Watermark="ctest / pytest / dotnet test" />
+                    <TextBlock Text="Matching-build command" Classes="muted" />
+                    <TextBox Text="{Binding MatchingBuildCommand}" Classes="mono"
+                             Watermark="e.g. make -B build — a build invoked specifically to check match/regression status" />
                 </StackPanel>
             </Border>
 
@@ -39,8 +42,17 @@
                     <TextBlock Text="Paths" Classes="h2" />
                     <TextBlock Text="Documentation paths (one per line)" Classes="muted" />
                     <TextBox Text="{Binding DocumentationPaths}" AcceptsReturn="True" MinHeight="60" Classes="mono" />
-                    <TextBlock Text="AI context paths (one per line — used by provider modules in later phases)" Classes="muted" />
+                    <TextBlock Text="AI context paths (one per line — files to include when handing a task to a model)" Classes="muted" />
                     <TextBox Text="{Binding AiContextPaths}" AcceptsReturn="True" MinHeight="60" Classes="mono" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Model prompt rules" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Free-text constraints included verbatim in the Handoff tab's generated model prompt — e.g. 'never touch original decomp source', 'confirm matches via the matching-build command before claiming success'." />
+                    <TextBox Text="{Binding PromptRules}" AcceptsReturn="True" MinHeight="70" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 

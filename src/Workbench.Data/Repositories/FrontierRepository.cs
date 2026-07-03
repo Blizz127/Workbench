@@ -6,7 +6,11 @@ namespace Workbench.Data.Repositories;
 
 public sealed class FrontierRepository(WorkbenchDatabase database) : IFrontierRepository
 {
-    private const string SelectColumns = "id, project_id, title, status, notes, created_at, completed_at";
+    private const string SelectColumns =
+        """
+        id, project_id, title, status, notes, symbol, evidence, blocker_class,
+        next_safest_step, assigned_model, created_at, completed_at
+        """;
 
     public IReadOnlyList<Frontier> GetForProject(long projectId)
     {
@@ -52,8 +56,12 @@ public sealed class FrontierRepository(WorkbenchDatabase database) : IFrontierRe
         using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO frontiers (project_id, title, status, notes, created_at, completed_at)
-            VALUES ($pid, $title, $status, $notes, $created_at, $completed_at);
+            INSERT INTO frontiers (
+                project_id, title, status, notes, symbol, evidence, blocker_class,
+                next_safest_step, assigned_model, created_at, completed_at)
+            VALUES (
+                $pid, $title, $status, $notes, $symbol, $evidence, $blocker_class,
+                $next_safest_step, $assigned_model, $created_at, $completed_at);
             SELECT last_insert_rowid();
             """;
         Bind(command, frontier);
@@ -68,6 +76,8 @@ public sealed class FrontierRepository(WorkbenchDatabase database) : IFrontierRe
         command.CommandText =
             """
             UPDATE frontiers SET title = $title, status = $status, notes = $notes,
+                symbol = $symbol, evidence = $evidence, blocker_class = $blocker_class,
+                next_safest_step = $next_safest_step, assigned_model = $assigned_model,
                 created_at = $created_at, completed_at = $completed_at
             WHERE id = $id;
             """;
@@ -91,6 +101,11 @@ public sealed class FrontierRepository(WorkbenchDatabase database) : IFrontierRe
         command.Parameters.AddWithValue("$title", f.Title);
         command.Parameters.AddWithValue("$status", f.Status.ToString());
         command.Parameters.AddWithValue("$notes", SqliteMapping.ToDbNullable(f.Notes));
+        command.Parameters.AddWithValue("$symbol", SqliteMapping.ToDbNullable(f.Symbol));
+        command.Parameters.AddWithValue("$evidence", SqliteMapping.ToDbNullable(f.Evidence));
+        command.Parameters.AddWithValue("$blocker_class", SqliteMapping.ToDbNullable(f.BlockerClass));
+        command.Parameters.AddWithValue("$next_safest_step", SqliteMapping.ToDbNullable(f.NextSafestStep));
+        command.Parameters.AddWithValue("$assigned_model", SqliteMapping.ToDbNullable(f.AssignedModel));
         command.Parameters.AddWithValue("$created_at", SqliteMapping.ToDb(f.CreatedAt));
         command.Parameters.AddWithValue("$completed_at", SqliteMapping.ToDb(f.CompletedAt));
     }
@@ -102,7 +117,12 @@ public sealed class FrontierRepository(WorkbenchDatabase database) : IFrontierRe
         Title = reader.GetString(2),
         Status = reader.GetEnum<FrontierStatus>(3),
         Notes = reader.GetNullableString(4),
-        CreatedAt = reader.GetDateTimeOffset(5),
-        CompletedAt = reader.GetNullableDateTimeOffset(6),
+        Symbol = reader.GetNullableString(5),
+        Evidence = reader.GetNullableString(6),
+        BlockerClass = reader.GetNullableString(7),
+        NextSafestStep = reader.GetNullableString(8),
+        AssignedModel = reader.GetNullableString(9),
+        CreatedAt = reader.GetDateTimeOffset(10),
+        CompletedAt = reader.GetNullableDateTimeOffset(11),
     };
 }

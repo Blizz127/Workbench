@@ -223,6 +223,55 @@ public sealed class WorkbenchDatabase
         // across offset changes (DST). Done in C# to preserve full tick
         // precision — SQLite's date functions round to milliseconds.
         new(2, Apply: (connection, transaction) => NormalizeTimestampsToUtc(connection, transaction)),
+
+        // v3: named command runners (matching-build + custom commands) with
+        // their own append-only history table, richer frontier fields, and
+        // the "last known git state" cache used by the Refresh Project action.
+        new(3, """
+            ALTER TABLE projects ADD COLUMN matching_build_command TEXT;
+            ALTER TABLE projects ADD COLUMN prompt_rules TEXT;
+            ALTER TABLE projects ADD COLUMN custom_log_patterns TEXT NOT NULL DEFAULT '[]';
+            ALTER TABLE projects ADD COLUMN last_known_branch TEXT;
+            ALTER TABLE projects ADD COLUMN last_known_commit_sha TEXT;
+            ALTER TABLE projects ADD COLUMN last_known_is_dirty INTEGER;
+            ALTER TABLE projects ADD COLUMN last_known_ahead_by INTEGER;
+            ALTER TABLE projects ADD COLUMN last_known_behind_by INTEGER;
+            ALTER TABLE projects ADD COLUMN last_refreshed_at TEXT;
+
+            ALTER TABLE frontiers ADD COLUMN symbol TEXT;
+            ALTER TABLE frontiers ADD COLUMN evidence TEXT;
+            ALTER TABLE frontiers ADD COLUMN blocker_class TEXT;
+            ALTER TABLE frontiers ADD COLUMN next_safest_step TEXT;
+            ALTER TABLE frontiers ADD COLUMN assigned_model TEXT;
+
+            CREATE TABLE project_commands (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                name         TEXT NOT NULL,
+                command_text TEXT NOT NULL,
+                sort_order   INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX ix_project_commands_project ON project_commands(project_id, sort_order);
+
+            CREATE TABLE command_runs (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id         INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                command_name       TEXT NOT NULL,
+                command_text       TEXT NOT NULL,
+                working_directory  TEXT,
+                started_at         TEXT NOT NULL,
+                exit_code          INTEGER,
+                duration_ms        INTEGER NOT NULL DEFAULT 0,
+                output_log         TEXT NOT NULL DEFAULT '',
+                output_truncated   INTEGER NOT NULL DEFAULT 0,
+                git_head_sha       TEXT,
+                was_dirty          INTEGER NOT NULL DEFAULT 0,
+                regression_detected INTEGER NOT NULL DEFAULT 0,
+                cancelled          INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX ix_command_runs_project_time ON command_runs(project_id, started_at DESC);
+            CREATE INDEX ix_command_runs_project_name ON command_runs(project_id, command_name, started_at DESC);
+            """),
     ];
 
     /// <summary>Every timestamp column in the schema, for the v2 UTC rewrite.</summary>

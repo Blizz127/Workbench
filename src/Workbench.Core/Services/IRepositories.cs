@@ -89,3 +89,29 @@ public interface ITestHistoryRepository
 
     long Add(TestRecord record);
 }
+
+public interface IProjectCommandRepository
+{
+    IReadOnlyList<ProjectCommand> GetForProject(long projectId);
+    long Add(ProjectCommand command);
+    void Update(ProjectCommand command);
+    void Delete(long id);
+}
+
+public interface ICommandRunRepository
+{
+    /// <summary>
+    /// Newest first. Records returned by list queries have an empty
+    /// <see cref="CommandRun.OutputLog"/> — logs can be large, so they are
+    /// fetched individually via <see cref="GetOutputLog"/>.
+    /// </summary>
+    IReadOnlyList<CommandRun> GetForProject(long projectId, int limit = 100, string? commandName = null);
+
+    /// <summary>Latest run of the given command name, without its output log.</summary>
+    CommandRun? GetLatest(long projectId, string commandName);
+
+    /// <summary>Full output log for one record, or null if the record does not exist.</summary>
+    string? GetOutputLog(long recordId);
+
+    long Add(CommandRun record);
+}

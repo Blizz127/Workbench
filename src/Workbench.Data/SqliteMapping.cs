@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Workbench.Core.Models;
 
 namespace Workbench.Data;
 
@@ -28,6 +29,22 @@ internal static class SqliteMapping
         try
         {
             return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    public static string ToJson(List<LogPatternDefinition> values) => JsonSerializer.Serialize(values);
+
+    public static List<LogPatternDefinition> LogPatternsFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+        try
+        {
+            return JsonSerializer.Deserialize<List<LogPatternDefinition>>(json) ?? [];
         }
         catch (JsonException)
         {

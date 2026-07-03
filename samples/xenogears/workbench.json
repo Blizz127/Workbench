@@ -1,9 +1,10 @@
 {
   "name": "Xenogears Decompilation",
   "description": "Decompilation of Xenogears (PSX) toward a native PC port. Matching functions are verified against the retail binary.",
-  "buildCommand": "make -j8",
+  "buildCommand": "./pc_port/build_port.sh",
   "runCommand": "./build/xenogears",
   "testCommand": "python3 tools/check_matches.py",
+  "matchingBuildCommand": "make -B build",
   "documentationPaths": [
     "docs/",
     "notes/memory-map.md"
@@ -11,6 +12,13 @@
   "aiContextPaths": [
     "docs/decomp-guide.md",
     "include/"
+  ],
+  "promptRules": "Never modify original decomp source under asm/ or src/ without matching evidence.\nConfirm matches via the matching-build command before claiming a function is done.\nPrefer minimal diffs; the PC port lives entirely under pc_port/.",
+  "customLogPatterns": [
+    { "name": "RUN_RC=", "pattern": "RUN_RC=", "isRegex": true, "category": "TestHarness" },
+    { "name": "[stub]", "pattern": "\\[stub\\]", "isRegex": true, "category": "TestHarness" },
+    { "name": "ParsePrimitive", "pattern": "\\bParsePrimitive\\b", "isRegex": true, "category": "FieldEngine" },
+    { "name": "field-diag", "pattern": "field-diag", "isRegex": true, "category": "FieldEngine" }
   ],
   "tags": [
     "Reverse Engineering",

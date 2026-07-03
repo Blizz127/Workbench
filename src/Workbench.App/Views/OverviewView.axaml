@@ -13,19 +13,43 @@
                 <Border Classes="card">
                     <StackPanel Spacing="6">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Refresh"
-                                    Command="{Binding RefreshRepositoryCommand}"
+                            <Button DockPanel.Dock="Right" Content="↻ Refresh Project"
+                                    Command="{Binding RefreshProjectCommand}"
                                     IsEnabled="{Binding !IsScanning}" />
                             <TextBlock Text="Repository" Classes="h2" />
                         </DockPanel>
                         <TextBlock Text="{Binding RepoSummary}" />
-                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto">
+                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="branch" Classes="muted" />
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Branch}" Classes="mono" />
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="HEAD" Classes="muted" />
                             <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding LastCommitText}"
                                        Classes="mono" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="tracking" Classes="muted" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding AheadBehindText}" />
                         </Grid>
+                        <TextBlock Text="{Binding DiffStatText}" Classes="mono muted"
+                                   IsVisible="{Binding DiffStatText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock Text="{Binding LastRefreshedText}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" IsVisible="{Binding DiffCheckWarnings.Count}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Diff check warnings" Classes="h2" />
+                        <ItemsControl ItemsSource="{Binding DiffCheckWarnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:DiffCheckWarning">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,1">
+                                        <TextBlock Grid.Column="0" Text="{Binding FilePath}" Classes="mono"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{Binding LineNumber}" Classes="mono muted"
+                                                   Margin="8,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Issue}" Classes="muted" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </Border>
 
@@ -103,23 +127,53 @@
                 </Border>
 
                 <Border Classes="card">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Frontier" Classes="h2" />
-                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="current" Classes="muted" />
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding CurrentFrontier}" TextWrapping="Wrap" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="next" Classes="muted" />
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding NextFrontier}" TextWrapping="Wrap" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="milestone" Classes="muted" />
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding CurrentMilestone}" TextWrapping="Wrap" />
-                        </Grid>
+                    <StackPanel Spacing="6" DataContext="{Binding Frontier}">
                         <DockPanel>
+                            <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding Statuses}"
+                                      SelectedItem="{Binding Status}" IsVisible="{Binding HasCurrent}"
+                                      Width="110" />
+                            <TextBlock Text="Current Frontier" Classes="h2" />
+                        </DockPanel>
+
+                        <TextBlock Text="No current frontier — start one below." Classes="muted"
+                                   IsVisible="{Binding !HasCurrent}" />
+
+                        <StackPanel Spacing="6" IsVisible="{Binding HasCurrent}">
+                            <TextBlock Text="Title" Classes="muted" />
+                            <TextBox Text="{Binding Title}" />
+                            <TextBlock Text="Exact function / symbol" Classes="muted" />
+                            <TextBox Text="{Binding Symbol}" Classes="mono" Watermark="e.g. func_8001FBE4" />
+                            <TextBlock Text="Evidence" Classes="muted" />
+                            <TextBox Text="{Binding Evidence}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="50"
+                                     Watermark="What supports the current understanding — match %, log excerpt, capture reference" />
+                            <TextBlock Text="Blocker class" Classes="muted" />
+                            <TextBox Text="{Binding BlockerClass}" Watermark="e.g. Linker: undefined reference" />
+                            <TextBlock Text="Next safest step" Classes="muted" />
+                            <TextBox Text="{Binding NextSafestStep}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="50" />
+                            <TextBlock Text="Assigned model" Classes="muted" />
+                            <TextBox Text="{Binding AssignedModel}" Watermark="e.g. claude-sonnet-5, human" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Save" Command="{Binding SaveDetailsCommand}" />
+                                <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <DockPanel Margin="0,4,0,0">
                             <Button DockPanel.Dock="Right" Content="Advance"
-                                    Command="{Binding AdvanceFrontierCommand}" Margin="6,0,0,0" />
+                                    Command="{Binding AdvanceCommand}" Margin="6,0,0,0" />
                             <TextBox Text="{Binding NewFrontierTitle}"
                                      Watermark="New frontier (completes the current one)" />
                         </DockPanel>
                     </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="next frontier" Classes="muted" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding NextFrontier}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="milestone" Classes="muted" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding CurrentMilestone}" TextWrapping="Wrap" />
+                    </Grid>
                 </Border>
 
                 <Border Classes="card">
