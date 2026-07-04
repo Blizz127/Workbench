@@ -9,8 +9,10 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
     private const string SelectColumns =
         """
         id, name, status, description, repository_path, build_command, run_command,
-        test_command, documentation_paths, ai_context_paths, preferred_ai_provider,
-        active_task, current_objective, created_at, updated_at
+        test_command, matching_build_command, documentation_paths, ai_context_paths,
+        preferred_ai_provider, prompt_rules, custom_log_patterns, active_task, current_objective,
+        last_known_branch, last_known_commit_sha, last_known_is_dirty, last_known_ahead_by,
+        last_known_behind_by, last_refreshed_at, created_at, updated_at
         """;
 
     public IReadOnlyList<Project> GetAll()
@@ -66,12 +68,16 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
             """
             INSERT INTO projects (
                 name, status, description, repository_path, build_command, run_command,
-                test_command, documentation_paths, ai_context_paths, preferred_ai_provider,
-                active_task, current_objective, created_at, updated_at)
+                test_command, matching_build_command, documentation_paths, ai_context_paths,
+                preferred_ai_provider, prompt_rules, custom_log_patterns, active_task, current_objective,
+                last_known_branch, last_known_commit_sha, last_known_is_dirty, last_known_ahead_by,
+                last_known_behind_by, last_refreshed_at, created_at, updated_at)
             VALUES (
                 $name, $status, $description, $repository_path, $build_command, $run_command,
-                $test_command, $documentation_paths, $ai_context_paths, $preferred_ai_provider,
-                $active_task, $current_objective, $created_at, $updated_at);
+                $test_command, $matching_build_command, $documentation_paths, $ai_context_paths,
+                $preferred_ai_provider, $prompt_rules, $custom_log_patterns, $active_task, $current_objective,
+                $last_known_branch, $last_known_commit_sha, $last_known_is_dirty, $last_known_ahead_by,
+                $last_known_behind_by, $last_refreshed_at, $created_at, $updated_at);
             SELECT last_insert_rowid();
             """;
         BindParameters(command, project);
@@ -96,9 +102,15 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 name = $name, status = $status, description = $description,
                 repository_path = $repository_path, build_command = $build_command,
                 run_command = $run_command, test_command = $test_command,
+                matching_build_command = $matching_build_command,
                 documentation_paths = $documentation_paths, ai_context_paths = $ai_context_paths,
-                preferred_ai_provider = $preferred_ai_provider, active_task = $active_task,
-                current_objective = $current_objective, created_at = $created_at, updated_at = $updated_at
+                preferred_ai_provider = $preferred_ai_provider, prompt_rules = $prompt_rules,
+                custom_log_patterns = $custom_log_patterns, active_task = $active_task,
+                current_objective = $current_objective,
+                last_known_branch = $last_known_branch, last_known_commit_sha = $last_known_commit_sha,
+                last_known_is_dirty = $last_known_is_dirty, last_known_ahead_by = $last_known_ahead_by,
+                last_known_behind_by = $last_known_behind_by, last_refreshed_at = $last_refreshed_at,
+                created_at = $created_at, updated_at = $updated_at
             WHERE id = $id;
             """;
         BindParameters(command, project);
@@ -118,17 +130,6 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.ExecuteNonQuery();
     }
 
-    /// <summary>Bumps updated_at without touching other fields (e.g. after appending history).</summary>
-    public void Touch(long id)
-    {
-        using var connection = database.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE projects SET updated_at = $now WHERE id = $id;";
-        command.Parameters.AddWithValue("$now", SqliteMapping.ToDb(DateTimeOffset.Now));
-        command.Parameters.AddWithValue("$id", id);
-        command.ExecuteNonQuery();
-    }
-
     private static void BindParameters(SqliteCommand command, Project p)
     {
         command.Parameters.AddWithValue("$name", p.Name);
@@ -138,11 +139,20 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.Parameters.AddWithValue("$build_command", SqliteMapping.ToDbNullable(p.BuildCommand));
         command.Parameters.AddWithValue("$run_command", SqliteMapping.ToDbNullable(p.RunCommand));
         command.Parameters.AddWithValue("$test_command", SqliteMapping.ToDbNullable(p.TestCommand));
+        command.Parameters.AddWithValue("$matching_build_command", SqliteMapping.ToDbNullable(p.MatchingBuildCommand));
         command.Parameters.AddWithValue("$documentation_paths", SqliteMapping.ToJson(p.DocumentationPaths));
         command.Parameters.AddWithValue("$ai_context_paths", SqliteMapping.ToJson(p.AiContextPaths));
         command.Parameters.AddWithValue("$preferred_ai_provider", SqliteMapping.ToDbNullable(p.PreferredAiProvider));
+        command.Parameters.AddWithValue("$prompt_rules", SqliteMapping.ToDbNullable(p.PromptRules));
+        command.Parameters.AddWithValue("$custom_log_patterns", SqliteMapping.ToJson(p.CustomLogPatterns));
         command.Parameters.AddWithValue("$active_task", SqliteMapping.ToDbNullable(p.ActiveTask));
         command.Parameters.AddWithValue("$current_objective", SqliteMapping.ToDbNullable(p.CurrentObjective));
+        command.Parameters.AddWithValue("$last_known_branch", SqliteMapping.ToDbNullable(p.LastKnownBranch));
+        command.Parameters.AddWithValue("$last_known_commit_sha", SqliteMapping.ToDbNullable(p.LastKnownCommitSha));
+        command.Parameters.AddWithValue("$last_known_is_dirty", (object?)p.LastKnownIsDirty is bool dirty ? (dirty ? 1 : 0) : DBNull.Value);
+        command.Parameters.AddWithValue("$last_known_ahead_by", SqliteMapping.ToDbNullable(p.LastKnownAheadBy));
+        command.Parameters.AddWithValue("$last_known_behind_by", SqliteMapping.ToDbNullable(p.LastKnownBehindBy));
+        command.Parameters.AddWithValue("$last_refreshed_at", SqliteMapping.ToDb(p.LastRefreshedAt));
         command.Parameters.AddWithValue("$created_at", SqliteMapping.ToDb(p.CreatedAt));
         command.Parameters.AddWithValue("$updated_at", SqliteMapping.ToDb(p.UpdatedAt));
     }
@@ -157,13 +167,22 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         BuildCommand = reader.GetNullableString(5),
         RunCommand = reader.GetNullableString(6),
         TestCommand = reader.GetNullableString(7),
-        DocumentationPaths = SqliteMapping.FromJson(reader.GetString(8)),
-        AiContextPaths = SqliteMapping.FromJson(reader.GetString(9)),
-        PreferredAiProvider = reader.GetNullableString(10),
-        ActiveTask = reader.GetNullableString(11),
-        CurrentObjective = reader.GetNullableString(12),
-        CreatedAt = reader.GetDateTimeOffset(13),
-        UpdatedAt = reader.GetDateTimeOffset(14),
+        MatchingBuildCommand = reader.GetNullableString(8),
+        DocumentationPaths = SqliteMapping.FromJson(reader.GetString(9)),
+        AiContextPaths = SqliteMapping.FromJson(reader.GetString(10)),
+        PreferredAiProvider = reader.GetNullableString(11),
+        PromptRules = reader.GetNullableString(12),
+        CustomLogPatterns = SqliteMapping.LogPatternsFromJson(reader.GetString(13)),
+        ActiveTask = reader.GetNullableString(14),
+        CurrentObjective = reader.GetNullableString(15),
+        LastKnownBranch = reader.GetNullableString(16),
+        LastKnownCommitSha = reader.GetNullableString(17),
+        LastKnownIsDirty = reader.IsDBNull(18) ? null : reader.GetInt32(18) != 0,
+        LastKnownAheadBy = reader.GetNullableInt32(19),
+        LastKnownBehindBy = reader.GetNullableInt32(20),
+        LastRefreshedAt = reader.GetNullableDateTimeOffset(21),
+        CreatedAt = reader.GetDateTimeOffset(22),
+        UpdatedAt = reader.GetDateTimeOffset(23),
     };
 
     private static List<string> LoadTags(SqliteConnection connection, long projectId)

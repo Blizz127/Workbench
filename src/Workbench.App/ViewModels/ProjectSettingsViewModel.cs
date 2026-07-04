@@ -24,8 +24,10 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _buildCommand;
     [ObservableProperty] private string _runCommand;
     [ObservableProperty] private string _testCommand;
+    [ObservableProperty] private string _matchingBuildCommand;
     [ObservableProperty] private string _documentationPaths;
     [ObservableProperty] private string _aiContextPaths;
+    [ObservableProperty] private string _promptRules;
     [ObservableProperty] private string _tags;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _confirmDelete;
@@ -44,8 +46,10 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         _buildCommand = project.BuildCommand ?? string.Empty;
         _runCommand = project.RunCommand ?? string.Empty;
         _testCommand = project.TestCommand ?? string.Empty;
+        _matchingBuildCommand = project.MatchingBuildCommand ?? string.Empty;
         _documentationPaths = string.Join(Environment.NewLine, project.DocumentationPaths);
         _aiContextPaths = string.Join(Environment.NewLine, project.AiContextPaths);
+        _promptRules = project.PromptRules ?? string.Empty;
         _tags = string.Join(", ", project.Tags);
     }
 
@@ -61,8 +65,10 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         _project.BuildCommand = NullIfEmpty(BuildCommand);
         _project.RunCommand = NullIfEmpty(RunCommand);
         _project.TestCommand = NullIfEmpty(TestCommand);
+        _project.MatchingBuildCommand = NullIfEmpty(MatchingBuildCommand);
         _project.DocumentationPaths = SplitLines(DocumentationPaths);
         _project.AiContextPaths = SplitLines(AiContextPaths);
+        _project.PromptRules = NullIfEmpty(PromptRules);
         _project.Tags = Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
         _services.Projects.Update(_project);
@@ -113,8 +119,10 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         BuildCommand = _project.BuildCommand ?? string.Empty;
         RunCommand = _project.RunCommand ?? string.Empty;
         TestCommand = _project.TestCommand ?? string.Empty;
+        MatchingBuildCommand = _project.MatchingBuildCommand ?? string.Empty;
         DocumentationPaths = string.Join(Environment.NewLine, _project.DocumentationPaths);
         AiContextPaths = string.Join(Environment.NewLine, _project.AiContextPaths);
+        PromptRules = _project.PromptRules ?? string.Empty;
         Tags = string.Join(", ", _project.Tags);
 
         _headerChanged();

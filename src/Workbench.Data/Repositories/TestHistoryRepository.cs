@@ -7,8 +7,10 @@ namespace Workbench.Data.Repositories;
 /// <summary>Append-only test history; never overwritten.</summary>
 public sealed class TestHistoryRepository(WorkbenchDatabase database) : ITestHistoryRepository
 {
+    // output_log is deliberately excluded: logs can be megabytes and list
+    // views never show them. Fetch per record via GetOutputLog.
     private const string SelectColumns =
-        "id, project_id, command, result, started_at, duration_ms, notes, commit_sha, output_log";
+        "id, project_id, command, result, started_at, duration_ms, notes, commit_sha";
 
     public IReadOnlyList<TestRecord> GetForProject(long projectId, int limit = 100)
     {
@@ -67,6 +69,15 @@ public sealed class TestHistoryRepository(WorkbenchDatabase database) : ITestHis
         return record.Id;
     }
 
+    public string? GetOutputLog(long recordId)
+    {
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT output_log FROM test_records WHERE id = $id;";
+        command.Parameters.AddWithValue("$id", recordId);
+        return command.ExecuteScalar() as string;
+    }
+
     private static TestRecord Map(SqliteDataReader reader) => new()
     {
         Id = reader.GetInt64(0),
@@ -77,6 +88,5 @@ public sealed class TestHistoryRepository(WorkbenchDatabase database) : ITestHis
         Duration = TimeSpan.FromMilliseconds(reader.GetInt64(5)),
         Notes = reader.GetNullableString(6),
         CommitSha = reader.GetNullableString(7),
-        OutputLog = reader.GetString(8),
     };
 }

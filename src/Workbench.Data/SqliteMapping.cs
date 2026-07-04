@@ -1,16 +1,20 @@
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Workbench.Core.Models;
 
 namespace Workbench.Data;
 
 /// <summary>Shared conversion helpers between CLR values and their SQLite representations.</summary>
 internal static class SqliteMapping
 {
-    public static string ToDb(DateTimeOffset value) => value.ToString("O", CultureInfo.InvariantCulture);
+    // Timestamps are normalized to UTC before storage (since schema v2) so the
+    // ISO-8601 strings sort lexicographically in chronological order.
+    public static string ToDb(DateTimeOffset value) =>
+        value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 
     public static object ToDb(DateTimeOffset? value) =>
-        value is null ? DBNull.Value : value.Value.ToString("O", CultureInfo.InvariantCulture);
+        value is null ? DBNull.Value : ToDb(value.Value);
 
     public static object ToDbNullable(string? value) => (object?)value ?? DBNull.Value;
 
@@ -25,6 +29,22 @@ internal static class SqliteMapping
         try
         {
             return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    public static string ToJson(List<LogPatternDefinition> values) => JsonSerializer.Serialize(values);
+
+    public static List<LogPatternDefinition> LogPatternsFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+        try
+        {
+            return JsonSerializer.Deserialize<List<LogPatternDefinition>>(json) ?? [];
         }
         catch (JsonException)
         {

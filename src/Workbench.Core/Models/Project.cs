@@ -24,6 +24,9 @@ public sealed class Project
 
     public string? TestCommand { get; set; }
 
+    /// <summary>A build invoked specifically to check match/regression status (e.g. a decomp's "make -B build").</summary>
+    public string? MatchingBuildCommand { get; set; }
+
     /// <summary>Paths (relative to the repository or absolute) to documentation.</summary>
     public List<string> DocumentationPaths { get; set; } = [];
 
@@ -33,6 +36,12 @@ public sealed class Project
     /// <summary>Reserved for later phases; providers plug in as modules.</summary>
     public string? PreferredAiProvider { get; set; }
 
+    /// <summary>Free-text constraints included verbatim in generated model prompts (e.g. "never touch original decomp source").</summary>
+    public string? PromptRules { get; set; }
+
+    /// <summary>Project-specific log patterns (e.g. a custom test harness's markers), merged with the built-in defaults.</summary>
+    public List<LogPatternDefinition> CustomLogPatterns { get; set; } = [];
+
     public List<string> Tags { get; set; } = [];
 
     /// <summary>The one task currently being worked on, shown on the dashboard card.</summary>
@@ -40,6 +49,16 @@ public sealed class Project
 
     /// <summary>The current objective shown in the detail view.</summary>
     public string? CurrentObjective { get; set; }
+
+    // Populated exclusively by the explicit "Refresh Project" action (Overview
+    // tab), not by the dashboard's passive per-card git lookup — so a change
+    // here always means the user asked Workbench to check.
+    public string? LastKnownBranch { get; set; }
+    public string? LastKnownCommitSha { get; set; }
+    public bool? LastKnownIsDirty { get; set; }
+    public int? LastKnownAheadBy { get; set; }
+    public int? LastKnownBehindBy { get; set; }
+    public DateTimeOffset? LastRefreshedAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

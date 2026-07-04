@@ -4,20 +4,58 @@
              x:Class="Workbench.App.Views.HandoffView"
              x:DataType="vm:HandoffViewModel">
 
-    <DockPanel Margin="0,8,0,0">
-        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="↻ Regenerate" Command="{Binding RegenerateCommand}" />
-                <Button x:Name="CopyButton" Content="Copy to clipboard" Click="OnCopyClicked" />
-                <TextBlock VerticalAlignment="Center" Classes="muted"
-                           Text="A snapshot of where this project stands — written for whoever (or whatever) picks it up next." />
-            </StackPanel>
-        </Border>
+    <ScrollViewer Margin="0,8,0,0">
+        <StackPanel Spacing="12">
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="↻ Regenerate" Command="{Binding RegenerateCommand}" />
+                        <Button Name="CopyHandoffButton" Content="Copy to clipboard" Click="OnCopyHandoffClicked" />
+                        <Button Content="+ Append Handoff Checkpoint" Command="{Binding PrepareCheckpointCommand}" />
+                        <TextBlock VerticalAlignment="Center" Classes="muted"
+                                   Text="A snapshot of where this project stands — written for whoever (or whatever) picks it up next." />
+                    </StackPanel>
 
-        <Border Classes="card">
-            <TextBox Text="{Binding HandoffMarkdown}" IsReadOnly="True"
-                     AcceptsReturn="True" TextWrapping="Wrap"
-                     FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="13" />
-        </Border>
-    </DockPanel>
+                    <TextBox Text="{Binding HandoffMarkdown}" IsReadOnly="True" Height="360"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="13" />
+                </StackPanel>
+            </Border>
+
+            <!-- Checkpoint preview/confirm — nothing is written until Confirm -->
+            <Border Classes="card" IsVisible="{Binding IsCheckpointPreviewOpen}" BorderBrush="#4C82C7" BorderThickness="2">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Preview: append to docs/ai_context/ACTIVE_HANDOFF.md" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="This appends the text below to a file inside the project's own repository. Nothing else is modified, and nothing is committed — review it, then confirm or cancel." />
+                    <TextBox Text="{Binding CheckpointPreviewText}" IsReadOnly="True" Height="220"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Confirm &amp; Append" Command="{Binding ConfirmCheckpointCommand}" />
+                        <Button Content="Cancel" Command="{Binding CancelCheckpointCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding CheckpointStatusMessage}" Classes="muted"
+                       IsVisible="{Binding CheckpointStatusMessage.Length}" />
+
+            <!-- Model prompt: separate generated text, its own copy button -->
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="⚡ Generate Model Prompt" Command="{Binding GenerateModelPromptCommand}" />
+                        <Button Name="CopyPromptButton" Content="Copy to clipboard" Click="OnCopyPromptClicked" />
+                        <TextBlock VerticalAlignment="Center" Classes="muted"
+                                   Text="Assembles frontier, last failure, log findings, rules, and git status into a prompt — text only, no API calls." />
+                    </StackPanel>
+                    <TextBox Text="{Binding ModelPromptText}" IsReadOnly="True" Height="320"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="13"
+                             Watermark="Click Generate Model Prompt to build a prompt from current project state." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
