@@ -22,9 +22,9 @@ public static class ParasiteEveSeeder
         if (projects.GetAll().Any(p => p.Name == ProjectName))
             return;
 
-        // Phase 0 scaffold, the disc 1 verification pass, and the disc 2 pass +
-        // extract-script fix all landed on this date (Parasite-Eve-Decompilation
-        // commits 311ea1c, 8e103fc, cca2ecb).
+        // Phase 0 scaffold, both disc verification passes, the extract-script
+        // fix, and the PE.IMG identity check all landed on this date
+        // (Parasite-Eve-Decompilation commits 311ea1c, 8e103fc, cca2ecb, 23dc146).
         var verifiedOn = new DateTimeOffset(2026, 7, 4, 12, 0, 0, TimeSpan.Zero);
 
         var project = new Project
@@ -33,8 +33,9 @@ public static class ParasiteEveSeeder
             Status = ProjectStatus.Research,
             Description = "PS1 decompilation research project for Parasite Eve " +
                           "(USA / NTSC-U, Disc 1: SLUS-00662, Disc 2: SLUS-00668). " +
-                          "Phase 1 disc verification complete locally for both discs " +
-                          "(redump cross-checks pending). No disassembly, symbols, or " +
+                          "Phase 1 disc verification complete locally for both discs and " +
+                          "corroborated against independent third-party hashes (official " +
+                          "redump check pending). No disassembly, symbols, or " +
                           "decompiled code exist yet. Parked: secondary to Xenogears.",
             RepositoryPath = "/var/home/blizz/Projects/Parasite-Eve-Decompilation",
             TestCommand = "./scripts/extract_us.sh all",
@@ -60,8 +61,8 @@ public static class ParasiteEveSeeder
                 new LogPatternDefinition("disc-verify SKIP", @"^SKIP:", Category: "DiscVerification"),
             ],
             Tags = ["PS1", "Decompilation", "Preservation", "Reverse Engineering", "Square", "Parasite Eve"],
-            ActiveTask = "Close out Phase 1 — redump cross-check + PE.IMG identity check",
-            CurrentObjective = "Phase 1 verified locally; confirm against redump, then Phase 2 splat config",
+            ActiveTask = "Close out Phase 1 — official redump cross-check (site unreachable; dumps corroborated)",
+            CurrentObjective = "Phase 1 locally complete and corroborated; Phase 2 splat config is next",
             CreatedAt = verifiedOn,
         };
         projects.Add(project);
@@ -104,14 +105,27 @@ public static class ParasiteEveSeeder
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
+            Title = "PE.IMG identity check across discs",
+            Status = FrontierStatus.Completed,
+            Notes = "Completed 2026-07-04 (23dc146): both copies byte-identical " +
+                    "(SHA-1 146c0ce7308bf9fdc2ba5a84230e198db0663f3b, pure Form 1). " +
+                    "With the identical boot EXEs, the discs differ only in FMV/XA " +
+                    "streams — the decomp target is one EXE plus one archive.",
+            CreatedAt = verifiedOn,
+            CompletedAt = verifiedOn,
+        });
+        frontiers.Add(new Frontier
+        {
+            ProjectId = project.Id,
             Title = "Redump cross-check (disc 1 page: redump.org/disc/116/)",
             Status = FrontierStatus.Current,
-            Notes = "redump.org unreachable (ECONNREFUSED) on 2026-07-04; both discs' " +
-                    "hashes are recorded locally in docs/disc_info.md but not yet " +
-                    "matched against redump.",
-            NextSafestStep = "Retry redump.org for both discs and record the result in " +
-                             "docs/disc_info.md; also hash both PE.IMG copies (same size and " +
-                             "LBA on both discs) to settle the identical-archive hypothesis.",
+            Notes = "redump.org unreachable (ECONNREFUSED) on 2026-07-04, retried same " +
+                    "day. Both dumps are corroborated by an independent third-party " +
+                    "catalog with identical hashes (recorded in docs/disc_info.md as " +
+                    "non-authoritative); the official redump check remains open.",
+            NextSafestStep = "Retry redump.org periodically and record the official values " +
+                             "in docs/disc_info.md. Not a prerequisite for starting Phase 2 " +
+                             "splat work.",
             CreatedAt = verifiedOn,
         });
         frontiers.Add(new Frontier
@@ -126,9 +140,10 @@ public static class ParasiteEveSeeder
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "Redump cross-check pending for both discs — redump.org unreachable " +
-                          "(ECONNREFUSED, 2026-07-04); local dump hashes are recorded but not yet " +
-                          "matched against redump",
+            Description = "Official redump cross-check pending for both discs — redump.org " +
+                          "unreachable (ECONNREFUSED, 2026-07-04, retried); dumps corroborated by " +
+                          "an independent third-party catalog with identical hashes " +
+                          "(non-authoritative)",
             CreatedAt = verifiedOn,
         });
         blockers.Add(new Blocker
@@ -153,6 +168,8 @@ public static class ParasiteEveSeeder
             (TimelineCategory.Blocker, "redump.org unreachable — cross-check recorded as PENDING"),
             (TimelineCategory.Milestone, "Disc 2 verification recorded + extract_us.sh fail-loudly fix (cca2ecb); " +
                                          "both boot EXEs verified byte-identical"),
+            (TimelineCategory.Frontier, "PE.IMG identity check completed (23dc146): byte-identical across discs; " +
+                                        "dumps corroborated vs independent third-party hashes"),
         ];
         foreach (var (category, message) in entries)
         {
@@ -180,9 +197,11 @@ public static class ParasiteEveSeeder
                 - Working state: `docs/ai_context/ACTIVE_HANDOFF.md` (read first)
                 - Roadmap: `docs/project_plan.md` · Disc facts: `docs/disc_info.md` · Boundaries: `docs/legal.md`
 
-                **Current phase: Phase 1 — locally complete.** Both discs are recorded
-                and the boot EXEs are byte-identical (one decomp target). Pending:
-                redump cross-checks and the PE.IMG identical-archive check. There is no
+                **Current phase: Phase 1 — locally complete and corroborated.** Both
+                discs are recorded; the boot EXEs and PE.IMG are byte-identical across
+                discs, so the decomp target is one EXE plus one archive. The only open
+                Phase 1 item is the official redump cross-check (site unreachable;
+                dumps corroborated by independent third-party hashes). There is no
                 disassembly, no symbols, no decompiled C, and no PC-port work — and
                 none is allowed until the phase roadmap reaches them.
                 """,

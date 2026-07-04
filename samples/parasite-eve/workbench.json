@@ -1,6 +1,6 @@
 {
   "name": "Parasite Eve Decompilation",
-  "description": "PS1 decompilation research project for Parasite Eve (USA / NTSC-U, Disc 1: SLUS-00662, Disc 2: SLUS-00668). Phase 1 disc verification complete locally for both discs (redump cross-checks pending). No disassembly, symbols, or decompiled code exist yet. Parked: secondary to Xenogears.",
+  "description": "PS1 decompilation research project for Parasite Eve (USA / NTSC-U, Disc 1: SLUS-00662, Disc 2: SLUS-00668). Phase 1 disc verification complete locally for both discs and corroborated against independent third-party hashes (official redump check pending). No disassembly, symbols, or decompiled code exist yet. Parked: secondary to Xenogears.",
   "repositoryPath": "/var/home/blizz/Projects/Parasite-Eve-Decompilation",
   "testCommand": "./scripts/extract_us.sh all",
   "documentationPaths": [
