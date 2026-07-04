@@ -8,7 +8,7 @@ or matching-build commands.
 
 - Repository: <https://github.com/Blizz127/Parasite-Eve-Decompilation>
 - Target: Parasite Eve USA / NTSC-U (Disc 1 `SLUS-00662`, Disc 2 `SLUS-00668`)
-- Current phase: **Phase 1 — disc verification** (Disc 1 recorded, Disc 2 pending)
+- Current phase: **Phase 1 — locally complete** (both discs recorded; redump cross-checks pending)
 - Status: parked / early setup — secondary to Xenogears
 
 ## Commands in this sample
