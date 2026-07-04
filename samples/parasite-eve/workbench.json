@@ -1,0 +1,29 @@
+{
+  "name": "Parasite Eve Decompilation",
+  "description": "PS1 decompilation research project for Parasite Eve (USA / NTSC-U, Disc 1: SLUS-00662, Disc 2: SLUS-00668). Phase 1 — disc verification. No disassembly, symbols, or decompiled code exist yet. Parked: secondary to Xenogears.",
+  "repositoryPath": "/var/home/blizz/Projects/Parasite-Eve-Decompilation",
+  "testCommand": "./scripts/extract_us.sh all",
+  "documentationPaths": [
+    "docs/project_plan.md",
+    "docs/disc_info.md",
+    "docs/legal.md",
+    "docs/reverse_engineering_notes.md"
+  ],
+  "aiContextPaths": [
+    "docs/ai_context/ACTIVE_HANDOFF.md",
+    "CLAUDE.md"
+  ],
+  "promptRules": "Read docs/ai_context/ACTIVE_HANDOFF.md before doing anything.\nNever invent decompiled C; no code under src/ until the checksum/rebuild harness exists (Phase 4+).\nNever claim matching progress without checksum/build verification and the exact command recorded.\nNever commit game data: no disc images, extracted files, assets, or proprietary SDK files.\nCurrent scope is Phase 1 (disc verification) only — no disassembly, splitting, symbols, or PC-port work.",
+  "customLogPatterns": [
+    { "name": "disc-verify OK", "pattern": "^OK: disc", "isRegex": true, "category": "DiscVerification" },
+    { "name": "disc-verify SKIP", "pattern": "^SKIP:", "isRegex": true, "category": "DiscVerification" }
+  ],
+  "tags": [
+    "PS1",
+    "Decompilation",
+    "Preservation",
+    "Reverse Engineering",
+    "Square",
+    "Parasite Eve"
+  ]
+}

@@ -74,7 +74,9 @@ dotnet run --project src/Workbench.App
 ```
 
 On first launch a sample project (Xenogears Decompilation) is seeded so every
-screen has something to show. To add your own:
+screen has something to show. A second tracked project (Parasite Eve
+Decompilation — parked, early disc-verification phase) is seeded whenever it
+is missing. To add your own:
 
 1. **Dashboard → “+ Add project”.** Give it a name, a repository path, or both.
    The path can be any local git clone — decomp tree, server emulator,
@@ -223,12 +225,13 @@ notes (e.g. `1042/1893 functions matching (55.0%)`) and the associated commit.
 
 ## Example projects
 
-[`samples/`](samples/) contains `workbench.json` examples for four shapes of
+[`samples/`](samples/) contains `workbench.json` examples for five shapes of
 project:
 
 | Sample | Shape |
 |--------|-------|
 | [`samples/xenogears/`](samples/xenogears/) | **Xenogears Decomp / PC Port** — matching decompilation with a match-rate test harness, a matching-build command, and project-specific log patterns. |
+| [`samples/parasite-eve/`](samples/parasite-eve/) | **Parasite Eve Decomp** — an early-phase decomp still in disc verification/setup: no build or matching commands yet, parked behind Xenogears. |
 | [`samples/ten-revival/`](samples/ten-revival/) | **TEN Revival** — bringing a dead online-game network back: protocol RE, relay/lobby server. |
 | [`samples/crimson-sands/`](samples/crimson-sands/) | **Crimson Sands / D&D server revival** — MMO server emulation from packet captures. |
 | [`samples/generic-software/`](samples/generic-software/) | **Generic software project** — any ordinary codebase with build/test commands. |
