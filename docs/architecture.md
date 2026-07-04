@@ -30,7 +30,8 @@
 │                      ProjectConfigService,             │
 │                      LogPatternAnalyzer,               │
 │                      HandoffCheckpointWriter,          │
-│                      PromptGeneratorService            │
+│                      PromptGeneratorService,           │
+│                      GitSyncService                    │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -47,7 +48,7 @@ container needed at this size).
 | Milestone | `Milestone` | Ordered checklist; completion timestamps journal to the timeline. |
 | Frontier | `Frontier` | The current edge of progress: title, exact symbol, evidence, blocker class, next safest step, assigned model (plain metadata, no API call), status. One `Current`, one `Next`; advancing completes the old current. Completed frontiers are history. |
 | Blocker | `Blocker` | Open blockers surface on the overview and in handoffs; resolving keeps them as history with a resolution text. |
-| Timeline | `TimelineEntry` | Append-only engineering journal. Categories: Build, Run, Test, Code, Milestone, Frontier, Blocker, Note, Regression, Status, General. |
+| Timeline | `TimelineEntry` | Append-only engineering journal. Categories: Build, Run, Test, Code, Milestone, Frontier, Blocker, Note, Regression, Status, GitSync, General. |
 | Build history | `BuildRecord` | Append-only (`ExecutionKind.Build` or `.Run`): command, timestamp, exit code, duration, full output log, HEAD sha. |
 | Test history | `TestRecord` | Append-only: command, result (Passed/Failed/Error/TimedOut), runtime, notes, associated commit. |
 | Command | `ProjectCommand` | A user-named command beyond the fixed build/run/test/matching-build slots. |
@@ -82,6 +83,47 @@ container needed at this size).
   git CLI abstraction.
 - `TodoScanner` walks the working tree for `TODO`/`FIXME`/`HACK`/`XXX`
   comments, skipping build/VCS directories, capped by file size and item count.
+
+### GitHub sync (`Workbench.Core.GitSyncService`)
+
+The one place Workbench performs git *writes*, and the only place it talks to
+a remote at all. Three explicit, button-driven actions — Fetch, Pull
+(fast-forward only), Push — each guarded by a safety check that runs and can
+block **before** any git command executes:
+
+- `FetchAsync` runs `git fetch --all --prune` unconditionally (a fetch is
+  never destructive) and refreshes the repository snapshot.
+- `PullFastForwardAsync` runs `git pull --ff-only`, but only if: the repo has
+  an upstream tracking branch, the working tree is clean, and the branch is
+  behind without also being ahead (no divergence). A dirty tree, a diverged
+  branch, a missing upstream, or nothing-to-pull all return
+  `GitSyncStatus.Blocked` with a plain-English reason and never invoke git.
+- `PushAsync` runs `git push`, but only if an upstream exists and the branch
+  is ahead. A dirty working tree does **not** block a push — only committed
+  work is ever pushed — but is surfaced as a non-blocking `Warning` so the
+  user isn't surprised by what didn't come along.
+
+Every attempt (blocked, succeeded, or failed) is journaled to the timeline
+under the `GitSync` category, capturing the command, branch, HEAD before/after,
+ahead/behind before/after, and — on failure — a bounded tail of the output.
+
+Deliberately out of scope, permanently: auto-commit, auto-stash, auto-merge,
+auto-rebase, force-push, and creating remotes or branches. Each method maps to
+exactly one explicit UI button, and the UI (`GitSyncViewModel`) additionally
+gates Pull and Push behind a preview panel — nothing runs until the user hits
+*Confirm*.
+
+Commands run through the same `IProcessRunner` used for build/test/custom
+commands, invoking the user's own `git` CLI rather than LibGit2Sharp's network
+stack — so whatever credential helper, SSH agent, or cached token the user
+already has configured is reused as-is, instead of Workbench reimplementing
+git authentication.
+
+**Freshness note:** the safety checks read `IGitService.GetSnapshot`, which
+reflects local `refs/remotes/origin/*` state — only updated by an actual
+fetch. Pull's ahead/behind read is therefore only as current as the last
+Fetch (or a Refresh Project); this matches the intended flow (Fetch, then
+Pull becomes available) and is exercised directly in `GitSyncServiceTests`.
 
 ### Refresh Project (`OverviewViewModel.RefreshProject`)
 

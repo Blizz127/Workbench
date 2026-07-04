@@ -42,6 +42,9 @@ and Linux) · All data stays local in SQLite.
   history** — run any of the project's configured commands from the app and
   keep an append-only record of every invocation, with automatic scanning for
   known failure signatures (see §7).
+- **GitHub sync** — explicit, button-driven Fetch, Pull (fast-forward only),
+  and Push actions for keeping a repository in sync across machines, each
+  guarded by a safety check and recorded to the timeline (see §7.5).
 - **Tags and global search** — search spans projects, notes, milestones,
   timeline entries, and frontiers.
 
@@ -59,7 +62,14 @@ Being explicit, because the name "AI-assisted" invites assumptions:
   note to one fixed file, `docs/ai_context/ACTIVE_HANDOFF.md`, inside the
   project's own repo (the same category of action as exporting
   `workbench.json`: a Workbench-owned context artifact, not source code).
-  Nothing is ever staged, committed, or pushed by Workbench.
+  Workbench never stages or commits anything on your behalf.
+- **Git writes are explicit, narrow, and confirmed.** The only git commands
+  Workbench ever runs against a remote are `git fetch`, `git pull --ff-only`,
+  and `git push` — each behind its own button, each gated by a safety check
+  that can block it outright, and Pull/Push additionally require a preview-
+  then-confirm step (see §7.5). Workbench never auto-commits, auto-stashes,
+  auto-merges, auto-rebases, force-pushes, or creates remotes/branches on its
+  own.
 - **No agent orchestration, no API-backed prompt pipelines.** Prompts are
   assembled as text for you to paste; nothing is sent anywhere automatically.
   That remains a later phase (see the roadmap in §8).
@@ -222,6 +232,46 @@ them in Settings, `workbench.json`, or directly on the Builds & Tests tab.
 
 Test results are recorded as Passed / Failed / Error / TimedOut, with optional
 notes (e.g. `1042/1893 functions matching (55.0%)`) and the associated commit.
+
+## 7.5. GitHub sync: Fetch, Pull, Push
+
+For projects you work on from more than one machine, the Overview tab has a
+**GitHub** card with three explicit actions. Nothing here runs on its own —
+every action is one button click, and Pull/Push additionally show a preview
+of exactly what will happen before a **Confirm** button does anything:
+
+- **⇅ Fetch/Update from GitHub** — runs `git fetch --all --prune` and
+  refreshes the branch/ahead/behind/dirty state shown on the card. This is
+  always safe to run: a fetch never touches your working tree or history.
+- **⏩ Pull (fast-forward)** — appears only once a fetch shows the branch is
+  behind. Runs `git pull --ff-only`, and only if:
+  - the working tree is clean (a dirty tree blocks the pull with a warning
+    telling you to commit or discard first — Workbench will not stash for
+    you), and
+  - the branch hasn't diverged (if it's both ahead and behind, Workbench
+    blocks the pull and tells you to resolve it manually — no automatic
+    merge or rebase, ever).
+
+  Because `--ff-only` is passed to git itself, even in the small window
+  between the check and the command, git will still refuse and no local
+  state changes.
+- **⬆ Push committed changes** — appears once the branch is ahead of
+  upstream. Runs `git push`. A dirty working tree does not block the push —
+  only what you've actually committed goes — but the preview and the result
+  both warn you that uncommitted changes are being left behind. If no
+  upstream is configured, Push is blocked with a message telling you to set
+  one yourself (`git push -u origin <branch>`); Workbench never creates a
+  remote or branch on your behalf.
+
+Every fetch/pull/push attempt — blocked, succeeded, or failed — is journaled
+to the timeline (category `GitSync`) with the command, branch, HEAD before/
+after, and ahead/behind before/after, so the history of what was synced and
+when is preserved alongside everything else.
+
+**One nuance worth knowing:** Pull's ahead/behind check reads whatever the
+last fetch (or Refresh Project) recorded — it does not implicitly fetch for
+you first. If origin has moved since your last fetch, run **Fetch/Update**
+before trusting the Pull button's availability or the numbers on the card.
 
 ## Example projects
 

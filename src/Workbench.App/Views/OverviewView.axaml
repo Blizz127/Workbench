@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Workbench.App.ViewModels"
              xmlns:core="using:Workbench.Core.Models"
+             xmlns:conv="using:Workbench.App.Converters"
              x:Class="Workbench.App.Views.OverviewView"
              x:DataType="vm:OverviewViewModel">
 
@@ -31,6 +32,50 @@
                         <TextBlock Text="{Binding DiffStatText}" Classes="mono muted"
                                    IsVisible="{Binding DiffStatText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                         <TextBlock Text="{Binding LastRefreshedText}" Classes="muted" FontSize="11" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" DataContext="{Binding GitSync}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="GitHub" Classes="h2" />
+                        <TextBlock Text="{Binding SyncStateText}" Classes="muted" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="⇅ Fetch/Update from GitHub" Command="{Binding FetchCommand}" />
+                            <Button Content="⏩ Pull (fast-forward)" Command="{Binding PreparePullCommand}"
+                                    IsVisible="{Binding CanPull}" />
+                            <Button Content="⬆ Push committed changes" Command="{Binding PreparePushCommand}"
+                                    IsVisible="{Binding CanPush}" />
+                            <Button Content="■ Cancel" Command="{Binding CancelRunCommand}"
+                                    IsVisible="{Binding IsBusy}" Background="#9E3A38" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding RunStatus}" Classes="muted" IsVisible="{Binding RunStatus.Length}" />
+                        <TextBlock Text="{Binding LastResultMessage}" IsVisible="{Binding LastResultMessage.Length}"
+                                   Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+                        <!-- Pull preview/confirm: nothing runs until Confirm -->
+                        <Border IsVisible="{Binding IsPullPreviewOpen}" BorderBrush="#4C82C7" BorderThickness="2"
+                                CornerRadius="6" Padding="10" Margin="0,4,0,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding PullPreviewText}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Confirm Pull" Command="{Binding ConfirmPullCommand}" />
+                                    <Button Content="Cancel" Command="{Binding CancelPullPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Push preview/confirm: nothing runs until Confirm -->
+                        <Border IsVisible="{Binding IsPushPreviewOpen}" BorderBrush="#4C82C7" BorderThickness="2"
+                                CornerRadius="6" Padding="10" Margin="0,4,0,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{Binding PushPreviewText}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Confirm Push" Command="{Binding ConfirmPushCommand}" />
+                                    <Button Content="Cancel" Command="{Binding CancelPushPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 

@@ -90,7 +90,8 @@ resolved_at` — indexed on `(project_id, is_resolved)`.
 `id, project_id, timestamp, category, message, detail` — indexed on
 `(project_id, timestamp DESC)`. Append-only engineering journal. Categories:
 General, Build, Run, Test, Code, Milestone, Frontier, Blocker, Note,
-Regression, Status.
+Regression, Status, GitSync. `GitSync` needed no migration — it's a new value
+of an existing `TEXT` column, not a schema change.
 
 ### build_records
 

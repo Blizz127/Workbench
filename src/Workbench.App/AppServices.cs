@@ -37,6 +37,7 @@ public sealed class AppServices
     public IPromptGeneratorService PromptGenerator { get; }
     public ExecutionService Execution { get; }
     public CommandRunnerService CommandRunner { get; }
+    public IGitSyncService GitSync { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -64,6 +65,7 @@ public sealed class AppServices
         PromptGenerator = new PromptGeneratorService();
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
         CommandRunner = new CommandRunnerService(CommandRuns, Timeline, Git, Runner);
+        GitSync = new GitSyncService(Git, Timeline, Runner);
     }
 
     /// <summary>Gathers everything the handoff generator needs for one project.</summary>

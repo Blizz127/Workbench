@@ -33,6 +33,7 @@ public sealed partial class OverviewViewModel : ViewModelBase
     [ObservableProperty] private string _nextFrontier = "—";
     [ObservableProperty] private string _currentMilestone = "—";
     public FrontierEditorViewModel Frontier { get; }
+    public GitSyncViewModel GitSync { get; }
 
     // Blockers
     public ObservableCollection<BlockerItemViewModel> OpenBlockers { get; } = [];
@@ -54,6 +55,7 @@ public sealed partial class OverviewViewModel : ViewModelBase
             ? $"Last refreshed {at.LocalDateTime:yyyy-MM-dd HH:mm}"
             : "Never refreshed";
         Frontier = new FrontierEditorViewModel(services, project, LoadProgress);
+        GitSync = new GitSyncViewModel(services, project, RefreshProject);
 
         LoadProgress();
         LoadNotes();
@@ -141,6 +143,8 @@ public sealed partial class OverviewViewModel : ViewModelBase
 
                 if (snapshot.IsValid)
                     RecordMeaningfulChanges(snapshot);
+
+                GitSync.UpdateFromSnapshot(snapshot);
 
                 IsScanning = false;
             });
@@ -379,4 +383,167 @@ public sealed partial class FrontierEditorViewModel : ViewModelBase
     }
 
     private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
+
+/// <summary>
+/// Explicit GitHub fetch/pull/push actions for one project. Every write
+/// (pull, push) goes through a preview panel before anything runs; fetch is
+/// read-only so it runs immediately on click. Button enablement is driven
+/// by whatever <see cref="RepositorySnapshot"/> the Overview tab's Refresh
+/// Project action last read — <see cref="UpdateFromSnapshot"/> is that tab's
+/// single source of truth for git state, so this view model never reads git
+/// state on its own.
+/// </summary>
+public sealed partial class GitSyncViewModel : ViewModelBase
+{
+    private readonly AppServices _services;
+    private readonly Project _project;
+    private readonly Action _onSyncCompleted;
+    private RepositorySnapshot? _lastSnapshot;
+    private CancellationTokenSource? _runCts;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FetchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConfirmPullCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConfirmPushCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelRunCommand))]
+    private bool _isBusy;
+
+    [ObservableProperty] private string _runStatus = string.Empty;
+    [ObservableProperty] private string _syncStateText = "Refresh the project to check sync state.";
+    [ObservableProperty] private bool _canPull;
+    [ObservableProperty] private bool _canPush;
+
+    [ObservableProperty] private bool _isPullPreviewOpen;
+    [ObservableProperty] private string _pullPreviewText = string.Empty;
+    [ObservableProperty] private bool _isPushPreviewOpen;
+    [ObservableProperty] private string _pushPreviewText = string.Empty;
+
+    [ObservableProperty] private string _lastResultMessage = string.Empty;
+    [ObservableProperty] private bool _lastResultWasError;
+
+    public GitSyncViewModel(AppServices services, Project project, Action onSyncCompleted)
+    {
+        _services = services;
+        _project = project;
+        _onSyncCompleted = onSyncCompleted;
+    }
+
+    /// <summary>Called by the Overview tab whenever it re-reads git state, to keep button enablement current.</summary>
+    public void UpdateFromSnapshot(RepositorySnapshot snapshot)
+    {
+        _lastSnapshot = snapshot;
+
+        if (!snapshot.IsValid)
+        {
+            CanPull = false;
+            CanPush = false;
+            SyncStateText = "Repository unavailable.";
+            return;
+        }
+
+        var hasUpstream = snapshot.AheadBy is not null && snapshot.BehindBy is not null;
+        CanPull = hasUpstream && !snapshot.IsDirty && snapshot.AheadBy == 0 && snapshot.BehindBy > 0;
+        CanPush = hasUpstream && snapshot.AheadBy > 0;
+
+        SyncStateText = !hasUpstream
+            ? "No upstream tracking branch configured."
+            : snapshot.AheadBy == 0 && snapshot.BehindBy == 0
+                ? "Up to date with upstream."
+                : $"{snapshot.AheadBy} ahead, {snapshot.BehindBy} behind upstream.";
+    }
+
+    private bool CanRunSync => !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanRunSync))]
+    private async Task Fetch() =>
+        await Run(token => _services.GitSync.FetchAsync(_project, token), "Fetching from GitHub…");
+
+    [RelayCommand]
+    private void PreparePull()
+    {
+        var behind = _lastSnapshot?.BehindBy ?? 0;
+        PullPreviewText =
+            $"This will run `git pull --ff-only`, fast-forwarding {behind} commit(s) from upstream. " +
+            "Fast-forward only: if a true fast-forward isn't possible when this runs, git refuses and nothing local changes.";
+        IsPullPreviewOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelPullPreview() => IsPullPreviewOpen = false;
+
+    [RelayCommand(CanExecute = nameof(CanRunSync))]
+    private async Task ConfirmPull()
+    {
+        IsPullPreviewOpen = false;
+        await Run(token => _services.GitSync.PullFastForwardAsync(_project, token), "Pulling (fast-forward)…");
+    }
+
+    [RelayCommand]
+    private void PreparePush()
+    {
+        var ahead = _lastSnapshot?.AheadBy ?? 0;
+        var dirtyWarning = _lastSnapshot?.IsDirty == true
+            ? "\n\nYour working tree has uncommitted changes — those will NOT be pushed, only committed changes."
+            : string.Empty;
+        PushPreviewText = $"This will run `git push`, sending {ahead} committed local commit(s) to the upstream remote." +
+                          dirtyWarning;
+        IsPushPreviewOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelPushPreview() => IsPushPreviewOpen = false;
+
+    [RelayCommand(CanExecute = nameof(CanRunSync))]
+    private async Task ConfirmPush()
+    {
+        IsPushPreviewOpen = false;
+        await Run(token => _services.GitSync.PushAsync(_project, token), "Pushing to GitHub…");
+    }
+
+    [RelayCommand(CanExecute = nameof(IsBusy))]
+    private void CancelRun()
+    {
+        RunStatus = "Cancelling…";
+        _runCts?.Cancel();
+    }
+
+    private async Task Run(Func<CancellationToken, Task<GitSyncResult>> action, string status)
+    {
+        using var cts = new CancellationTokenSource();
+        _runCts = cts;
+        IsBusy = true;
+        RunStatus = status;
+        try
+        {
+            var result = await Task.Run(() => action(cts.Token));
+            await Dispatcher.UIThread.InvokeAsync(() => ReportResult(result));
+        }
+        finally
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _runCts = null;
+                IsBusy = false;
+                RunStatus = string.Empty;
+            });
+        }
+    }
+
+    private void ReportResult(GitSyncResult result)
+    {
+        LastResultWasError = result.Status == GitSyncStatus.Failed;
+        LastResultMessage = result.Status switch
+        {
+            GitSyncStatus.Blocked => $"Blocked: {result.BlockReason}",
+            GitSyncStatus.Failed => $"Failed: {result.ErrorMessage}",
+            _ when result.Warning is { } warning => $"Done — {warning}",
+            _ => "Done.",
+        };
+
+        // Re-read git state through the same path Refresh Project uses, so
+        // the Repository card, the journal, and this panel's button
+        // enablement all reflect the same post-operation truth.
+        _onSyncCompleted();
+    }
 }
