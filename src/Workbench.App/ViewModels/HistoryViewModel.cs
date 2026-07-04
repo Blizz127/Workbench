@@ -159,7 +159,7 @@ public sealed partial class HistoryViewModel : ViewModelBase
             return;
 
         await Execute(
-            token => _services.CommandRunner.RunAsync(_project, name, commandText, cancellationToken: token),
+            async token => (CommandRun?)await _services.CommandRunner.RunAsync(_project, name, commandText, cancellationToken: token),
             $"Running {name}…");
     }
 
