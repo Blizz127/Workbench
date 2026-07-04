@@ -86,7 +86,13 @@ public sealed class AppServices
     /// <summary>
     /// Finds the most recent failing command across every history source
     /// (build/run, test, and named command runs) for the given project, for
-    /// use in the generated model prompt.
+    /// use in the generated model prompt. A user-initiated cancel is not
+    /// evidence of a bug to characterize, so it is deliberately excluded —
+    /// only for <see cref="CommandRun"/>, which is the only one of the three
+    /// history shapes that actually records whether a run was cancelled;
+    /// <see cref="BuildRecord"/>/<see cref="TestRecord"/> have no such column
+    /// (both a cancel and a timeout show up there as a null exit code) and
+    /// adding one is a schema change out of scope for this filter.
     /// </summary>
     public FailedCommandInfo? FindLastFailedCommand(long projectId)
     {
@@ -108,7 +114,7 @@ public sealed class AppServices
                 Tests.GetOutputLog(test.Id) ?? string.Empty));
         }
 
-        var namedRun = CommandRuns.GetForProject(projectId, limit: 20).FirstOrDefault(r => !r.Succeeded);
+        var namedRun = CommandRuns.GetForProject(projectId, limit: 20).FirstOrDefault(r => !r.Succeeded && !r.Cancelled);
         if (namedRun is not null)
         {
             candidates.Add(new FailedCommandInfo(

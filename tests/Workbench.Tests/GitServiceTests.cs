@@ -141,6 +141,62 @@ public sealed class GitServiceTests : IDisposable
     }
 
     [Fact]
+    public void Divergent_local_and_upstream_report_correct_ahead_and_behind_counts()
+    {
+        // "origin" plays the role of the remote. A normal (non-bare) repo is
+        // fine here: the test only ever fetches from it, never pushes into it.
+        var originPath = Path.Combine(_repoPath, "origin");
+        var clonePath = Path.Combine(_repoPath, "clone");
+
+        Repository.Init(originPath);
+        File.WriteAllText(Path.Combine(originPath, "shared.txt"), "v1\n");
+        using (var origin = new Repository(originPath))
+        {
+            Commands.Stage(origin, "*");
+            origin.Commit("origin initial commit", Author, Author);
+        }
+
+        Repository.Clone(originPath, clonePath);
+
+        using (var clone = new Repository(clonePath))
+        {
+            var localBranch = clone.Head;
+            // Explicitly assert tracking configuration rather than rely on
+            // Clone()'s default behavior, so the test is self-contained.
+            clone.Branches.Update(localBranch,
+                b => b.Remote = "origin",
+                b => b.UpstreamBranch = localBranch.CanonicalName);
+        }
+
+        // Local gains a commit that is never pushed (local is "ahead" by this).
+        File.WriteAllText(Path.Combine(clonePath, "local-only.txt"), "local\n");
+        using (var clone = new Repository(clonePath))
+        {
+            Commands.Stage(clone, "*");
+            clone.Commit("local-only commit", Author, Author);
+        }
+
+        // Origin gains a commit the clone doesn't have yet (clone is "behind" by this).
+        File.WriteAllText(Path.Combine(originPath, "origin-only.txt"), "origin\n");
+        using (var origin = new Repository(originPath))
+        {
+            Commands.Stage(origin, "*");
+            origin.Commit("origin-only commit", Author, Author);
+        }
+
+        // Fetch updates the clone's remote-tracking ref only, not its own branch.
+        using (var clone = new Repository(clonePath))
+        {
+            Commands.Fetch(clone, "origin", [], null, null);
+        }
+
+        var snapshot = _service.GetSnapshot(clonePath);
+
+        Assert.Equal(1, snapshot.AheadBy);
+        Assert.Equal(1, snapshot.BehindBy);
+    }
+
+    [Fact]
     public void GetHeadSha_returns_the_current_commit_sha()
     {
         WriteFile("a.txt", "hello\n");
