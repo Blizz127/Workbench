@@ -265,11 +265,81 @@ public sealed class GitSyncServiceTests : IClassFixture<DatabaseFixture>, IDispo
         Assert.Contains(entries, e => e.Category == TimelineCategory.GitSync && e.Message.Contains("succeeded"));
     }
 
+    [Fact]
+    public async Task Journaled_entry_detail_captures_branch_and_before_after_head_and_tracking_state()
+    {
+        var (originPath, clonePath) = CreateOriginAndClone();
+        var project = CreateProject(clonePath);
+        var service = CreateService();
+
+        var newSha = CommitFileAndReturnSha(originPath, "new.txt", "new\n", "origin-only commit");
+        var headBefore = _git.GetHeadSha(clonePath);
+        await service.FetchAsync(project);
+
+        var result = await service.PullFastForwardAsync(project);
+
+        var timeline = new TimelineRepository(_fixture.Database);
+        var entry = timeline.GetForProject(project.Id)
+            .First(e => e.Category == TimelineCategory.GitSync && e.Message.Contains("pull"));
+
+        Assert.NotNull(entry.Detail);
+        Assert.Contains(result.Branch!, entry.Detail);
+        Assert.Contains(headBefore![..7], entry.Detail);
+        Assert.Contains(newSha[..7], entry.Detail);
+        Assert.Contains("0/1 -> 0/0", entry.Detail); // ahead/behind before -> after
+    }
+
+    /// <summary>
+    /// Locks in the safety invariant as an executable check, not just a code
+    /// reading: whatever exact command string GitSyncService hands to the
+    /// process runner for a real fetch/pull/push cycle, it never carries a
+    /// force or branch-delete flag. Wraps the real <see cref="ProcessRunner"/>
+    /// (rather than faking it) so the fetch/pull/push still genuinely execute
+    /// against real repositories — this only adds an observation point.
+    /// </summary>
+    [Fact]
+    public async Task Fetch_pull_and_push_commands_never_carry_force_or_branch_delete_flags()
+    {
+        var (originPath, clonePath) = CreateOriginAndClone();
+        CommitFile(originPath, "new.txt", "new\n", "origin-only commit");
+
+        var project = CreateProject(clonePath);
+        var recorder = new RecordingProcessRunner(_runner);
+        var service = new GitSyncService(_git, new TimelineRepository(_fixture.Database), recorder);
+
+        await service.FetchAsync(project);
+        await service.PullFastForwardAsync(project);
+        CommitFile(clonePath, "local.txt", "local\n", "local commit to push");
+        await service.PushAsync(project);
+
+        Assert.Equal(["git fetch --all --prune", "git pull --ff-only", "git push"], recorder.Commands);
+        Assert.All(recorder.Commands, cmd =>
+        {
+            Assert.DoesNotContain("force", cmd, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("delete", cmd, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotMatch(@"(?<!\S)-[Ddf](?!\S)", cmd);
+        });
+    }
+
     private static string CommitFileAndReturnSha(string repoPath, string fileName, string content, string message)
     {
         File.WriteAllText(Path.Combine(repoPath, fileName), content);
         using var repo = new Repository(repoPath);
         Commands.Stage(repo, "*");
         return repo.Commit(message, Author, Author).Sha;
+    }
+
+    /// <summary>Records every command string passed through, then delegates to a real runner.</summary>
+    private sealed class RecordingProcessRunner(IProcessRunner inner) : IProcessRunner
+    {
+        public List<string> Commands { get; } = [];
+
+        public Task<ProcessResult> RunAsync(
+            string command, string? workingDirectory, TimeSpan? timeout = null,
+            CancellationToken cancellationToken = default)
+        {
+            Commands.Add(command);
+            return inner.RunAsync(command, workingDirectory, timeout, cancellationToken);
+        }
     }
 }

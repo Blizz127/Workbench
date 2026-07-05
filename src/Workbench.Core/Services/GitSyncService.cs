@@ -161,7 +161,7 @@ public sealed class GitSyncService(IGitService git, ITimelineRepository timeline
             Timestamp = result.StartedAt,
             Category = TimelineCategory.GitSync,
             Message = BuildMessage(result),
-            Detail = result.Status == GitSyncStatus.Failed ? result.ErrorMessage : null,
+            Detail = BuildDetail(result),
         });
 
         return result;
@@ -181,6 +181,33 @@ public sealed class GitSyncService(IGitService git, ITimelineRepository timeline
             _ => $"{result.Command} succeeded{trackingSuffix}",
         };
     }
+
+    /// <summary>
+    /// Full before/after record for the timeline: branch, HEAD, and
+    /// ahead/behind before and after the attempt, plus the error tail on
+    /// failure. Kept separate from <see cref="BuildMessage"/> so the headline
+    /// stays a short, human-scannable summary while this carries everything
+    /// an audit or a "what actually happened" investigation needs.
+    /// </summary>
+    private static string BuildDetail(GitSyncResult result)
+    {
+        var lines = new List<string>
+        {
+            $"Branch: {result.Branch ?? "(none)"}",
+            $"HEAD: {ShortSha(result.HeadShaBefore)} -> {ShortSha(result.HeadShaAfter)}",
+            $"Ahead/behind: {Track(result.AheadByBefore)}/{Track(result.BehindByBefore)} -> " +
+            $"{Track(result.AheadByAfter)}/{Track(result.BehindByAfter)}",
+        };
+
+        if (result.ErrorMessage is { } error)
+            lines.Add($"Error: {error}");
+
+        return string.Join('\n', lines);
+    }
+
+    private static string ShortSha(string? sha) => sha is null ? "(none)" : sha[..Math.Min(7, sha.Length)];
+
+    private static string Track(int? value) => value?.ToString() ?? "?";
 
     private static string Tail(string output, int maxChars = 2000) =>
         output.Length <= maxChars ? output : "…" + output[^maxChars..];
