@@ -1,0 +1,35 @@
+{
+  "name": "Cataclysm Dead-Internet Server",
+  "description": "Solo 'dead internet' World of Warcraft: Cataclysm (4.3.4.15595) private server. Fork of The Cataclysm Preservation Project (TrinityCore 4.3.4) as the base core, with the mod-playerbots living-world bot system ported from AzerothCore-WOTLK so a single human player is surrounded by autonomous bots that quest, LFG, and PvP, and can be grouped with to solo dungeon/raid content. Same intent as the owner's WOTLK and Warlords bot builds, rebuilt for Cataclysm. Pre-setup: no fork checked out yet.",
+  "repositoryPath": "/var/home/blizz/Projects/Cataclysm-Server",
+  "buildCommand": "cmake --build build --config RelWithDebInfo -j",
+  "runCommand": "./build/bin/worldserver",
+  "documentationPaths": [
+    "docs/build.md",
+    "docs/client-data.md",
+    "docs/porting/mod-playerbots-port.md",
+    "docs/porting/core-hooks.md",
+    "docs/bots/cata-content.md"
+  ],
+  "aiContextPaths": [
+    "docs/porting/mod-playerbots-port.md",
+    "docs/porting/core-hooks.md",
+    "src/server/game/AI/PlayerBots/",
+    "CLAUDE.md"
+  ],
+  "promptRules": "Base core is The-Cataclysm-Preservation-Project/TrinityCore (GPL-2.0, 4.3.4.15595) — keep the fork GPL-2.0 and publish derivative source.\nBot target is the mod-playerbots lineage (liyunfan1223), which needs core-side hooks, not just a drop-in module — plan for a core fork, not a clean plugin.\nNever commit Blizzard client data: no MPQ archives, extracted DBC/DB2, maps/vmaps/mmaps, or proprietary assets. The owner supplies these from their own 4.3.4 client.\nNever claim a bot feature works without launching worldserver and observing it in a connected client — this is a server, not a library.\nThis is for private, single-player / solo use only.",
+  "customLogPatterns": [
+    { "name": "worldserver ready", "pattern": "World initialized", "isRegex": false, "category": "ServerBoot" },
+    { "name": "bot spawn", "pattern": "^PlayerbotMgr:.*added bot", "isRegex": true, "category": "Bots" },
+    { "name": "core error", "pattern": "ERROR", "isRegex": false, "category": "Errors" }
+  ],
+  "tags": [
+    "Game Preservation",
+    "Server Emulation",
+    "MMO",
+    "World of Warcraft",
+    "Cataclysm",
+    "TrinityCore",
+    "Player Bots"
+  ]
+}

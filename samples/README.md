@@ -14,6 +14,7 @@ and frontiers look like:
 | [`parasite-eve/`](parasite-eve/) | Early-phase decomp: disc verification/setup only, parked | a disc or executable verification step |
 | [`ten-revival/`](ten-revival/) | Reviving a dead online-game network service | a protocol message or lobby flow |
 | [`crimson-sands/`](crimson-sands/) | MMO server emulation from packet captures | a packet opcode or game system |
+| [`cataclysm-server/`](cataclysm-server/) | Forking a live MMO core and porting a bot system onto it | a build/bot phase (core standup → living-world bots) |
 | [`generic-software/`](generic-software/) | Any ordinary software project | a feature or subsystem |
 
 Notes that apply to all samples:
@@ -28,3 +29,8 @@ Notes that apply to all samples:
 - The Parasite Eve sample is likewise seeded (parked, minimal truthful
   history) whenever it is missing from the database — it is a real tracked
   project still in its disc-verification phase, not yet in decompilation.
+- The Cataclysm Dead-Internet Server sample is likewise seeded when missing —
+  a real tracked project in its pre-setup phase: base core (The Cataclysm
+  Preservation Project) and bot source (mod-playerbots lineage) chosen, but no
+  fork checked out yet, so it carries a plan and Phase 0 frontier, not build
+  history.
