@@ -12,6 +12,10 @@ that quest, use LFG, and PvP — and that you can group with to solo dungeon and
 raid content. It is the same intent as the owner's existing WOTLK and Warlords
 bot builds, rebuilt for Cataclysm (4.3.4.15595).
 
+- Repository: <https://github.com/Blizz127/catacalsym-DIT>
+- Base core: [The Cataclysm Preservation Project](https://github.com/The-Cataclysm-Preservation-Project/TrinityCore) (TrinityCore 4.3.4, GPL-2.0)
+- Bot source: [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) lineage (living world + group-with-bots)
+
 ## The two pieces
 
 | Piece | Source | Why |

@@ -40,7 +40,7 @@ public static class CataclysmServerSeeder
                           "PvP, and can be grouped with to solo dungeon/raid content. Same " +
                           "intent as the owner's WOTLK and Warlords bot builds, rebuilt for " +
                           "Cataclysm. Pre-setup: no fork checked out yet.",
-            RepositoryPath = "/var/home/blizz/Projects/Cataclysm-Server",
+            RepositoryPath = "/var/home/blizz/Projects/catacalsym-DIT",
             BuildCommand = "cmake --build build --config RelWithDebInfo -j",
             RunCommand = "./build/bin/worldserver",
             DocumentationPaths =
@@ -219,6 +219,8 @@ public static class CataclysmServerSeeder
                 one human in a world otherwise full of autonomous bots that quest, LFG,
                 and PvP, and that you can group with to solo dungeon/raid content. Same
                 intent as the owner's WOTLK and Warlords bot builds.
+
+                **Repository:** https://github.com/Blizz127/catacalsym-DIT
 
                 ## The two pieces
                 - **Base core (fork this):** The Cataclysm Preservation Project —

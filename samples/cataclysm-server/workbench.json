@@ -1,7 +1,7 @@
 {
   "name": "Cataclysm Dead-Internet Server",
   "description": "Solo 'dead internet' World of Warcraft: Cataclysm (4.3.4.15595) private server. Fork of The Cataclysm Preservation Project (TrinityCore 4.3.4) as the base core, with the mod-playerbots living-world bot system ported from AzerothCore-WOTLK so a single human player is surrounded by autonomous bots that quest, LFG, and PvP, and can be grouped with to solo dungeon/raid content. Same intent as the owner's WOTLK and Warlords bot builds, rebuilt for Cataclysm. Pre-setup: no fork checked out yet.",
-  "repositoryPath": "/var/home/blizz/Projects/Cataclysm-Server",
+  "repositoryPath": "/var/home/blizz/Projects/catacalsym-DIT",
   "buildCommand": "cmake --build build --config RelWithDebInfo -j",
   "runCommand": "./build/bin/worldserver",
   "documentationPaths": [
