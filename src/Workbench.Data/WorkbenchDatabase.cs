@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace Workbench.Data;
@@ -72,21 +71,13 @@ public sealed class WorkbenchDatabase
                 continue;
 
             using var transaction = connection.BeginTransaction();
-            if (migration.Sql is { } sql)
+            migration.Apply(connection, transaction);
+
+            using (var command = connection.CreateCommand())
             {
-                using var command = connection.CreateCommand();
                 command.Transaction = transaction;
-                command.CommandText = sql;
+                command.CommandText = $"PRAGMA user_version = {migration.Version};";
                 command.ExecuteNonQuery();
-            }
-
-            migration.Apply?.Invoke(connection, transaction);
-
-            using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = $"PRAGMA user_version = {migration.Version};";
-                bump.ExecuteNonQuery();
             }
 
             transaction.Commit();
@@ -101,19 +92,22 @@ public sealed class WorkbenchDatabase
         return (long)(command.ExecuteScalar() ?? 0L);
     }
 
-    /// <summary>
-    /// One schema migration: DDL/DML in <see cref="Sql"/>, and/or a C# step in
-    /// <see cref="Apply"/> for transformations SQL can't express precisely.
-    /// </summary>
-    private sealed record Migration(
-        int Version,
-        string? Sql = null,
-        Action<SqliteConnection, SqliteTransaction>? Apply = null);
+    /// <summary>One ordered schema migration; most are plain SQL batches.</summary>
+    private sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply)
+    {
+        public static Migration FromSql(int version, string sql) => new(version, (connection, transaction) =>
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            command.ExecuteNonQuery();
+        });
+    }
 
     /// <summary>Ordered schema migrations. Append new entries; never edit shipped ones.</summary>
     private static readonly Migration[] Migrations =
     [
-        new(1, """
+        Migration.FromSql(1, """
             CREATE TABLE projects (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
                 name                  TEXT NOT NULL,
@@ -218,125 +212,66 @@ public sealed class WorkbenchDatabase
             CREATE INDEX ix_tests_project_time ON test_records(project_id, started_at DESC);
             """),
 
-        // v2: normalize all stored timestamps to UTC. v1 wrote ISO-8601 strings
-        // with the machine's local offset, which sort lexicographically wrong
-        // across offset changes (DST). Done in C# to preserve full tick
-        // precision — SQLite's date functions round to milliseconds.
-        new(2, Apply: (connection, transaction) => NormalizeTimestampsToUtc(connection, transaction)),
-
-        // v3: named command runners (matching-build + custom commands) with
-        // their own append-only history table, richer frontier fields, and
-        // the "last known git state" cache used by the Refresh Project action.
-        new(3, """
-            ALTER TABLE projects ADD COLUMN matching_build_command TEXT;
-            ALTER TABLE projects ADD COLUMN prompt_rules TEXT;
-            ALTER TABLE projects ADD COLUMN custom_log_patterns TEXT NOT NULL DEFAULT '[]';
-            ALTER TABLE projects ADD COLUMN last_known_branch TEXT;
-            ALTER TABLE projects ADD COLUMN last_known_commit_sha TEXT;
-            ALTER TABLE projects ADD COLUMN last_known_is_dirty INTEGER;
-            ALTER TABLE projects ADD COLUMN last_known_ahead_by INTEGER;
-            ALTER TABLE projects ADD COLUMN last_known_behind_by INTEGER;
-            ALTER TABLE projects ADD COLUMN last_refreshed_at TEXT;
-
-            ALTER TABLE frontiers ADD COLUMN symbol TEXT;
-            ALTER TABLE frontiers ADD COLUMN evidence TEXT;
-            ALTER TABLE frontiers ADD COLUMN blocker_class TEXT;
-            ALTER TABLE frontiers ADD COLUMN next_safest_step TEXT;
-            ALTER TABLE frontiers ADD COLUMN assigned_model TEXT;
-
-            CREATE TABLE project_commands (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-                name         TEXT NOT NULL,
-                command_text TEXT NOT NULL,
-                sort_order   INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE INDEX ix_project_commands_project ON project_commands(project_id, sort_order);
-
-            CREATE TABLE command_runs (
-                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id         INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-                command_name       TEXT NOT NULL,
-                command_text       TEXT NOT NULL,
-                working_directory  TEXT,
-                started_at         TEXT NOT NULL,
-                exit_code          INTEGER,
-                duration_ms        INTEGER NOT NULL DEFAULT 0,
-                output_log         TEXT NOT NULL DEFAULT '',
-                output_truncated   INTEGER NOT NULL DEFAULT 0,
-                git_head_sha       TEXT,
-                was_dirty          INTEGER NOT NULL DEFAULT 0,
-                regression_detected INTEGER NOT NULL DEFAULT 0,
-                cancelled          INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE INDEX ix_command_runs_project_time ON command_runs(project_id, started_at DESC);
-            CREATE INDEX ix_command_runs_project_name ON command_runs(project_id, command_name, started_at DESC);
-            """),
+        // Shared Workbench State: stable cross-machine identity, shareable
+        // progress fields, and local-only sync bookkeeping. History tables are
+        // deliberately untouched — they never leave this database.
+        //
+        // Numbered 4 (not 2) and column-guarded: real databases can descend
+        // from the pre-rewrite Workbench lineage, which shipped migrations up
+        // to user_version 3 and already carried prompt_rules and
+        // custom_log_patterns on projects. A plain SQL batch would either be
+        // skipped (version <= 3) or fail on the duplicate columns.
+        new Migration(4, AddSharedStateColumns),
     ];
 
-    /// <summary>Every timestamp column in the schema, for the v2 UTC rewrite.</summary>
-    private static readonly (string Table, string[] Columns)[] TimestampColumns =
-    [
-        ("projects", ["created_at", "updated_at"]),
-        ("milestones", ["completed_at"]),
-        ("frontiers", ["created_at", "completed_at"]),
-        ("blockers", ["created_at", "resolved_at"]),
-        ("timeline_entries", ["timestamp"]),
-        ("notes", ["created_at", "updated_at"]),
-        ("build_records", ["started_at"]),
-        ("test_records", ["started_at"]),
-    ];
-
-    /// <summary>
-    /// Rewrites every non-UTC timestamp to its UTC equivalent (same instant,
-    /// zero offset). Values that fail to parse are left untouched so the
-    /// migration can never destroy data. Returns the number of rewritten
-    /// values. Public for testability.
-    /// </summary>
-    public static int NormalizeTimestampsToUtc(SqliteConnection connection, SqliteTransaction? transaction = null)
+    private static void AddSharedStateColumns(SqliteConnection connection, SqliteTransaction transaction)
     {
-        var rewritten = 0;
-        foreach (var (table, columns) in TimestampColumns)
+        (string Name, string Definition)[] columns =
+        [
+            ("shared_id", "TEXT"),
+            ("blocker_class", "TEXT"),
+            ("evidence", "TEXT"),
+            ("next_safest_step", "TEXT"),
+            ("prompt_rules", "TEXT NOT NULL DEFAULT '[]'"),
+            ("custom_log_patterns", "TEXT NOT NULL DEFAULT '[]'"),
+            ("github_repo_url", "TEXT"),
+            ("default_branch", "TEXT"),
+            ("shared_last_imported_at", "TEXT"),
+            ("shared_last_exported_at", "TEXT"),
+            ("shared_last_synced_stamp", "TEXT"),
+        ];
+
+        var existing = GetColumnNames(connection, transaction, "projects");
+        foreach (var (name, definition) in columns)
         {
-            foreach (var column in columns)
-            {
-                // Buffer the rows needing rewrite before updating: SQLite
-                // dislikes writing while a reader is open on the connection.
-                var updates = new List<(long Id, string Utc)>();
+            if (existing.Contains(name))
+                continue;
 
-                using (var select = connection.CreateCommand())
-                {
-                    select.Transaction = transaction;
-                    select.CommandText = $"SELECT id, {column} FROM {table} WHERE {column} IS NOT NULL;";
-                    using var reader = select.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        var raw = reader.GetString(1);
-                        if (!DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
-                                DateTimeStyles.RoundtripKind, out var parsed))
-                            continue;
-
-                        if (parsed.Offset == TimeSpan.Zero)
-                            continue;
-
-                        updates.Add((reader.GetInt64(0),
-                            parsed.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
-                    }
-                }
-
-                foreach (var (id, utc) in updates)
-                {
-                    using var update = connection.CreateCommand();
-                    update.Transaction = transaction;
-                    update.CommandText = $"UPDATE {table} SET {column} = $value WHERE id = $id;";
-                    update.Parameters.AddWithValue("$value", utc);
-                    update.Parameters.AddWithValue("$id", id);
-                    update.ExecuteNonQuery();
-                    rewritten++;
-                }
-            }
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE projects ADD COLUMN {name} {definition};";
+            command.ExecuteNonQuery();
         }
 
-        return rewritten;
+        using (var index = connection.CreateCommand())
+        {
+            index.Transaction = transaction;
+            index.CommandText =
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_projects_shared_id ON projects(shared_id) WHERE shared_id IS NOT NULL;";
+            index.ExecuteNonQuery();
+        }
+    }
+
+    private static HashSet<string> GetColumnNames(SqliteConnection connection, SqliteTransaction transaction, string table)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"PRAGMA table_info({table});";
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            names.Add(reader.GetString(1));
+        return names;
     }
 }

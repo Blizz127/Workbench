@@ -29,6 +29,7 @@
                             </TextBox.KeyBindings>
                         </TextBox>
                         <Button Content="Search" Command="{Binding RunSearchCommand}" />
+                        <Button Content="⚙ Settings" Command="{Binding NavigateSettingsCommand}" />
                     </StackPanel>
                     <Panel />
                 </DockPanel>

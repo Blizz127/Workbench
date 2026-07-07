@@ -38,6 +38,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         CurrentPage = new DashboardViewModel(_services, OpenProject);
     }
 
+    [RelayCommand]
+    private void NavigateSettings()
+    {
+        IsSearchOpen = false;
+        CurrentPage = new AppSettingsViewModel(_services, NavigateHome);
+    }
+
     public void OpenProject(long projectId)
     {
         IsSearchOpen = false;

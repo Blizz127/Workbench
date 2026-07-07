@@ -9,6 +9,13 @@ public interface IProjectRepository
     long Add(Project project);
     void Update(Project project);
     void Delete(long id);
+
+    /// <summary>
+    /// Persists only the shared-state bookkeeping fields (shared id and sync
+    /// timestamps) WITHOUT bumping <c>updated_at</c> — syncing is not a user
+    /// edit, and bumping it would make every sync look like a local change.
+    /// </summary>
+    void UpdateSharedSync(Project project);
 }
 
 public interface IMilestoneRepository

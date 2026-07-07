@@ -24,9 +24,6 @@ public sealed class Project
 
     public string? TestCommand { get; set; }
 
-    /// <summary>A build invoked specifically to check match/regression status (e.g. a decomp's "make -B build").</summary>
-    public string? MatchingBuildCommand { get; set; }
-
     /// <summary>Paths (relative to the repository or absolute) to documentation.</summary>
     public List<string> DocumentationPaths { get; set; } = [];
 
@@ -36,12 +33,6 @@ public sealed class Project
     /// <summary>Reserved for later phases; providers plug in as modules.</summary>
     public string? PreferredAiProvider { get; set; }
 
-    /// <summary>Free-text constraints included verbatim in generated model prompts (e.g. "never touch original decomp source").</summary>
-    public string? PromptRules { get; set; }
-
-    /// <summary>Project-specific log patterns (e.g. a custom test harness's markers), merged with the built-in defaults.</summary>
-    public List<LogPatternDefinition> CustomLogPatterns { get; set; } = [];
-
     public List<string> Tags { get; set; } = [];
 
     /// <summary>The one task currently being worked on, shown on the dashboard card.</summary>
@@ -50,15 +41,43 @@ public sealed class Project
     /// <summary>The current objective shown in the detail view.</summary>
     public string? CurrentObjective { get; set; }
 
-    // Populated exclusively by the explicit "Refresh Project" action (Overview
-    // tab), not by the dashboard's passive per-card git lookup — so a change
-    // here always means the user asked Workbench to check.
-    public string? LastKnownBranch { get; set; }
-    public string? LastKnownCommitSha { get; set; }
-    public bool? LastKnownIsDirty { get; set; }
-    public int? LastKnownAheadBy { get; set; }
-    public int? LastKnownBehindBy { get; set; }
-    public DateTimeOffset? LastRefreshedAt { get; set; }
+    /// <summary>
+    /// Stable cross-machine identity used by shared state files
+    /// (<c>projects/*.workbench.json</c> in the shared folder). Assigned on
+    /// first export or import; local-only projects keep <c>null</c>.
+    /// </summary>
+    public string? SharedId { get; set; }
+
+    /// <summary>Category of the current blocker (e.g. "camera math", "protocol unknown").</summary>
+    public string? BlockerClass { get; set; }
+
+    /// <summary>Evidence backing the current state (logs, control matrices, readbacks).</summary>
+    public string? Evidence { get; set; }
+
+    /// <summary>The next safest step to take on the project.</summary>
+    public string? NextSafestStep { get; set; }
+
+    /// <summary>Standing rules to include in AI prompts for this project.</summary>
+    public List<string> PromptRules { get; set; } = [];
+
+    /// <summary>Log-line patterns of interest (guards, markers) for this project.</summary>
+    public List<string> CustomLogPatterns { get; set; } = [];
+
+    public string? GitHubRepoUrl { get; set; }
+
+    public string? DefaultBranch { get; set; }
+
+    /// <summary>When this project last applied a shared state file. Local-only; not exported.</summary>
+    public DateTimeOffset? SharedLastImportedAt { get; set; }
+
+    /// <summary>When this project last wrote its shared state file. Local-only; not exported.</summary>
+    public DateTimeOffset? SharedLastExportedAt { get; set; }
+
+    /// <summary>
+    /// The shared file's <c>updatedAt</c> as of the last import/export — the
+    /// baseline for detecting that the shared file changed under us.
+    /// </summary>
+    public DateTimeOffset? SharedLastSyncedStamp { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 
