@@ -65,21 +65,23 @@ public sealed class WorkbenchDatabase
         }
 
         var version = GetUserVersion(connection);
-        foreach (var (targetVersion, sql) in Migrations)
+        foreach (var migration in Migrations)
         {
-            if (version >= targetVersion)
+            if (version >= migration.Version)
                 continue;
 
             using var transaction = connection.BeginTransaction();
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = sql;
-            command.ExecuteNonQuery();
+            migration.Apply(connection, transaction);
 
-            command.CommandText = $"PRAGMA user_version = {targetVersion};";
-            command.ExecuteNonQuery();
+            using (var command = connection.CreateCommand())
+            {
+                command.Transaction = transaction;
+                command.CommandText = $"PRAGMA user_version = {migration.Version};";
+                command.ExecuteNonQuery();
+            }
+
             transaction.Commit();
-            version = targetVersion;
+            version = migration.Version;
         }
     }
 
@@ -90,10 +92,22 @@ public sealed class WorkbenchDatabase
         return (long)(command.ExecuteScalar() ?? 0L);
     }
 
+    /// <summary>One ordered schema migration; most are plain SQL batches.</summary>
+    private sealed record Migration(int Version, Action<SqliteConnection, SqliteTransaction> Apply)
+    {
+        public static Migration FromSql(int version, string sql) => new(version, (connection, transaction) =>
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            command.ExecuteNonQuery();
+        });
+    }
+
     /// <summary>Ordered schema migrations. Append new entries; never edit shipped ones.</summary>
-    private static readonly (int Version, string Sql)[] Migrations =
+    private static readonly Migration[] Migrations =
     [
-        (1, """
+        Migration.FromSql(1, """
             CREATE TABLE projects (
                 id                    INTEGER PRIMARY KEY AUTOINCREMENT,
                 name                  TEXT NOT NULL,
@@ -197,5 +211,67 @@ public sealed class WorkbenchDatabase
             );
             CREATE INDEX ix_tests_project_time ON test_records(project_id, started_at DESC);
             """),
+
+        // Shared Workbench State: stable cross-machine identity, shareable
+        // progress fields, and local-only sync bookkeeping. History tables are
+        // deliberately untouched — they never leave this database.
+        //
+        // Numbered 4 (not 2) and column-guarded: real databases can descend
+        // from the pre-rewrite Workbench lineage, which shipped migrations up
+        // to user_version 3 and already carried prompt_rules and
+        // custom_log_patterns on projects. A plain SQL batch would either be
+        // skipped (version <= 3) or fail on the duplicate columns.
+        new Migration(4, AddSharedStateColumns),
     ];
+
+    private static void AddSharedStateColumns(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        (string Name, string Definition)[] columns =
+        [
+            ("shared_id", "TEXT"),
+            ("blocker_class", "TEXT"),
+            ("evidence", "TEXT"),
+            ("next_safest_step", "TEXT"),
+            ("prompt_rules", "TEXT NOT NULL DEFAULT '[]'"),
+            ("custom_log_patterns", "TEXT NOT NULL DEFAULT '[]'"),
+            ("github_repo_url", "TEXT"),
+            ("default_branch", "TEXT"),
+            ("shared_last_imported_at", "TEXT"),
+            ("shared_last_exported_at", "TEXT"),
+            ("shared_last_synced_stamp", "TEXT"),
+        ];
+
+        var existing = GetColumnNames(connection, transaction, "projects");
+        foreach (var (name, definition) in columns)
+        {
+            if (existing.Contains(name))
+                continue;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE projects ADD COLUMN {name} {definition};";
+            command.ExecuteNonQuery();
+        }
+
+        using (var index = connection.CreateCommand())
+        {
+            index.Transaction = transaction;
+            index.CommandText =
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_projects_shared_id ON projects(shared_id) WHERE shared_id IS NOT NULL;";
+            index.ExecuteNonQuery();
+        }
+    }
+
+    private static HashSet<string> GetColumnNames(SqliteConnection connection, SqliteTransaction transaction, string table)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"PRAGMA table_info({table});";
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            names.Add(reader.GetString(1));
+        return names;
+    }
 }

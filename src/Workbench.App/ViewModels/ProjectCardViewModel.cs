@@ -13,7 +13,20 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
 
     public string Name => Project.Name;
     public string Status => Project.Status.ToString();
-    public string RepositoryPath => Project.RepositoryPath ?? "no repository";
+
+    /// <summary>
+    /// A missing repository is a normal state for a shared project (its files
+    /// live on another machine), so it renders as availability — never as an error.
+    /// </summary>
+    public string RepositoryText =>
+        Project.RepositoryPath is { Length: > 0 } path
+            ? Directory.Exists(path) ? path : "Not available on this machine"
+            : Project.SharedId is not null ? "Not available on this machine" : "no repository";
+
+    public bool IsUnavailable =>
+        Project.RepositoryPath is { Length: > 0 } path
+            ? !Directory.Exists(path)
+            : Project.SharedId is not null;
     public string ActiveTask => Project.ActiveTask ?? "—";
     public string LastUpdated => Project.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
     public IReadOnlyList<string> Tags => Project.Tags;
@@ -31,6 +44,10 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _lastCommit = "…";
+
+    /// <summary>Set asynchronously when the shared file differs from local state; null hides the chip.</summary>
+    [ObservableProperty]
+    private string? _sharedBadge;
 
     public ProjectCardViewModel(AppServices services, Project project, Action<long> openProject)
     {

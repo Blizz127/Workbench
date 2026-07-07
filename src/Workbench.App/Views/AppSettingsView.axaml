@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             x:Class="Workbench.App.Views.AppSettingsView"
+             x:DataType="vm:AppSettingsViewModel">
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="12" MaxWidth="900" HorizontalAlignment="Left">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Content="← Back" Command="{Binding GoBackCommand}" />
+                <TextBlock Text="App Settings" Classes="h1" Margin="12,0,0,0" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <Border Classes="card">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Shared Workbench State" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Point this at a folder synced between your PCs (Google Drive, Syncthing, Dropbox, OneDrive, a NAS — or any plain folder). Project configuration is shared as projects/*.workbench.json files. Local history, logs, and the database never leave this machine. Sync is always explicit — nothing runs in the background." />
+
+                    <TextBlock Text="Shared State Folder" Classes="muted" />
+                    <TextBox Text="{Binding SharedStateFolder}" Watermark="/path/to/WorkbenchShared" />
+
+                    <TextBlock Text="Current Machine Name" Classes="muted" />
+                    <TextBox Text="{Binding MachineName}" Watermark="detected automatically" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" />
+                        <Button Content="Reload shared state" Command="{Binding ReloadSharedStateCommand}" />
+                        <Button Content="Import all projects" Command="{Binding ImportAllProjectsCommand}" />
+                        <Button Content="Export all projects" Command="{Binding ExportAllProjectsCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding StatusMessage}" Classes="muted"
+                               IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Text="{Binding SettingsPath, StringFormat='Settings file: {0}'}" Classes="muted mono" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card"
+                    IsVisible="{Binding ActivityLog.Count}">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Result" Classes="h2" />
+                    <ItemsControl ItemsSource="{Binding ActivityLog}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

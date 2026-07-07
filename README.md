@@ -52,9 +52,14 @@ Being explicit, because the name "AI-assisted" invites assumptions:
   commands you configured; that is the full extent of what it touches.
 - **No agent orchestration, no prompt generation pipelines.** Those are later
   phases (see the roadmap in §7).
-- **No sync or hosting.** State lives in a local SQLite database
+- **No hosting, no background sync.** State lives in a local SQLite database
   (`~/.config/Workbench/workbench.db` on Linux, `%APPDATA%\Workbench` on
-  Windows; override with `WORKBENCH_DATA_DIR`). Nothing is uploaded.
+  Windows; override with `WORKBENCH_DATA_DIR`). Nothing is uploaded. Project
+  configuration *can* be shared across machines through the **Shared State
+  Folder** (App Settings) — plain `projects/*.workbench.json` files in a
+  directory you point at Google Drive, Syncthing, Dropbox, OneDrive, or a NAS.
+  Sharing is explicit and manual (export/import with preview); command history,
+  logs, and the database itself never leave the machine.
 
 ## 3. Creating or importing a project
 
@@ -178,6 +183,7 @@ packet opcode; for ordinary software, a feature.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **1** | Local dashboard, progress/frontier/blocker model, timeline journal, notes, milestone tracking, handoff document, SQLite persistence. | ✅ this repo |
+| **1.5** | Shared Workbench State: cross-machine project config/state via a user-selected shared folder (`projects/*.workbench.json` + machine profiles). Explicit export/import with preview and conflict warnings; no background sync; local history never shared. | ✅ this repo |
 | **2** | Real project import and command execution hardening: richer repo onboarding, command presets per project type, long-running command management, per-command environment. A first cut of command execution (build/run/test with history) already ships in Phase 1. | planned |
 | **3** | AI handoff / prompt export: package the handoff document plus the files named in `aiContextPaths` into ready-to-paste (or ready-to-save) context bundles. Still no API calls — export only. | planned |
 | **4** | Optional provider integrations: pluggable modules (Claude, GPT, local models, …) that can *receive* the handoff and report results back. Strictly optional; Workbench never depends on any one provider, and nothing runs without explicit user action. | planned |

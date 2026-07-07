@@ -57,16 +57,50 @@ public sealed partial class DashboardViewModel : ViewModelBase
         ApplyFilter();
         UpdateSummary(projects);
 
-        // Enrich with git state off the UI thread, one repo at a time.
+        // Enrich with git state off the UI thread, one repo at a time; shared
+        // state files are read (never written) in the same pass.
         var cards = _allCards.ToList();
+        var sharedFolder = _services.AppSettings.SharedStateFolder;
+        var machineName = _services.AppSettings.MachineName;
         _ = Task.Run(() =>
         {
+            IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles =
+                sharedFolder is null ? [] : _services.SharedState.LoadAll(sharedFolder);
+
             foreach (var card in cards)
             {
                 var snapshot = _services.Git.GetSnapshot(card.Project.RepositoryPath, recentCommitCount: 1);
-                Dispatcher.UIThread.Post(() => card.ApplyGitSnapshot(snapshot));
+                var badge = SharedBadgeFor(card.Project, sharedFiles, machineName);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    card.ApplyGitSnapshot(snapshot);
+                    card.SharedBadge = badge;
+                });
             }
         });
+    }
+
+    /// <summary>Compares a project against its shared file; null means in sync (or not shared).</summary>
+    private string? SharedBadgeFor(
+        Project project,
+        IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles,
+        string machineName)
+    {
+        if (project.SharedId is null)
+            return null;
+
+        var file = sharedFiles.FirstOrDefault(f => f.State.Id == project.SharedId);
+        if (file is null)
+            return "shared file missing";
+
+        var preview = _services.SharedState.PreviewImport(file.State, project, machineName);
+        return preview switch
+        {
+            { HasConflict: true } => "conflict with shared",
+            { SharedChangedSinceSync: true } => "shared is newer",
+            { LocalChangedSinceSync: true } => "not exported",
+            _ => null,
+        };
     }
 
     private void UpdateSummary(IReadOnlyList<Project> projects)

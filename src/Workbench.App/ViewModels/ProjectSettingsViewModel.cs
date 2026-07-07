@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.App.ViewModels;
 
@@ -29,6 +31,30 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _tags;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _confirmDelete;
+
+    // Shared Workbench State (cross-machine sync via the Shared State Folder).
+    [ObservableProperty] private string _sharedStatusMessage = string.Empty;
+    [ObservableProperty] private bool _confirmSharedOverwrite;
+    [ObservableProperty] private bool _isImportPreviewOpen;
+    [ObservableProperty] private string _importConflictMessage = string.Empty;
+    [ObservableProperty] private string _importAvailabilityNote = string.Empty;
+
+    public ObservableCollection<SharedFieldChange> ImportChanges { get; } = [];
+
+    private SharedProjectState? _pendingImport;
+
+    public bool HasSharedFolder => _services.AppSettings.SharedStateFolder is not null;
+
+    public string SharedFilePath =>
+        _services.AppSettings.SharedStateFolder is { } folder
+            ? _services.SharedState.GetSharedFilePath(folder, _project)
+            : "Set the Shared State Folder in App Settings first.";
+
+    public string SharedLastExportedText =>
+        _project.SharedLastExportedAt is { } t ? t.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") : "never";
+
+    public string SharedLastImportedText =>
+        _project.SharedLastImportedAt is { } t ? t.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss") : "never";
 
     public ProjectSettingsViewModel(AppServices services, Project project, Action goBack, Action headerChanged)
     {
@@ -119,6 +145,130 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
 
         _headerChanged();
         StatusMessage = "Configuration imported from workbench.json.";
+    }
+
+    /// <summary>
+    /// Writes this project's shared file. If the shared file changed since this
+    /// machine last synced it, the first attempt warns and nothing is written;
+    /// ticking the overwrite confirmation makes the next attempt forceful.
+    /// </summary>
+    [RelayCommand]
+    private void ExportToShared()
+    {
+        if (_services.AppSettings.SharedStateFolder is not { } folder)
+        {
+            SharedStatusMessage = "Set the Shared State Folder in App Settings first.";
+            return;
+        }
+
+        try
+        {
+            var result = _services.SharedState.Export(
+                folder, _project, _services.AppSettings.MachineName, force: ConfirmSharedOverwrite);
+
+            if (!result.Success)
+            {
+                SharedStatusMessage = $"⚠ {result.Warning} Tick \"Overwrite shared file\" to export anyway.";
+                return;
+            }
+
+            ConfirmSharedOverwrite = false;
+            SharedStatusMessage = $"Exported to {result.FilePath}";
+            NotifySharedInfoChanged();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SharedStatusMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Loads the shared file and shows what applying it would change. Nothing is applied yet.</summary>
+    [RelayCommand]
+    private void PreviewSharedImport()
+    {
+        if (_services.AppSettings.SharedStateFolder is not { } folder)
+        {
+            SharedStatusMessage = "Set the Shared State Folder in App Settings first.";
+            return;
+        }
+
+        var state = _services.SharedState.LoadFile(_services.SharedState.GetSharedFilePath(folder, _project));
+        if (state is null)
+        {
+            SharedStatusMessage = "No shared file found for this project.";
+            return;
+        }
+
+        var preview = _services.SharedState.PreviewImport(state, _project, _services.AppSettings.MachineName);
+
+        ImportChanges.Clear();
+        foreach (var change in preview.Changes)
+            ImportChanges.Add(change);
+
+        ImportConflictMessage = preview.HasConflict
+            ? "⚠ Conflict: this project changed locally AND the shared file changed since the last sync. " +
+              "Applying keeps the shared version and discards local edits; Cancel keeps local."
+            : string.Empty;
+
+        ImportAvailabilityNote = preview.RepositoryAvailable
+            ? string.Empty
+            : "Repository is not available on this machine — the project imports fine without it.";
+
+        SharedStatusMessage = preview.Changes.Count == 0 ? "Shared file matches this project." : string.Empty;
+        _pendingImport = state;
+        IsImportPreviewOpen = true;
+    }
+
+    [RelayCommand]
+    private void ApplySharedImport()
+    {
+        if (_pendingImport is not { } state)
+            return;
+
+        _services.SharedState.ApplyImport(state, _project, _services.AppSettings.MachineName);
+        _services.Timeline.Add(new TimelineEntry
+        {
+            ProjectId = _project.Id,
+            Category = TimelineCategory.Status,
+            Message = "Applied shared state from the Shared State Folder",
+        });
+
+        CancelSharedImport();
+        RefreshFieldsFromProject();
+        _headerChanged();
+        SharedStatusMessage = "Shared state applied.";
+        NotifySharedInfoChanged();
+    }
+
+    [RelayCommand]
+    private void CancelSharedImport()
+    {
+        _pendingImport = null;
+        IsImportPreviewOpen = false;
+        ImportChanges.Clear();
+        ImportConflictMessage = string.Empty;
+        ImportAvailabilityNote = string.Empty;
+    }
+
+    private void RefreshFieldsFromProject()
+    {
+        Name = _project.Name;
+        Status = _project.Status;
+        Description = _project.Description ?? string.Empty;
+        RepositoryPath = _project.RepositoryPath ?? string.Empty;
+        BuildCommand = _project.BuildCommand ?? string.Empty;
+        RunCommand = _project.RunCommand ?? string.Empty;
+        TestCommand = _project.TestCommand ?? string.Empty;
+        DocumentationPaths = string.Join(Environment.NewLine, _project.DocumentationPaths);
+        AiContextPaths = string.Join(Environment.NewLine, _project.AiContextPaths);
+        Tags = string.Join(", ", _project.Tags);
+    }
+
+    private void NotifySharedInfoChanged()
+    {
+        OnPropertyChanged(nameof(SharedFilePath));
+        OnPropertyChanged(nameof(SharedLastExportedText));
+        OnPropertyChanged(nameof(SharedLastImportedText));
     }
 
     [RelayCommand]

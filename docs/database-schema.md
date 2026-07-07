@@ -19,7 +19,14 @@ Conventions:
 - `build_records` and `test_records` are **append-only** — the repositories
   expose no update or delete.
 
-## Tables (user_version = 1)
+## Tables (user_version = 4)
+
+Migration numbering note: databases created by the pre-rewrite Workbench
+lineage arrive at `user_version = 3` with extra columns/tables this codebase
+does not use. The shared-state migration is therefore numbered **4** and adds
+its columns individually, guarded by `PRAGMA table_info` — the legacy lineage
+already carried `prompt_rules` and `custom_log_patterns`. Versions 2–3 are
+reserved (legacy) and intentionally absent from this repo's migration list.
 
 ### projects
 
@@ -29,14 +36,29 @@ Conventions:
 | name | TEXT NOT NULL | |
 | status | TEXT NOT NULL | Active, Waiting, Broken, Research, Complete |
 | description | TEXT | |
-| repository_path | TEXT | local git clone |
+| repository_path | TEXT | local git clone; per-machine, never shared directly |
 | build_command / run_command / test_command | TEXT | run via shell |
 | documentation_paths | TEXT NOT NULL | JSON array |
 | ai_context_paths | TEXT NOT NULL | JSON array, unused until later phases |
-| preferred_ai_provider | TEXT | reserved for later phases |
+| preferred_ai_provider | TEXT | assigned/preferred model for shared state |
 | active_task | TEXT | shown on the dashboard card |
 | current_objective | TEXT | shown in the detail view |
 | created_at / updated_at | TEXT NOT NULL | |
+| shared_id | TEXT | stable cross-machine id; unique when set (partial index) |
+| blocker_class | TEXT | shared-state field (v4) |
+| evidence | TEXT | shared-state field (v4) |
+| next_safest_step | TEXT | shared-state field (v4) |
+| prompt_rules | TEXT | JSON array; NULL possible in legacy rows — read defensively |
+| custom_log_patterns | TEXT | JSON array; same legacy caveat |
+| github_repo_url | TEXT | shared-state field (v4) |
+| default_branch | TEXT | shared-state field (v4) |
+| shared_last_imported_at / shared_last_exported_at | TEXT | local-only sync bookkeeping, never exported |
+| shared_last_synced_stamp | TEXT | shared file's `updatedAt` at last sync; conflict baseline |
+
+Sync bookkeeping is written through `IProjectRepository.UpdateSharedSync`,
+which deliberately does **not** bump `updated_at` — syncing is not a user edit,
+and the local-changed-since-sync check compares `updated_at` against these
+stamps.
 
 ### project_tags
 

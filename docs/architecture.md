@@ -26,7 +26,9 @@
 │ Workbench.Core       entities, enums, service          │
 │                      interfaces, HandoffService,       │
 │                      ExecutionService, ProcessRunner,  │
-│                      ProjectConfigService              │
+│                      ProjectConfigService,             │
+│                      SharedStateService,               │
+│                      AppSettingsService                │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -98,6 +100,38 @@ Each project can carry a `workbench.json` at its repository root (name,
 description, commands, documentation paths, AI context paths, preferred AI
 provider, tags). Registering a repository that contains one imports it
 automatically; the Settings tab can export/import at any time.
+
+### Shared Workbench State (`Workbench.Core.SharedStateService`)
+
+Cross-machine project state without syncing SQLite. The user selects a
+**Shared State Folder** (App Settings) — any directory synced by Google Drive,
+Syncthing, Dropbox, OneDrive, a NAS, or nothing at all. Each project exports to
+`projects/<slug>.workbench.json`: identity (a stable `id` that dedupes repeated
+imports), configuration, progress shape (objective, active task, frontier
+checklist, milestones, blocker class, evidence, next safest step), AI fields
+(assigned model, prompt rules, context paths), and **machine profiles** — the
+per-PC repository path plus availability. Local history (command runs, logs,
+timeline) is never exported; the file's top-level shape is a whitelist enforced
+by test.
+
+Sync is explicit and manual — no background watchers, no cloud APIs:
+
+- **Import previews first.** `PreviewImport` returns field-level diffs plus
+  conflict flags; nothing applies until the user confirms. A missing machine
+  profile imports the project as "not available on this machine", never an
+  error.
+- **Export warns** when the shared file is newer than this machine's last-sync
+  stamp (someone else exported); overwriting requires explicit confirmation.
+- **Conflict detection** compares the shared file's `updatedAt` against the
+  locally stored sync stamp, and local `updated_at` against the last sync —
+  sync bookkeeping is written via `UpdateSharedSync`, which does not bump
+  `updated_at`, so syncing never masquerades as a local edit.
+
+`AppSettingsService` persists the folder path and machine name in
+`settings.json` beside the database. The dashboard surfaces availability and
+drift ("shared is newer" / "not exported" / "conflict with shared") per card;
+reads happen on the existing background enrichment pass, writes only on user
+action.
 
 ### UI (`Workbench.App`)
 

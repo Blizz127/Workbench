@@ -66,15 +66,21 @@
                             <Border Classes="card" Width="360">
                                 <StackPanel Spacing="6">
                                     <DockPanel>
-                                        <Border DockPanel.Dock="Right" Classes="chip"
-                                                Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
-                                            <TextBlock Text="{Binding Status}" FontSize="11" />
-                                        </Border>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+                                            <Border Classes="chip" Background="#7A5C1E"
+                                                    IsVisible="{Binding SharedBadge, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                <TextBlock Text="{Binding SharedBadge}" FontSize="11" />
+                                            </Border>
+                                            <Border Classes="chip"
+                                                    Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
+                                                <TextBlock Text="{Binding Status}" FontSize="11" />
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" />
                                     </DockPanel>
 
-                                    <TextBlock Text="{Binding RepositoryPath}" Classes="muted mono"
+                                    <TextBlock Text="{Binding RepositoryText}" Classes="muted mono"
                                                TextTrimming="CharacterEllipsis" />
 
                                     <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">

@@ -30,6 +30,8 @@ public sealed class AppServices
     public IProcessRunner Runner { get; }
     public IProjectConfigService Config { get; }
     public ExecutionService Execution { get; }
+    public IAppSettingsService AppSettings { get; }
+    public ISharedStateService SharedState { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -51,6 +53,8 @@ public sealed class AppServices
         Runner = new ProcessRunner();
         Config = new ProjectConfigService();
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
+        AppSettings = new AppSettingsService();
+        SharedState = new SharedStateService(Projects, Milestones, Frontiers);
     }
 
     /// <summary>Gathers everything the handoff generator needs for one project.</summary>
