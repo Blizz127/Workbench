@@ -24,7 +24,6 @@ public sealed class App : Application
 
             var services = new AppServices();
             XenogearsSeeder.SeedIfEmpty(services.Database);
-            ParasiteEveSeeder.SeedIfMissing(services.Database);
 
             desktop.MainWindow = new MainWindow
             {

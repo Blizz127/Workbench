@@ -12,12 +12,6 @@ public sealed record CommitInfo(
 public sealed record FileChange(string Path, string State);
 
 /// <summary>
-/// A line flagged by the <c>git diff --check</c>-style scan: trailing
-/// whitespace or an unresolved conflict marker in an added line.
-/// </summary>
-public sealed record DiffCheckWarning(string FilePath, int LineNumber, string Issue);
-
-/// <summary>
 /// Snapshot of a repository's state, produced by <see cref="Services.IGitService"/>.
 /// <see cref="IsValid"/> is false when the path is missing or not a repository,
 /// in which case <see cref="Error"/> explains why.
@@ -29,15 +23,7 @@ public sealed record RepositorySnapshot(
     IReadOnlyList<CommitInfo> RecentCommits,
     IReadOnlyList<FileChange> ModifiedFiles,
     bool IsDirty,
-    string? Error,
-    /// <summary>Commits ahead of the upstream tracking branch, or null if there is none.</summary>
-    int? AheadBy = null,
-    /// <summary>Commits behind the upstream tracking branch, or null if there is none.</summary>
-    int? BehindBy = null,
-    /// <summary><c>git diff --stat</c>-style one-line summary of working-tree changes vs HEAD.</summary>
-    string? DiffStat = null,
-    /// <summary>Trailing-whitespace / conflict-marker warnings, à la <c>git diff --check</c>.</summary>
-    IReadOnlyList<DiffCheckWarning>? DiffCheckWarnings = null)
+    string? Error)
 {
     public static RepositorySnapshot Invalid(string error) =>
         new(false, null, null, [], [], false, error);

@@ -92,37 +92,4 @@ public sealed class ExecutionServiceTests : IClassFixture<DatabaseFixture>
         Assert.NotNull(record);
         Assert.Equal(TestResult.TimedOut, record.Result);
     }
-
-    [Fact]
-    public async Task Run_output_log_is_stored_and_fetchable_per_record()
-    {
-        var (service, id, builds, _, _) = CreateHarness();
-        var project = new Project { Id = id, BuildCommand = "echo stored-log-content" };
-
-        var record = await service.RunBuildAsync(project, ExecutionKind.Build);
-
-        Assert.NotNull(record);
-        Assert.Contains("stored-log-content", builds.GetOutputLog(record.Id));
-    }
-
-    [Fact]
-    public async Task Cancelled_run_is_recorded_but_never_counts_as_a_regression()
-    {
-        var (service, id, _, _, timeline) = CreateHarness();
-
-        // Establish a green build, then cancel the next one.
-        await service.RunBuildAsync(new Project { Id = id, BuildCommand = "true" }, ExecutionKind.Build);
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
-        var record = await service.RunBuildAsync(
-            new Project { Id = id, BuildCommand = "sleep 30" }, ExecutionKind.Build,
-            cancellationToken: cts.Token);
-
-        Assert.NotNull(record);
-        Assert.Null(record.ExitCode);
-
-        var entries = timeline.GetForProject(id);
-        Assert.Contains(entries, e => e.Message.Contains("cancelled"));
-        Assert.DoesNotContain(entries, e => e.Category == TimelineCategory.Regression);
-    }
 }

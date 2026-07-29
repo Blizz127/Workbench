@@ -10,6 +10,9 @@ namespace Workbench.Data.SampleData;
 /// </summary>
 public static class XenogearsSeeder
 {
+    public const string ProjectName = "Xenogears Decompilation";
+
+    /// <summary>Legacy entry point kept for existing callers; delegates to <see cref="Seed"/>.</summary>
     public static void SeedIfEmpty(WorkbenchDatabase database)
     {
         var projects = new ProjectRepository(database);
@@ -17,52 +20,61 @@ public static class XenogearsSeeder
             return;
 
         var now = DateTimeOffset.Now;
+        Seed(
+            projects,
+            new MilestoneRepository(database),
+            new FrontierRepository(database),
+            new BlockerRepository(database),
+            new TimelineRepository(database),
+            new NoteRepository(database),
+            new BuildHistoryRepository(database),
+            new TestHistoryRepository(database),
+            now);
+    }
 
+    public static void Seed(
+        ProjectRepository projects,
+        MilestoneRepository milestones,
+        FrontierRepository frontiers,
+        BlockerRepository blockers,
+        TimelineRepository timeline,
+        NoteRepository notes,
+        BuildHistoryRepository builds,
+        TestHistoryRepository tests,
+        DateTimeOffset now)
+    {
         var project = new Project
         {
-            Name = "Xenogears Decompilation",
+            Name = ProjectName,
             Status = ProjectStatus.Active,
             Description = "Decompilation of Xenogears (PSX) toward a native PC port. " +
                           "Matching functions are verified against the retail binary.",
-            RepositoryPath = null, // set this to your local clone
-            BuildCommand = "./pc_port/build_port.sh",
+            RepositoryPath = "/home/blizz/Projects/xenogears-decomp",
+            BuildCommand = "make -j8",
             RunCommand = "./build/xenogears",
             TestCommand = "python3 tools/check_matches.py",
-            MatchingBuildCommand = "make -B build",
             DocumentationPaths = ["docs/", "notes/memory-map.md"],
             AiContextPaths = ["docs/decomp-guide.md", "include/"],
-            PromptRules =
-                """
-                Never modify original decomp source under asm/ or src/ without matching evidence.
-                Confirm matches via the matching-build command before claiming a function is done.
-                Prefer minimal diffs; the PC port lives entirely under pc_port/.
-                """,
-            CustomLogPatterns =
-            [
-                new LogPatternDefinition("RUN_RC=", @"RUN_RC=", Category: "TestHarness"),
-                new LogPatternDefinition("[stub]", @"\[stub\]", Category: "TestHarness"),
-                new LogPatternDefinition("ParsePrimitive", @"\bParsePrimitive\b", Category: "FieldEngine"),
-                new LogPatternDefinition("field-diag", @"field-diag", Category: "FieldEngine"),
-            ],
             Tags = ["Reverse Engineering", "Game Preservation", "PSX"],
             ActiveTask = "Decompile the animation script interpreter",
             CurrentObjective = "Reach a stable in-game field scene running natively",
+            PromptRules =
+            [
+                "Never modify original decomp source under asm/ or src/ without matching evidence.",
+                "Confirm matches via the matching-build command before claiming a function is done.",
+                "Prefer minimal diffs; the PC port lives entirely under pc_port/."
+            ],
+            CustomLogPatterns =
+            [
+                "RUN_RC=|RUN_RC=|1|TestHarness",
+                "[stub]|\\[stub\\]|1|TestHarness",
+                "ParsePrimitive|\\bParsePrimitive\\b|1|FieldEngine",
+                "field-diag|field-diag|1|FieldEngine"
+            ],
             CreatedAt = now.AddDays(-120),
         };
         projects.Add(project);
 
-        // A custom command beyond the fixed build/run/test/matching-build slots —
-        // a targeted repro that boots straight into a field scene under a kill timeout.
-        var projectCommands = new ProjectCommandRepository(database);
-        projectCommands.Add(new ProjectCommand
-        {
-            ProjectId = project.Id,
-            Name = "field-repro",
-            CommandText = "cd pc_port && XENO_FIELD_TEST=1 XENO_KERNEL_SEL=0 timeout -s KILL 10 build_native/xeno-port",
-            SortOrder = 0,
-        });
-
-        var milestones = new MilestoneRepository(database);
         (string Title, bool Done, int DaysAgo)[] milestoneData =
         [
             ("Kernel Menu", true, 100),
@@ -85,7 +97,6 @@ public static class XenogearsSeeder
             });
         }
 
-        var frontiers = new FrontierRepository(database);
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
@@ -100,13 +111,6 @@ public static class XenogearsSeeder
             Title = "func_8001FBE4 — animation script interpreter",
             Status = FrontierStatus.Current,
             Notes = "Roughly 40% matched. The jump table at 0x8001FC90 still resists.",
-            Symbol = "func_8001FBE4",
-            Evidence = "field-diag trace shows ParsePrimitive returning early on opcode 0xB7 in battle scenes; " +
-                       "matching-build reports 1042/1893 functions (55.0%).",
-            BlockerClass = "Unknown ABI: opcode 0xB7 semantics differ between field and battle contexts",
-            NextSafestStep = "Add a field-diag breakpoint at ParsePrimitive's opcode dispatch to capture the " +
-                              "0xB7 argument layout in both contexts before attempting a rewrite.",
-            AssignedModel = "claude-sonnet-5",
             CreatedAt = now.AddDays(-2),
         });
         frontiers.Add(new Frontier
@@ -117,7 +121,6 @@ public static class XenogearsSeeder
             CreatedAt = now.AddDays(-2),
         });
 
-        var blockers = new BlockerRepository(database);
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
@@ -134,7 +137,6 @@ public static class XenogearsSeeder
             CreatedAt = now.AddDays(-3),
         });
 
-        var timeline = new TimelineRepository(database);
         (int DaysAgo, TimelineCategory Category, string Message)[] entries =
         [
             (30, TimelineCategory.Blocker, "Render crash when loading Lahan village"),
@@ -158,7 +160,6 @@ public static class XenogearsSeeder
             });
         }
 
-        var notes = new NoteRepository(database);
         notes.Add(new Note
         {
             ProjectId = project.Id,
@@ -195,12 +196,11 @@ public static class XenogearsSeeder
             CreatedAt = now.AddDays(-15),
         });
 
-        var builds = new BuildHistoryRepository(database);
         builds.Add(new BuildRecord
         {
             ProjectId = project.Id,
             Kind = ExecutionKind.Build,
-            Command = "./pc_port/build_port.sh",
+            Command = "make -j8",
             StartedAt = now.AddDays(-1),
             ExitCode = null,
             Duration = TimeSpan.FromSeconds(10),
@@ -210,14 +210,13 @@ public static class XenogearsSeeder
         {
             ProjectId = project.Id,
             Kind = ExecutionKind.Build,
-            Command = "./pc_port/build_port.sh",
+            Command = "make -j8",
             StartedAt = now.AddHours(-3),
             ExitCode = 0,
             Duration = TimeSpan.FromSeconds(42),
             OutputLog = "CC src/field/anim.c\nLD build/xenogears\nBuild complete.",
         });
 
-        var tests = new TestHistoryRepository(database);
         tests.Add(new TestRecord
         {
             ProjectId = project.Id,
@@ -226,45 +225,6 @@ public static class XenogearsSeeder
             StartedAt = now.AddHours(-2),
             Duration = TimeSpan.FromSeconds(12),
             Notes = "1042/1893 functions matching (55.0%)",
-        });
-
-        // Named command runs (matching-build + custom) demonstrate the newer
-        // unified command_runs history, including a caught regression and log
-        // findings that the built-in + project-specific patterns pick up.
-        var commandRuns = new CommandRunRepository(database);
-        commandRuns.Add(new CommandRun
-        {
-            ProjectId = project.Id,
-            CommandName = "matching-build",
-            CommandText = "make -B build",
-            WorkingDirectory = "(sample data — no repository configured)",
-            StartedAt = now.AddDays(-2),
-            ExitCode = 0,
-            Duration = TimeSpan.FromSeconds(38),
-            OutputLog = "make: Entering directory 'build'\nAll targets up to date.\nRUN_RC=0",
-            GitHeadSha = "a1b2c3d4e5f6",
-            WasDirty = false,
-        });
-        commandRuns.Add(new CommandRun
-        {
-            ProjectId = project.Id,
-            CommandName = "field-repro",
-            CommandText = "cd pc_port && XENO_FIELD_TEST=1 XENO_KERNEL_SEL=0 timeout -s KILL 10 build_native/xeno-port",
-            WorkingDirectory = "(sample data — no repository configured)",
-            StartedAt = now.AddHours(-1),
-            ExitCode = 1,
-            Duration = TimeSpan.FromSeconds(10),
-            OutputLog =
-                """
-                field-diag: entering ParsePrimitive dispatch, opcode=0xB7
-                [stub] battle-only opcode handler not implemented
-                ParsePrimitive: unexpected primitive length, aborting
-                Aborted
-                RUN_RC=134
-                """,
-            GitHeadSha = "a1b2c3d4e5f6",
-            WasDirty = true,
-            RegressionDetected = true,
         });
     }
 }

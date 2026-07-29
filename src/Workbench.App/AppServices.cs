@@ -1,6 +1,7 @@
 using Workbench.Core.Services;
 using Workbench.Data;
 using Workbench.Data.Repositories;
+using Workbench.Data.SampleData;
 using Workbench.Git;
 
 namespace Workbench.App;
@@ -55,6 +56,9 @@ public sealed class AppServices
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
         AppSettings = new AppSettingsService();
         SharedState = new SharedStateService(Projects, Milestones, Frontiers);
+
+        // Seed sample projects (idempotent — skips already-registered projects).
+        SampleDataSeeder.SeedAll(Database);
     }
 
     /// <summary>Gathers everything the handoff generator needs for one project.</summary>

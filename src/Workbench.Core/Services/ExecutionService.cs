@@ -39,13 +39,11 @@ public sealed class ExecutionService(
         buildHistory.Add(record);
 
         var label = kind == ExecutionKind.Build ? "Build" : "Run";
-        var message = result switch
-        {
-            { Cancelled: true } => $"{label} cancelled after {result.Duration.TotalSeconds:0.#}s",
-            { TimedOut: true } => $"{label} timed out after {result.Duration.TotalSeconds:0} seconds",
-            _ when record.Succeeded => $"{label} succeeded in {result.Duration.TotalSeconds:0.#}s",
-            _ => $"{label} failed (exit {record.ExitCode?.ToString() ?? "n/a"})",
-        };
+        var message = result.TimedOut
+            ? $"{label} timed out after {result.Duration.TotalSeconds:0} seconds"
+            : record.Succeeded
+                ? $"{label} succeeded in {result.Duration.TotalSeconds:0.#}s"
+                : $"{label} failed (exit {record.ExitCode?.ToString() ?? "n/a"})";
 
         timeline.Add(new TimelineEntry
         {
@@ -56,8 +54,7 @@ public sealed class ExecutionService(
             Detail = record.Succeeded ? null : Tail(result.Output),
         });
 
-        // A user-initiated cancel is not a regression; a timeout is.
-        if (previous is { } prev && prev.Succeeded && !record.Succeeded && !result.Cancelled)
+        if (previous is { } prev && prev.Succeeded && !record.Succeeded)
         {
             timeline.Add(new TimelineEntry
             {
@@ -105,14 +102,11 @@ public sealed class ExecutionService(
             ProjectId = project.Id,
             Timestamp = record.StartedAt,
             Category = TimelineCategory.Test,
-            Message = result.Cancelled
-                ? $"Test run cancelled after {result.Duration.TotalSeconds:0.#}s"
-                : $"Tests {testResult} in {result.Duration.TotalSeconds:0.#}s",
+            Message = $"Tests {testResult} in {result.Duration.TotalSeconds:0.#}s",
             Detail = testResult == TestResult.Passed ? null : Tail(result.Output),
         });
 
-        // A user-initiated cancel is not a regression; a timeout is.
-        if (previous is { Result: TestResult.Passed } && testResult != TestResult.Passed && !result.Cancelled)
+        if (previous is { Result: TestResult.Passed } && testResult != TestResult.Passed)
         {
             timeline.Add(new TimelineEntry
             {

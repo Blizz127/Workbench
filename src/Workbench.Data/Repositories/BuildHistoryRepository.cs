@@ -10,10 +10,8 @@ namespace Workbench.Data.Repositories;
 /// </summary>
 public sealed class BuildHistoryRepository(WorkbenchDatabase database) : IBuildHistoryRepository
 {
-    // output_log is deliberately excluded: logs can be megabytes and list
-    // views never show them. Fetch per record via GetOutputLog.
     private const string SelectColumns =
-        "id, project_id, kind, command, started_at, exit_code, duration_ms, commit_sha";
+        "id, project_id, kind, command, started_at, exit_code, duration_ms, output_log, commit_sha";
 
     public IReadOnlyList<BuildRecord> GetForProject(long projectId, int limit = 100, ExecutionKind? kind = null)
     {
@@ -76,15 +74,6 @@ public sealed class BuildHistoryRepository(WorkbenchDatabase database) : IBuildH
         return record.Id;
     }
 
-    public string? GetOutputLog(long recordId)
-    {
-        using var connection = database.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT output_log FROM build_records WHERE id = $id;";
-        command.Parameters.AddWithValue("$id", recordId);
-        return command.ExecuteScalar() as string;
-    }
-
     private static BuildRecord Map(SqliteDataReader reader) => new()
     {
         Id = reader.GetInt64(0),
@@ -94,6 +83,7 @@ public sealed class BuildHistoryRepository(WorkbenchDatabase database) : IBuildH
         StartedAt = reader.GetDateTimeOffset(4),
         ExitCode = reader.GetNullableInt32(5),
         Duration = TimeSpan.FromMilliseconds(reader.GetInt64(6)),
-        CommitSha = reader.GetNullableString(7),
+        OutputLog = reader.GetString(7),
+        CommitSha = reader.GetNullableString(8),
     };
 }

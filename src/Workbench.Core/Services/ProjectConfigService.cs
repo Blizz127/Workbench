@@ -16,13 +16,33 @@ public sealed class ProjectConfig
     public string? BuildCommand { get; set; }
     public string? RunCommand { get; set; }
     public string? TestCommand { get; set; }
+
+    /// <summary>Optional separate build command for regression/matching builds.</summary>
     public string? MatchingBuildCommand { get; set; }
+
     public List<string> DocumentationPaths { get; set; } = [];
     public List<string> AiContextPaths { get; set; } = [];
     public string? PreferredAiProvider { get; set; }
-    public string? PromptRules { get; set; }
-    public List<LogPatternDefinition> CustomLogPatterns { get; set; } = [];
     public List<string> Tags { get; set; } = [];
+
+    /// <summary>
+    /// Standing AI-prompt rules for this project. Stored as a single
+    /// newline-separated string in the JSON for readability, but loaded
+    /// into the Project model as a list of lines.
+    /// </summary>
+    public string? PromptRules { get; set; }
+
+    /// <summary>Log-line patterns of interest (guards, markers) for this project.</summary>
+    public List<LogPatternConfig> CustomLogPatterns { get; set; } = [];
+}
+
+/// <summary>A single log-pattern entry in <c>workbench.json</c>.</summary>
+public sealed class LogPatternConfig
+{
+    public string Name { get; set; } = string.Empty;
+    public string Pattern { get; set; } = string.Empty;
+    public bool IsRegex { get; set; }
+    public string Category { get; set; } = "General";
 }
 
 public interface IProjectConfigService
@@ -80,13 +100,30 @@ public sealed class ProjectConfigService : IProjectConfigService
         project.BuildCommand = config.BuildCommand;
         project.RunCommand = config.RunCommand;
         project.TestCommand = config.TestCommand;
-        project.MatchingBuildCommand = config.MatchingBuildCommand;
         project.DocumentationPaths = [.. config.DocumentationPaths];
         project.AiContextPaths = [.. config.AiContextPaths];
         project.PreferredAiProvider = config.PreferredAiProvider;
-        project.PromptRules = config.PromptRules;
-        project.CustomLogPatterns = [.. config.CustomLogPatterns];
         project.Tags = [.. config.Tags];
+
+        // promptRules is a single multi-line string in the JSON; split into
+        // non-empty lines for the Project model.
+        if (config.PromptRules is { Length: > 0 } rules)
+        {
+            project.PromptRules = rules
+                .Split('\n')
+                .Select(l => l.TrimEnd('\r'))
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+        }
+
+        // customLogPatterns: serialize each LogPatternConfig as a compact
+        // string the rest of the app can parse (name|pattern|isRegex|category).
+        if (config.CustomLogPatterns.Count > 0)
+        {
+            project.CustomLogPatterns = config.CustomLogPatterns
+                .Select(p => $"{p.Name}|{p.Pattern}|{(p.IsRegex ? "1" : "0")}|{p.Category}")
+                .ToList();
+        }
     }
 
     public ProjectConfig FromProject(Project project) => new()
@@ -97,12 +134,13 @@ public sealed class ProjectConfigService : IProjectConfigService
         BuildCommand = project.BuildCommand,
         RunCommand = project.RunCommand,
         TestCommand = project.TestCommand,
-        MatchingBuildCommand = project.MatchingBuildCommand,
         DocumentationPaths = [.. project.DocumentationPaths],
         AiContextPaths = [.. project.AiContextPaths],
         PreferredAiProvider = project.PreferredAiProvider,
-        PromptRules = project.PromptRules,
-        CustomLogPatterns = [.. project.CustomLogPatterns],
         Tags = [.. project.Tags],
+        PromptRules = project.PromptRules.Count > 0
+            ? string.Join('\n', project.PromptRules)
+            : null,
+        CustomLogPatterns = [],
     };
 }

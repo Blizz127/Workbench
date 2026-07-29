@@ -1,0 +1,34 @@
+{
+  "name": "FFXI-EventsDump",
+  "description": "FFXI Event Bytecode Parser and Analyzer. Parses, analyzes, and renders human-readable output from Final Fantasy XI event bytecode (DAT files). Includes a full opcode registry (225+ opcodes), control flow analysis using networkx, string formatting with parameter substitution, entity/zone data models, and Jinja2 template-based output generation. Based on atom0s/XiEvents and Windower/POLUtils research.",
+  "buildCommand": "pip install -e .",
+  "runCommand": "xievents-parse --zone \"Aht Urhgan Whitegate\" --event 1",
+  "testCommand": "pytest tests/ -v --cov=parser --cov=models --cov-report=term-missing",
+  "documentationPaths": [
+    "README.md",
+    "parser/opcodes/",
+    "models/",
+    "templates/"
+  ],
+  "aiContextPaths": [
+    "parser/opcodes/registry.py",
+    "parser/opcodes/base.py",
+    "parser/control_flow.py",
+    "parser/string_formatter.py",
+    "parser/eventcode.py",
+    "parser/eventdat.py",
+    "parser/entitydat.py",
+    "models/zones.py",
+    "models/entities.py",
+    "models/events.py",
+    "models/strings.py",
+    "dump_opcodes.py"
+  ],
+  "tags": [
+    "Game Preservation",
+    "Reverse Engineering",
+    "FFXI",
+    "Bytecode Analysis",
+    "Event Scripting"
+  ]
+}
