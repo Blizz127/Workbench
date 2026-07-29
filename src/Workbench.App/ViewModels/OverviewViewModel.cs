@@ -519,6 +519,14 @@ public sealed partial class GitSyncViewModel : ViewModelBase
             var result = await Task.Run(() => action(cts.Token));
             await Dispatcher.UIThread.InvokeAsync(() => ReportResult(result));
         }
+        catch (Exception ex)
+        {
+            // ProcessRunner and the git snapshot reader are designed never to
+            // throw, but a failure further down (e.g. journaling to the
+            // timeline database) would otherwise escape as an unhandled
+            // command exception. Surface it like any other failure instead.
+            await Dispatcher.UIThread.InvokeAsync(() => ReportException(ex));
+        }
         finally
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
@@ -528,6 +536,13 @@ public sealed partial class GitSyncViewModel : ViewModelBase
                 RunStatus = string.Empty;
             });
         }
+    }
+
+    private void ReportException(Exception ex)
+    {
+        LastResultWasError = true;
+        LastResultMessage = $"Failed: {ex.Message}";
+        _onSyncCompleted();
     }
 
     private void ReportResult(GitSyncResult result)
