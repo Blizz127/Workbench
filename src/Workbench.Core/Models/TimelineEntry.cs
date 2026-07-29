@@ -13,6 +13,7 @@ public enum TimelineCategory
     Note,
     Regression,
     Status,
+    GitSync,
 }
 
 /// <summary>

@@ -33,6 +33,7 @@ public sealed class AppServices
     public ExecutionService Execution { get; }
     public IAppSettingsService AppSettings { get; }
     public ISharedStateService SharedState { get; }
+    public IGitSyncService GitSync { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -56,6 +57,7 @@ public sealed class AppServices
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
         AppSettings = new AppSettingsService();
         SharedState = new SharedStateService(Projects, Milestones, Frontiers);
+        GitSync = new GitSyncService(Git, Timeline, Runner);
 
         // Seed sample projects (idempotent — skips already-registered projects).
         SampleDataSeeder.SeedAll(Database);

@@ -23,7 +23,11 @@ public sealed record RepositorySnapshot(
     IReadOnlyList<CommitInfo> RecentCommits,
     IReadOnlyList<FileChange> ModifiedFiles,
     bool IsDirty,
-    string? Error)
+    string? Error,
+    /// <summary>Commits ahead of the upstream tracking branch, or null if there is none.</summary>
+    int? AheadBy = null,
+    /// <summary>Commits behind the upstream tracking branch, or null if there is none.</summary>
+    int? BehindBy = null)
 {
     public static RepositorySnapshot Invalid(string error) =>
         new(false, null, null, [], [], false, error);

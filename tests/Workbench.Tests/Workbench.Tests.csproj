@@ -12,5 +12,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Workbench.Core\Workbench.Core.csproj" />
     <ProjectReference Include="..\..\src\Workbench.Data\Workbench.Data.csproj" />
+    <ProjectReference Include="..\..\src\Workbench.Git\Workbench.Git.csproj" />
   </ItemGroup>
 </Project>

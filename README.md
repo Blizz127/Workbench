@@ -36,6 +36,9 @@ and Linux) · All data stays local in SQLite.
 - **Build / run / test execution with history** — run the project's configured
   commands from the app and keep an append-only record of every invocation
   (see §6).
+- **GitHub sync** — explicit, button-driven Fetch, Pull (fast-forward only),
+  and Push actions for keeping a repository in sync across machines, each
+  guarded by a safety check and recorded to the timeline (see §7).
 - **Tags and global search** — search spans projects, notes, milestones,
   timeline entries, and frontiers.
 
@@ -50,8 +53,15 @@ Being explicit, because the name "AI-assisted" invites assumptions:
 - **No automatic code modification.** Workbench never edits, patches, or
   commits code in your projects. It reads git state and runs the build/run/test
   commands you configured; that is the full extent of what it touches.
+- **Git writes are explicit, narrow, and confirmed.** The only git commands
+  Workbench ever runs against a remote are `git fetch`, `git pull --ff-only`,
+  and `git push` — each behind its own button, each gated by a safety check
+  that can block it outright, and Pull/Push additionally require a preview-
+  then-confirm step (see §7). Workbench never auto-commits, auto-stashes,
+  auto-merges, auto-rebases, force-pushes, or creates remotes/branches on its
+  own.
 - **No agent orchestration, no prompt generation pipelines.** Those are later
-  phases (see the roadmap in §7).
+  phases (see the roadmap in §8).
 - **No hosting, no background sync.** State lives in a local SQLite database
   (`~/.config/Workbench/workbench.db` on Linux, `%APPDATA%\Workbench` on
   Windows; override with `WORKBENCH_DATA_DIR`). Nothing is uploaded. Project
@@ -162,6 +172,46 @@ Configure the commands once (Settings or `workbench.json`), then use the
 Test results are recorded as Passed / Failed / Error / TimedOut, with optional
 notes (e.g. `1042/1893 functions matching (55.0%)`) and the associated commit.
 
+## 7. GitHub sync: Fetch, Pull, Push
+
+For projects you work on from more than one machine, the Overview tab has a
+**GitHub** card with three explicit actions. Nothing here runs on its own —
+every action is one button click, and Pull/Push additionally show a preview
+of exactly what will happen before a **Confirm** button does anything:
+
+- **⇅ Fetch/Update from GitHub** — runs `git fetch --all --prune` and
+  refreshes the branch/ahead/behind/dirty state shown on the card. This is
+  always safe to run: a fetch never touches your working tree or history.
+- **⏩ Pull (fast-forward)** — appears only once a fetch shows the branch is
+  behind. Runs `git pull --ff-only`, and only if:
+  - the working tree is clean (a dirty tree blocks the pull with a warning
+    telling you to commit or discard first — Workbench will not stash for
+    you), and
+  - the branch hasn't diverged (if it's both ahead and behind, Workbench
+    blocks the pull and tells you to resolve it manually — no automatic
+    merge or rebase, ever).
+
+  Because `--ff-only` is passed to git itself, even in the small window
+  between the check and the command, git will still refuse and no local
+  state changes.
+- **⬆ Push committed changes** — appears once the branch is ahead of
+  upstream. Runs `git push`. A dirty working tree does not block the push —
+  only what you've actually committed goes — but the preview and the result
+  both warn you that uncommitted changes are being left behind. If no
+  upstream is configured, Push is blocked with a message telling you to set
+  one yourself (`git push -u origin <branch>`); Workbench never creates a
+  remote or branch on your behalf.
+
+Every fetch/pull/push attempt — blocked, succeeded, or failed — is journaled
+to the timeline (category `GitSync`) with the command, branch, HEAD before/
+after, and ahead/behind before/after, so the history of what was synced and
+when is preserved alongside everything else.
+
+**One nuance worth knowing:** Pull's ahead/behind check reads whatever the
+last fetch (or Refresh) recorded — it does not implicitly fetch for
+you first. If origin has moved since your last fetch, run **Fetch/Update**
+before trusting the Pull button's availability or the numbers on the card.
+
 ## Example projects
 
 [`samples/`](samples/) contains `workbench.json` examples for four shapes of
@@ -178,7 +228,7 @@ Workbench treats all four identically — it is project-shape agnostic. The
 frontier for a decomp might be a function address; for a server revival, a
 packet opcode; for ordinary software, a feature.
 
-## 7. Roadmap
+## 8. Roadmap
 
 | Phase | Scope | Status |
 |-------|-------|--------|

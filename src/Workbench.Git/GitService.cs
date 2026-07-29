@@ -50,6 +50,8 @@ public sealed class GitService : IGitService
                 .OrderBy(c => c.Path, StringComparer.Ordinal)
                 .ToList();
 
+            var tracking = repo.Head.TrackingDetails;
+
             return new RepositorySnapshot(
                 IsValid: true,
                 BranchName: branchName,
@@ -57,7 +59,9 @@ public sealed class GitService : IGitService
                 RecentCommits: recentCommits,
                 ModifiedFiles: changes,
                 IsDirty: changes.Count > 0,
-                Error: null);
+                Error: null,
+                AheadBy: tracking.AheadBy,
+                BehindBy: tracking.BehindBy);
         }
         catch (Exception ex) when (ex is LibGit2SharpException or IOException or UnauthorizedAccessException)
         {
