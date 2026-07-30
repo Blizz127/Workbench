@@ -1,21 +1,25 @@
 {
   "name": "Parasite Eve Decompilation",
-  "description": "Early-phase decompilation of Parasite Eve (PSX). Currently parked at disc verification; the retail binary is identified and its structure is catalogued, but decompilation hasn't started yet.",
-  "buildCommand": "python3 tools/verify_disc.py --disc SLUS_006.62",
-  "runCommand": "python3 tools/verify_disc.py --disc SLUS_006.62 --verbose",
-  "testCommand": "python3 tools/check_sector_hashes.py",
+  "description": "Matching decompilation of Parasite Eve (PSX, NTSC-U SLUS-006.62). Phase 5 leaf matching with dual toolchain (GCC 14.2 + era cc1/maspsx). 224 exact C leaves; exact SHA-1 rebuild via scripts/build_us.sh. PC port is out of scope.",
+  "buildCommand": "scripts/build_us.sh",
+  "runCommand": "scripts/verify_us.sh",
+  "testCommand": "scripts/verify_us.sh",
   "documentationPaths": [
-    "docs/disc-layout.md",
-    "docs/executable-map.md"
+    "docs/project_plan.md",
+    "docs/ai_context/ACTIVE_HANDOFF.md",
+    "docs/splitting.md",
+    "docs/disc_info.md"
   ],
   "aiContextPaths": [
-    "docs/disc-layout.md",
-    "notes/psx-executable-format.md"
+    "docs/ai_context/ACTIVE_HANDOFF.md",
+    "docs/ai_context/parked_blockers.json",
+    "CLAUDE.md",
+    "configs/USA/disc1.yaml"
   ],
   "tags": [
     "Reverse Engineering",
     "Game Preservation",
     "PSX",
-    "Parked"
+    "Matching Decomp"
   ]
 }

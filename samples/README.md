@@ -10,10 +10,12 @@ and frontiers look like:
 
 | Sample | Shape | Typical frontier |
 |--------|-------|------------------|
-| [`xenogears/`](xenogears/) | Matching decompilation toward a native PC port | a function address (`func_8001FBE4`) |
-| [`parasite-eve/`](parasite-eve/) | Early-phase decomp: disc verification/setup only, parked | a disc or executable verification step |
-| [`ten-revival/`](ten-revival/) | Reviving a dead online-game network service | a protocol message or lobby flow |
-| [`crimson-sands/`](crimson-sands/) | MMO server emulation from packet captures | a packet opcode or game system |
+| [`xenogears/`](xenogears/) | Matching decompilation toward a native PC port | a field/menu subsystem or red ROM pin |
+| [`parasite-eve/`](parasite-eve/) | Active matching decomp (Phase 5 leaf harvest) | a C leaf / era fingerprint (`func_8002F970`) |
+| [`ten-revival/`](ten-revival/) | Reviving a dead online-game network service | a client patch or name-service resolve step |
+| [`crimson-sands/`](crimson-sands/) | TEN-exclusive MMO preservation (depends on TEN) | first packet capture / game-service adapter |
+| [`draenor/`](draenor/) | WoW WoD 6.2.3 server build + runtime baseline | world playability / content batch |
+| [`ffxi-events-dump/`](ffxi-events-dump/) | FFXI event bytecode parser | multi-event CALL chain / opcode coverage |
 | [`generic-software/`](generic-software/) | Any ordinary software project | a feature or subsystem |
 
 Notes that apply to all samples:
@@ -23,8 +25,8 @@ Notes that apply to all samples:
 - `aiContextPaths` declare what an AI assistant should be handed as context
   alongside the generated handoff document. In Phase 1 nothing reads them
   automatically — they are declared inputs for the later export phases.
-- The Xenogears sample also exists as seeded data (milestones, frontiers,
-  blockers, timeline, history) on first launch of the app.
-- The Parasite Eve sample is likewise seeded (parked, minimal truthful
-  history) whenever it is missing from the database — it is a real tracked
-  project still in its disc-verification phase, not yet in decompilation.
+- Sample projects are seeded with milestones, frontiers, blockers, timeline,
+  and notes on first launch (or whenever a project name is missing from the
+  database). Seed content tracks real local project state as of the last
+  workbench update — especially Parasite Eve (active Phase 5 matching),
+  Xenogears (field/menu + red pins), TEN/Dark Sun, and Draenor.

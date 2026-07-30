@@ -4,9 +4,9 @@ using Workbench.Data.Repositories;
 namespace Workbench.Data.SampleData;
 
 /// <summary>
-/// Seeds the Draenor-Core build & runtime project — a WoW: Warlords of Draenor
-/// (6.2.3, build 20779) server preservation effort. Tracks the modern-Linux
-/// build fixes, database import, and the remaining in-world movement blocker.
+/// Seeds the Draenor-Core build &amp; runtime project — WoW: Warlords of Draenor
+/// (6.2.3, build 20779) preservation. Build/login/world/movement baseline is
+/// proven on frFR; Phase 4 world playability / content is in progress.
 /// </summary>
 public static class DraenorSeeder
 {
@@ -20,34 +20,51 @@ public static class DraenorSeeder
         {
             Name = ProjectName,
             Status = ProjectStatus.Active,
-            Description = "Build tracking and fix documentation for getting " +
-                          "EyalMK/Draenor-Core (World of Warcraft: Warlords of Draenor, " +
-                          "patch 6.2.3, build 20779) to configure and compile on a modern " +
-                          "Linux toolchain — GCC 13 / OpenSSL 3.x / ACE 7.1.2 / Boost 1.83.",
+            Description = "WoW: Warlords of Draenor 6.2.3.20779 preservation baseline for " +
+                          "EyalMK/Draenor-Core on modern Linux (GCC 13 / OpenSSL 3 / ACE 7.1.2). " +
+                          "Server builds clean, Firestorm DBs imported, frFR client reaches world " +
+                          "with movement. Phase 4 world playability and content fixes are current.",
             RepositoryPath = "/home/blizz/Projects/draenor-dit",
             BuildCommand = "cd /home/blizz/Draenor-Core/build && cmake --build . --target worldserver -j2",
             RunCommand = "podman exec draenor-devbox bash -lc 'cd /home/blizz/Draenor-Core/run-world && rm -f console.fifo && mkfifo console.fifo && exec 9<>console.fifo && exec ./worldserver < console.fifo >> worldserver-live.log 2>&1'",
             TestCommand = "podman exec draenor-devbox bash -lc 'ps -eo pid,ppid,stat,comm,args | grep \"[.]\\/worldserver\" || true; ss -ltnp 2>/dev/null | grep 8085 || true; tail -40 /home/blizz/Draenor-Core/run-world/worldserver-live.log'",
-            DocumentationPaths = ["BUILD.md", "PRESERVATION.md", "STATUS.md", "PHASE1-REPORT.md", "docs/protocol-compatibility-20779.md", "runtime/"],
-            AiContextPaths = ["BUILD.md", "PRESERVATION.md", "STATUS.md", "PHASE1-REPORT.md", "docs/protocol-compatibility-20779.md", "draenor-core-build-fixes.patch", "runtime/start_servers.sh", "runtime/extract_maps.sh", "runtime/db/"],
+            DocumentationPaths =
+            [
+                "STATUS.md",
+                "docs/CURRENT_STATUS.md",
+                "docs/PRESERVATION_PLAN.md",
+                "docs/protocol-compatibility-20779.md",
+                "runtime/",
+            ],
+            AiContextPaths =
+            [
+                "STATUS.md",
+                "docs/CURRENT_STATUS.md",
+                "docs/SERVER_WORLD_VIEW.md",
+                "docs/protocol-compatibility-20779.md",
+                "draenor-core-build-fixes.patch",
+                "runtime/start_servers.sh",
+            ],
             Tags = ["Game Preservation", "Server Revival", "Reverse Engineering", "WoW", "WoD", "Build Engineering"],
-            ActiveTask = "Resolve in-world movement: map unknown client opcodes to real-input actions",
-            CurrentObjective = "Get a 6.2.3.20779 client to connect, login, enter world, render, and move normally",
-            CreatedAt = now.AddDays(-8),
+            ActiveTask = "Phase 4 world playability: content batches + 20779 gameplay smoke baseline",
+            CurrentObjective = "Stable 6.2.3.20779 frFR play session with fixed content gaps; enUS pack re-verify later",
+            CreatedAt = now.AddDays(-30),
         };
         projects.Add(project);
 
         // --- Milestones ---
         (string Title, bool Done, int DaysAgo)[] milestoneData =
         [
-            ("Modern Linux Build (GCC 13 / OpenSSL 3)", true, 7),
-            ("authserver Operational", true, 6),
-            ("worldserver Boots to World Init", true, 5),
-            ("Databases Imported (auth/char/world/hotfix/web)", true, 4),
-            ("Client Connect + Login + Enter World", true, 3),
-            ("In-World Render (Stormwind)", true, 2),
-            ("Normal Character Movement", false, 0),
-            ("Maps/VMaps/MMaps Extracted", false, 0),
+            ("Modern Linux Build (GCC 13 / OpenSSL 3)", true, 28),
+            ("authserver Operational", true, 26),
+            ("worldserver Boots to World Init", true, 25),
+            ("Databases Imported (auth/char/world/hotfix/web)", true, 24),
+            ("Client Connect + Login + Enter World", true, 22),
+            ("In-World Render (Stormwind)", true, 21),
+            ("Normal Character Movement (frFR)", true, 20),
+            ("Maps/VMaps/MMaps Extracted", true, 18),
+            ("Phase 4 World Playability / Content", false, 0),
+            ("enUS client pack re-verify", false, 0),
         ];
         for (var i = 0; i < milestoneData.Length; i++)
         {
@@ -66,23 +83,26 @@ public static class DraenorSeeder
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Build fixes patch (23 files) applied — 100% build",
+            Title = "frFR movement + maps baseline (Phase 3 done)",
             Status = FrontierStatus.Completed,
-            CreatedAt = now.AddDays(-7),
-            CompletedAt = now.AddDays(-6),
+            CreatedAt = now.AddDays(-22),
+            CompletedAt = now.AddDays(-20),
         });
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "In-world movement: unknown opcode → action mapping",
+            Title = "Phase 4: world playability and content fixes",
             Status = FrontierStatus.Current,
-            Notes = "Unknown-opcode instrumentation active in WorldSocket.cpp. Need a real-input movement matrix that produces action-correlated packets before aliasing.",
-            CreatedAt = now.AddDays(-2),
+            Notes = "Batch 0 filled missing quest reward item_template rows. " +
+                    "Gameplay baseline smoke test added. Client must stay frFR " +
+                    "(enUS WTF on this pack crashes error #134 at world load). " +
+                    "Portal: Tailscale 100.111.220.11.",
+            CreatedAt = now.AddDays(-20),
         });
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Map/VMAP/MMAP extraction against WoD 6.2.3 client",
+            Title = "enUS text/speech pack or dedicated enUS client",
             Status = FrontierStatus.Next,
             CreatedAt = now,
         });
@@ -91,35 +111,34 @@ public static class DraenorSeeder
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "World/characters DB not populated — worldserver aborts at world-DB init",
+            Description = "In-world movement not working — unknown encrypted client opcodes",
             IsResolved = true,
-            Resolution = "Imported canonical Firestorm WoD SQL sets into Draenor's own MariaDB on port 3307 (auth/characters/world/hotfix/web).",
-            CreatedAt = now.AddDays(-6),
-            ResolvedAt = now.AddDays(-4),
+            Resolution = "Phase 3 complete on frFR locale pack; movement worked after locale/client baseline (not opcode-alias table from incomplete matrix)",
+            CreatedAt = now.AddDays(-22),
+            ResolvedAt = now.AddDays(-20),
         });
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "In-world movement not working — unknown encrypted client opcodes (0x0534, 0x05EF, 0x0434, 0x04CD, 0x09A9, 0x10E3, 0x111A, 0x006C) not mapped to actions",
-            CreatedAt = now.AddDays(-2),
+            Description = "Forcing enUS on frFR Firestorm pack crashes world load (AuctionHouse.db2 E_NOT_AVAILABLE, error #134)",
+            CreatedAt = now.AddDays(-20),
         });
 
         // --- Timeline ---
         (int DaysAgo, TimelineCategory Category, string Message)[] timelineData =
         [
-            (7, TimelineCategory.Code, "Applied draenor-core-build-fixes.patch (23 files)"),
-            (7, TimelineCategory.Build, "Clean 100% build — authserver + worldserver produced"),
-            (6, TimelineCategory.Blocker, "World DB missing — worldserver aborts at init"),
-            (6, TimelineCategory.Build, "Reconstructed auth schema from prepared statements"),
-            (5, TimelineCategory.Milestone, "Milestone completed: authserver Operational"),
-            (5, TimelineCategory.Build, "worldserver reaches World initialized"),
-            (4, TimelineCategory.Blocker, "Imported canonical Firestorm WoD databases"),
-            (4, TimelineCategory.Milestone, "Milestone completed: Databases Imported"),
-            (3, TimelineCategory.Frontier, "Client connects, logs in, enters world"),
-            (2, TimelineCategory.Milestone, "Milestone completed: In-World Render (Stormwind)"),
-            (2, TimelineCategory.Frontier, "Advanced to in-world movement mapping"),
-            (2, TimelineCategory.Blocker, "Movement blocked — unknown opcodes unaliased"),
-            (1, TimelineCategory.Code, "Added PROBE_UNKNOWN_CLIENT_OPCODE instrumentation to WorldSocket.cpp"),
+            (28, TimelineCategory.Build, "Clean 100% build — authserver + worldserver (build-fixes patch)"),
+            (26, TimelineCategory.Milestone, "Milestone completed: authserver Operational"),
+            (25, TimelineCategory.Build, "worldserver reaches World initialized"),
+            (24, TimelineCategory.Milestone, "Milestone completed: Databases Imported (Firestorm WoD)"),
+            (22, TimelineCategory.Frontier, "Client connects, logs in, enters world"),
+            (21, TimelineCategory.Milestone, "Milestone completed: In-World Render (Stormwind)"),
+            (20, TimelineCategory.Milestone, "Milestone completed: Normal Character Movement (frFR)"),
+            (20, TimelineCategory.Blocker, "enUS locale on this pack crashes at load — stay frFR"),
+            (18, TimelineCategory.Milestone, "Milestone completed: Maps/VMaps/MMaps Extracted"),
+            (20, TimelineCategory.Frontier, "Advanced to Phase 4 world playability"),
+            (15, TimelineCategory.Code, "Batch 0: missing quest reward item_template FK fix"),
+            (1, TimelineCategory.Code, "Add WoD 20779 gameplay baseline smoke test"),
         ];
         foreach (var (daysAgo, category, message) in timelineData)
         {
@@ -136,59 +155,43 @@ public static class DraenorSeeder
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Build fix catalogue (12 categories)",
+            Title = "Hard constraints",
             Content =
                 """
-                # Build Fix Catalogue
+                # Hard constraints still in force
 
-                The upstream Draenor-Core targets Windows/VS + OpenSSL 1.x. On
-                modern Linux (GCC 13 / OpenSSL 3 / ACE 7.1.2 / Boost 1.83) the
-                following root causes needed fixes:
+                - WoD **6.2.3 build 20779** only
+                - Use **frFR** locale (EU pack); enUS WTF → error #134
+                - Draenor MariaDB on **port 3307** (never 3306 — that's cata)
+                - Do not touch `cata-devbox` or `/var/home/blizz/cata-server/`
+                - PCH stays ON; prefer `make -j2` on low-RAM boxes
+                - No bots/Playerbots/AHBots this phase
+                - Portal: Tailscale `100.111.220.11`
 
-                1. **OpenSSL 3 RC4** — `ARC4.cpp` crashed because RC4 is not in
-                   the default provider. Replaced with EVP API.
-                2. **ACE 7.x API drift** — several `ACE_*` calls changed
-                   signatures; updated to 7.1.2.
-                3. **Boost 1.83** — `boost::filesystem` v3 is mandatory; removed
-                   v2 shims.
-                4. **GCC 13 strictness** — `-Werror` on new warnings; relaxed a
-                   handful of known-safe cases.
-                5. **PCH stays ON** — do NOT pass `-DNOPCH=1`.
-                6. **Parallelism** — use `make -j2` on low-RAM boxes; `-j4`
-                   OOM-kills `cc1plus` on largest PCH TUs.
-
-                Full set: `draenor-core-build-fixes.patch` (23 files).
+                Full live snapshot: `STATUS.md` + `docs/CURRENT_STATUS.md`
                 """,
-            CreatedAt = now.AddDays(-6),
+            CreatedAt = now.AddDays(-20),
         });
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Movement matrix protocol",
+            Title = "Build fix catalogue (summary)",
             Content =
                 """
-                # Movement Matrix (required before aliasing)
+                # Build fixes (modern Linux)
 
-                Before each manual client action, append a marker to
-                `worldserver-live.log`, then extract only the marked run:
+                Upstream targets Windows/VS + OpenSSL 1.x. On GCC 13 / OpenSSL 3
+                / ACE 7.1.2 / Boost 1.83:
 
-                ```
-                grep -E "MATRIX|PROBE_UNKNOWN_CLIENT_OPCODE|UNKNOWN OPCODE" \
-                  /home/blizz/Draenor-Core/run-world/worldserver-live.log | tail -300
-                ```
+                1. OpenSSL 3 RC4 → EVP API
+                2. ACE 7.x API drift
+                3. Boost 1.83 filesystem v3
+                4. GCC 13 `-Werror` relaxations (known-safe)
+                5. PCH on; `-j2` to avoid OOM on large PCH TUs
 
-                Required actions:
-                1. idle 10s  2. W down 2s  3. W release  4. S down 2s
-                5. S release  6. A/D turn  7. right-click camera  8. jump
-                9. click guard/NPC  10. ESC/menu
-
-                Record: opcode, packet size, first 32 payload bytes, count,
-                repeats-while-held, appears-on-release, position before/after.
-
-                **Do NOT add movement opcode aliases until a real-input matrix
-                produces action-correlated evidence.**
+                Full set: `draenor-core-build-fixes.patch` (23 files).
                 """,
-            CreatedAt = now.AddDays(-2),
+            CreatedAt = now.AddDays(-26),
         });
     }
 }

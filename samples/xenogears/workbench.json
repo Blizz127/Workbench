@@ -1,16 +1,19 @@
 {
   "name": "Xenogears Decompilation",
-  "description": "Decompilation of Xenogears (PSX) toward a native PC port. Matching functions are verified against the retail binary.",
+  "description": "Matching decompilation of Xenogears (PSX, SLUS-006.64) plus a native PC port under pc_port/. Field load path and menu nav arc are largely working; current pressure is red ROM pins vs port work.",
   "buildCommand": "./pc_port/build_port.sh",
   "runCommand": "./build/xenogears",
-  "testCommand": "python3 tools/check_matches.py",
+  "testCommand": "make rom-check",
   "matchingBuildCommand": "make -B build",
   "documentationPaths": [
     "docs/",
-    "notes/memory-map.md"
+    "docs/wiki/",
+    "docs/ai_context/"
   ],
   "aiContextPaths": [
-    "docs/decomp-guide.md",
+    "docs/ai_context/ACTIVE_HANDOFF.md",
+    "docs/wiki/Active-Frontier.md",
+    "docs/OPEN_ISSUES.md",
     "include/"
   ],
   "promptRules": "Never modify original decomp source under asm/ or src/ without matching evidence.\nConfirm matches via the matching-build command before claiming a function is done.\nPrefer minimal diffs; the PC port lives entirely under pc_port/.",
@@ -23,6 +26,7 @@
   "tags": [
     "Reverse Engineering",
     "Game Preservation",
-    "PSX"
+    "PSX",
+    "PC Port"
   ]
 }

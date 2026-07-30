@@ -1,24 +1,25 @@
 {
   "name": "Crimson Sands Server Revival",
-  "description": "Server revival for Dark Sun Online: Crimson Sands. Rebuilding the game server from client binaries and archived packet captures so the surviving client can log in, load zones, and play D&D again.",
-  "buildCommand": "dotnet build src/CrimsonServer",
-  "runCommand": "dotnet run --project src/CrimsonServer -- --listen 0.0.0.0:2101",
-  "testCommand": "dotnet test tests/CrimsonServer.Tests",
+  "description": "Preservation and server revival for Dark Sun Online: Crimson Sands (SSI, 1996), a TEN-exclusive graphical MMO. Depends on ten-revival for the TEN protocol layer; this repo owns DSO-specific services, formats, and the unmodified Win95 client path. Phases 1–4 complete; next is EXP-001 first packet capture.",
+  "buildCommand": "ls docs/experiments/",
+  "runCommand": "ls service/ analysis/ 2>/dev/null; head -40 README.md",
+  "testCommand": "test -f docs/experiments/exp-001-first-connection.md && echo ok",
   "documentationPaths": [
-    "docs/packets/",
-    "docs/zone-format.md",
-    "docs/character-data.md"
+    "README.md",
+    "docs/",
+    "docs/experiments/"
   ],
   "aiContextPaths": [
-    "docs/packets/opcode-table.md",
-    "src/CrimsonServer/Protocol/",
-    "notes/client-disassembly.md"
+    "README.md",
+    "docs/experiments/exp-001-first-connection.md",
+    "CLAUDE.md"
   ],
   "tags": [
     "Game Preservation",
     "Server Revival",
     "Reverse Engineering",
     "MMO",
-    "D&D"
+    "D&D",
+    "TEN"
   ]
 }

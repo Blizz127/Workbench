@@ -4,8 +4,9 @@ using Workbench.Data.Repositories;
 namespace Workbench.Data.SampleData;
 
 /// <summary>
-/// Seeds the Crimson Sands MMO server revival sample project so a fresh
-/// install demonstrates packet-reverse-engineering workflows.
+/// Seeds the Dark Sun Online: Crimson Sands preservation project.
+/// Phases 1–4 (research through protocol deep-dive) are complete; next is
+/// first live packet capture once TEN can launch mdark.exe.
 /// </summary>
 public static class CrimsonSandsSeeder
 {
@@ -19,18 +20,28 @@ public static class CrimsonSandsSeeder
         {
             Name = ProjectName,
             Status = ProjectStatus.Active,
-            Description = "Server revival for Dark Sun Online: Crimson Sands. " +
-                          "Rebuilding the game server from client binaries and archived " +
-                          "packet captures so the surviving client can log in, load zones, and play D&D again.",
+            Description = "Preservation and server revival for Dark Sun Online: Crimson Sands (SSI, 1996), " +
+                          "a TEN-exclusive graphical MMO. Depends on ten-revival for the TEN protocol layer; " +
+                          "this repo owns DSO-specific services, formats, and the unmodified Win95 client path.",
             RepositoryPath = "/home/blizz/Projects/dso-crimson-sands",
-            BuildCommand = "dotnet build src/CrimsonServer",
-            RunCommand = "dotnet run --project src/CrimsonServer -- --listen 0.0.0.0:2101",
-            TestCommand = "dotnet test tests/CrimsonServer.Tests",
-            DocumentationPaths = ["docs/packets/", "docs/zone-format.md", "docs/character-data.md"],
-            AiContextPaths = ["docs/packets/opcode-table.md", "src/CrimsonServer/Protocol/", "notes/client-disassembly.md"],
-            Tags = ["Game Preservation", "Server Revival", "Reverse Engineering", "MMO", "D&D"],
-            ActiveTask = "Decode the character data opcode (0x1A)",
-            CurrentObjective = "Get past character selection and into the starting zone",
+            BuildCommand = "ls docs/experiments/",
+            RunCommand = "ls service/ analysis/ 2>/dev/null; head -40 README.md",
+            TestCommand = "test -f docs/experiments/exp-001-first-connection.md && echo ok",
+            DocumentationPaths =
+            [
+                "README.md",
+                "docs/",
+                "docs/experiments/",
+            ],
+            AiContextPaths =
+            [
+                "README.md",
+                "docs/experiments/exp-001-first-connection.md",
+                "CLAUDE.md",
+            ],
+            Tags = ["Game Preservation", "Server Revival", "Reverse Engineering", "MMO", "D&D", "TEN"],
+            ActiveTask = "Blocked on TEN P10: first packet capture EXP-001 once mdark.exe launches",
+            CurrentObjective = "Original unmodified Windows 95 client connecting to reconstructed DSO services",
             CreatedAt = now.AddDays(-90),
         };
         projects.Add(project);
@@ -38,12 +49,13 @@ public static class CrimsonSandsSeeder
         // --- Milestones ---
         (string Title, bool Done, int DaysAgo)[] milestoneData =
         [
-            ("Login Handshake", true, 75),
-            ("Server Select Screen", true, 50),
-            ("Character List Response", true, 25),
-            ("Character Data Opcode (0x1A)", false, 0),
-            ("Zone Load — Free City of Tyr", false, 0),
-            ("Combat System", false, 0),
+            ("Phase 1 — Research & inventory", true, 80),
+            ("Phase 2 — CD recovery / extraction", true, 60),
+            ("Phase 3 — Binary analysis", true, 40),
+            ("Phase 4 — Protocol/format deep-dive", true, 29),
+            ("EXP-001 — First live packet capture", false, 0),
+            ("Character select → starting zone", false, 0),
+            ("Combat / basic play loop", false, 0),
         ];
         for (var i = 0; i < milestoneData.Length; i++)
         {
@@ -62,23 +74,25 @@ public static class CrimsonSandsSeeder
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Opcode 0x10 — server list response",
+            Title = "Phases 1–4 complete (research → protocol postmortem)",
             Status = FrontierStatus.Completed,
-            CreatedAt = now.AddDays(-15),
-            CompletedAt = now.AddDays(-5),
+            CreatedAt = now.AddDays(-90),
+            CompletedAt = now.AddDays(-29),
         });
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Opcode 0x1A — character data block",
+            Title = "EXP-001: first connection packet capture",
             Status = FrontierStatus.Current,
-            Notes = "Payload starts with a 4-byte character ID, then variable-length fields. Need to map stat layout.",
-            CreatedAt = now.AddDays(-3),
+            Notes = "Waiting on ten-revival P10 (cgs-darksun resolve → mdark.exe). " +
+                    "Duke-vs-DSO comparison already found launch-handoff root cause (2026-07-01). " +
+                    "DSO does not fork ten-revival — it depends on it.",
+            CreatedAt = now.AddDays(-29),
         });
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Zone handoff — Free City of Tyr",
+            Title = "DSO game-service adapter after first capture",
             Status = FrontierStatus.Next,
             CreatedAt = now,
         });
@@ -87,31 +101,30 @@ public static class CrimsonSandsSeeder
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "Packet encryption XOR key changed mid-capture around opcode 0x10",
+            Description = "Launch handoff root cause unknown — TEN client never reached mdark.exe",
             IsResolved = true,
-            Resolution = "Found the key rotation table in the client binary at offset 0x41B80",
-            CreatedAt = now.AddDays(-14),
-            ResolvedAt = now.AddDays(-4),
+            Resolution = "Duke-vs-DSO comparison (launch-handoff spec §8): root cause found; TEN-side P9/P10 address ENTER + cgs-darksun resolve",
+            CreatedAt = now.AddDays(-40),
+            ResolvedAt = now.AddDays(-29),
         });
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "0x1A character stat field layout unknown — appears to differ by race/class combo",
-            CreatedAt = now.AddDays(-2),
+            Description = "Cannot capture DSO game traffic until TEN launches mdark.exe (depends on ten-revival P10 VM verify)",
+            CreatedAt = now.AddDays(-16),
         });
 
         // --- Timeline ---
         (int DaysAgo, TimelineCategory Category, string Message)[] timelineData =
         [
-            (20, TimelineCategory.Frontier, "Started decoding opcode 0x10 server list"),
-            (15, TimelineCategory.Blocker, "Encryption key mismatch on opcode 0x10"),
-            (8, TimelineCategory.Build, "Build succeeded"),
-            (5, TimelineCategory.Blocker, "Resolved encryption key rotation"),
-            (5, TimelineCategory.Frontier, "Completed opcode 0x10 — server list parses cleanly"),
-            (5, TimelineCategory.Milestone, "Milestone completed: Character List Response"),
-            (3, TimelineCategory.Frontier, "Advanced to opcode 0x1A character data"),
-            (2, TimelineCategory.Blocker, "Character stat layout unknown for non-human races"),
-            (1, TimelineCategory.Build, "Build succeeded"),
+            (90, TimelineCategory.General, "DSO: Crimson Sands preservation workspace opened"),
+            (80, TimelineCategory.Milestone, "Milestone completed: Phase 1 research & inventory"),
+            (60, TimelineCategory.Milestone, "Milestone completed: Phase 2 CD recovery/extraction"),
+            (40, TimelineCategory.Milestone, "Milestone completed: Phase 3 binary analysis"),
+            (29, TimelineCategory.Milestone, "Milestone completed: Phase 4 protocol/format deep-dive"),
+            (29, TimelineCategory.Code, "Launch-handoff root cause via Duke-vs-DSO comparison"),
+            (29, TimelineCategory.Frontier, "Advanced to EXP-001 first packet capture"),
+            (16, TimelineCategory.Blocker, "Parked on TEN P10 mdark.exe launch"),
         ];
         foreach (var (daysAgo, category, message) in timelineData)
         {
@@ -128,45 +141,43 @@ public static class CrimsonSandsSeeder
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Opcode catalog",
+            Title = "Relationship to TEN Revival",
             Content =
                 """
-                # Known OPCodes
+                # Architecture
 
-                | Opcode | Direction | Meaning | Status |
-                |--------|-----------|---------|--------|
-                | 0x01   | C→S       | Login request | done |
-                | 0x02   | S→C       | Login result | done |
-                | 0x10   | S→C       | Server list | done |
-                | 0x1A   | S→C       | Character data | **in progress** |
-                | 0x20   | C→S       | Zone enter request | todo |
-                | 0x21   | S→C       | Zone data stream | todo |
+                ```
+                ten-revival/          ← TEN protocol (auth, lobby, matchmaking)
+                    └── Duke3D works   ← proves TEN layer
+                dso-crimson-sands/    ← DSO-specific game services
+                    └── depends on TEN core (does not fork it)
+                ```
 
-                See `docs/packets/opcode-table.md` in the repo.
+                Target: original unmodified Windows 95 client connecting to
+                reconstructed services. Prefer protocol compatibility and
+                clean-room implementations; mark every assumption.
+
+                Next milestone doc: `docs/experiments/exp-001-first-connection.md`
                 """,
-            CreatedAt = now.AddDays(-6),
+            CreatedAt = now.AddDays(-29),
         });
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Race/class stat layout cheat sheet",
+            Title = "Philosophy",
             Content =
                 """
-                # Character Stat Layout (tentative)
+                # Preservation-first, not a remake
 
-                All characters start with:
-                - 4 bytes: character ID
-                - 2 bytes: name length + name (null-terminated)
-                - 2 bytes: level
+                - Prefer original clients
+                - Prefer original network behavior
+                - Prefer protocol compatibility
+                - Every verified fact includes its source
+                - Never invent information
 
-                After that, layout diverges:
-                - Human Fighter: 6 stats × 2 bytes = 12 bytes
-                - Elf Mage: 6 stats × 2 bytes + 2 bytes mana = 14 bytes
-                - Dwarf Cleric: 6 stats × 2 bytes + 2 bytes divine favor = 14 bytes
-
-                Need captures of all race/class combos to confirm.
+                Parent status lives in ten-revival `STATUS.md` (Dark Sun focus).
                 """,
-            CreatedAt = now.AddDays(-1),
+            CreatedAt = now.AddDays(-60),
         });
     }
 }

@@ -1,23 +1,25 @@
 {
   "name": "TEN Revival",
-  "description": "Revival of the Total Entertainment Network online service: reverse engineering the client protocol and reimplementing the lobby, matchmaking, and game relay servers so the original clients can connect again.",
-  "buildCommand": "cmake --build build -j8",
-  "runCommand": "./build/ten-server --config server.toml",
-  "testCommand": "python3 tools/protocol_tests.py --captures captures/",
+  "description": "Local lab revival of the Total Entertainment Network: reverse-engineer the Win98 TEN client protocol and reimplement enough auth/lobby/game services so original clients can connect. Duke Nukem 3D multiplayer is end-to-end proven; focus is Dark Sun Online launch.",
+  "buildCommand": "python3 -m pytest tests/test_golden.py -q",
+  "runCommand": "./tools/start_fake_ten_monitor_experiment.sh",
+  "testCommand": "python3 -m pytest tests/test_golden.py -q",
   "documentationPaths": [
-    "docs/protocol/",
-    "docs/lobby-flow.md",
-    "captures/README.md"
+    "STATUS.md",
+    "docs/CLIENT_PATCHES.md",
+    "docs/architecture/"
   ],
   "aiContextPaths": [
-    "docs/protocol/message-catalog.md",
-    "src/relay/",
-    "include/ten_protocol.h"
+    "STATUS.md",
+    "docs/CLIENT_PATCHES.md",
+    "tools/fake_ten_monitor_experiment.py",
+    "tools/patch_ten_exe.py"
   ],
   "tags": [
     "Networking",
     "Game Preservation",
     "Reverse Engineering",
-    "Server Revival"
+    "Server Revival",
+    "TEN"
   ]
 }

@@ -4,9 +4,9 @@ using Workbench.Data.Repositories;
 namespace Workbench.Data.SampleData;
 
 /// <summary>
-/// Seeds the Parasite Eve decompilation sample project — parked at disc
-/// verification phase, the earliest stage of a decomp project. Minimal
-/// progress data reflects a real project that hasn't started decompiling yet.
+/// Seeds the Parasite Eve decompilation project — active matching decomp
+/// (Phase 5, 224 exact C leaves as of 2026-07-30). Retail target is
+/// NTSC-U SLUS-006.62; progress dashboard at parasite-eve-progress.
 /// </summary>
 public static class ParasiteEveSeeder
 {
@@ -19,30 +19,46 @@ public static class ParasiteEveSeeder
         var project = new Project
         {
             Name = ProjectName,
-            Status = ProjectStatus.Waiting,
-            Description = "Early-phase decompilation of Parasite Eve (PSX). " +
-                          "Currently parked at disc verification; the retail binary is identified " +
-                          "and its structure is catalogued, but decompilation hasn't started yet.",
+            Status = ProjectStatus.Active,
+            Description = "Matching decompilation of Parasite Eve (PSX, NTSC-U SLUS-006.62). " +
+                          "Phase 5 leaf matching with dual toolchain (GCC 14.2 + era cc1/maspsx). " +
+                          "224 exact C leaves; exact SHA-1 rebuild via scripts/build_us.sh. " +
+                          "PC port is out of scope.",
             RepositoryPath = "/home/blizz/Projects/Parasite-Eve-Decompilation",
-            BuildCommand = "python3 tools/verify_disc.py --disc SLUS_006.62",
-            RunCommand = "python3 tools/verify_disc.py --disc SLUS_006.62 --verbose",
-            TestCommand = "python3 tools/check_sector_hashes.py",
-            DocumentationPaths = ["docs/disc-layout.md", "docs/executable-map.md"],
-            AiContextPaths = ["docs/disc-layout.md", "notes/psx-executable-format.md"],
-            Tags = ["Reverse Engineering", "Game Preservation", "PSX", "Parked"],
-            ActiveTask = null,
-            CurrentObjective = "Complete disc verification and select the first function to decompile",
-            CreatedAt = now.AddDays(-45),
+            BuildCommand = "scripts/build_us.sh",
+            RunCommand = "scripts/verify_us.sh",
+            TestCommand = "scripts/verify_us.sh",
+            DocumentationPaths =
+            [
+                "docs/project_plan.md",
+                "docs/ai_context/ACTIVE_HANDOFF.md",
+                "docs/splitting.md",
+                "docs/disc_info.md",
+            ],
+            AiContextPaths =
+            [
+                "docs/ai_context/ACTIVE_HANDOFF.md",
+                "docs/ai_context/parked_blockers.json",
+                "CLAUDE.md",
+                "configs/USA/disc1.yaml",
+            ],
+            Tags = ["Reverse Engineering", "Game Preservation", "PSX", "Matching Decomp"],
+            ActiveTask = "Extend MASPSX three-word symbol loads; pick next volume leaf after 2F970/2F9CC table twins",
+            CurrentObjective = "Climb main's call chain and keep exact-match leaf count growing past 224",
+            CreatedAt = now.AddDays(-90),
         };
         projects.Add(project);
 
         // --- Milestones ---
         (string Title, bool Done, int DaysAgo)[] milestoneData =
         [
-            ("Acquire Retail Disc Image", true, 40),
-            ("Verify Disc Sector Hashes", true, 5),
-            ("Map Executable Sections", false, 0),
-            ("First Function Decompiled", false, 0),
+            ("Disc image + extract pipeline", true, 85),
+            ("Exact asm rebuild harness (Phase 4)", true, 60),
+            ("First matching C leaf (Phase 4J)", true, 55),
+            ("Era dual-toolchain (cc1 + maspsx)", true, 40),
+            ("Boot Rung 1: main → 3E680 chain matched", true, 5),
+            ("1000 matching C leaves", false, 0),
+            ("Full game exact match", false, 0),
         ];
         for (var i = 0; i < milestoneData.Length; i++)
         {
@@ -61,42 +77,60 @@ public static class ParasiteEveSeeder
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Verify SLUS_006.62 disc image against redump.org hashes",
+            Title = "func_8002F970 — slot-table pointer-match clear (leaf 224)",
             Status = FrontierStatus.Completed,
-            CreatedAt = now.AddDays(-42),
-            CompletedAt = now.AddDays(-4),
+            CreatedAt = now.AddDays(-2),
+            CompletedAt = now.AddDays(-1),
         });
         frontiers.Add(new Frontier
         {
             ProjectId = project.Id,
-            Title = "Map PSX executable sections (TEXT, DATA, RODATA, BSS)",
+            Title = "MASPSX three-word symbol loads + next volume leaf after table twins",
             Status = FrontierStatus.Current,
-            Notes = "Executable identified at sector 24. Header parsed; need to walk the section table and annotate addresses.",
-            CreatedAt = now.AddDays(-3),
+            Notes = "phase5ff extends MASPSX_THREE_WORD_SYMBOL_STORE to loads. " +
+                    "Table twins 2F9CC/2F970 matched with SlotRecord typing + three-word knob. " +
+                    "Parked: func_800698D4 (dbr_sched), func_8006E834 (register-home), func_80055724 (scheduling).",
+            CreatedAt = now.AddDays(-1),
+        });
+        frontiers.Add(new Frontier
+        {
+            ProjectId = project.Id,
+            Title = "func_8003F3C4 — next main-chain candidate after parked mount leaves",
+            Status = FrontierStatus.Next,
+            CreatedAt = now,
         });
 
         // --- Blockers ---
         blockers.Add(new Blocker
         {
             ProjectId = project.Id,
-            Description = "Disc image SHA-1 didn't match redump — wrong region dump",
+            Description = "ASPSX delay-slot sw vs pre-jr+nop shapes blocked era matching",
             IsResolved = true,
-            Resolution = "Switched to NTSC-U (SLUS_006.62); redump SHA-1 matches",
-            CreatedAt = now.AddDays(-40),
-            ResolvedAt = now.AddDays(-38),
+            Resolution = "Vendored maspsx LOCAL PATCH MASPSX_FILL_STORE_DELAY_SLOT=1 (opt-in per leaf); 14/14 delay-slot sw family closed in 5EF",
+            CreatedAt = now.AddDays(-35),
+            ResolvedAt = now.AddDays(-25),
+        });
+        blockers.Add(new Blocker
+        {
+            ProjectId = project.Id,
+            Description = "ccpsx-vs-2.7.2 skew: dbr_sched $v0-liveness (698D4) and call-result register-home (6E834) — not source-expressible",
+            CreatedAt = now.AddDays(-3),
         });
 
         // --- Timeline ---
         (int DaysAgo, TimelineCategory Category, string Message)[] timelineData =
         [
-            (45, TimelineCategory.General, "Project registered — Parasite Eve decomp started"),
-            (40, TimelineCategory.Blocker, "Disc SHA-1 mismatch — wrong region"),
-            (38, TimelineCategory.Blocker, "Resolved — switched to NTSC-U SLUS_006.62"),
-            (38, TimelineCategory.Milestone, "Milestone completed: Acquire Retail Disc Image"),
-            (7, TimelineCategory.Code, "Wrote disc verification tool"),
-            (5, TimelineCategory.Milestone, "Milestone completed: Verify Disc Sector Hashes"),
-            (4, TimelineCategory.Frontier, "Completed disc sector verification"),
-            (3, TimelineCategory.Frontier, "Started mapping executable sections"),
+            (90, TimelineCategory.General, "Project registered — Parasite Eve matching decomp"),
+            (60, TimelineCategory.Milestone, "Milestone completed: Exact asm rebuild harness"),
+            (55, TimelineCategory.Milestone, "Milestone completed: First matching C leaf"),
+            (40, TimelineCategory.Code, "Era dual-toolchain online (cc1 + maspsx 2.21)"),
+            (25, TimelineCategory.Blocker, "Resolved: maspsx delay-slot sw fill (5EF family closed)"),
+            (10, TimelineCategory.Code, "MASPSX_THREE_WORD_SYMBOL_STORE opt-in landed"),
+            (5, TimelineCategory.Milestone, "Milestone completed: Boot Rung 1 (main→3E680)"),
+            (4, TimelineCategory.Frontier, "Parked func_800698D4 / func_8006E834 (ccpsx skew)"),
+            (2, TimelineCategory.Code, "Matched func_8002F9CC — table clear, leaf 223"),
+            (1, TimelineCategory.Code, "Matched func_8002F970 — pointer-match clear, leaf 224"),
+            (0, TimelineCategory.Code, "phase5ff: extend three-word symbol store to loads"),
         ];
         foreach (var (daysAgo, category, message) in timelineData)
         {
@@ -113,42 +147,47 @@ public static class ParasiteEveSeeder
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Disc layout reference",
+            Title = "How to count progress",
             Content =
                 """
-                # Parasite Eve Disc Layout (SLUS_006.62)
+                # Progress counting (do not hand-maintain)
 
-                | Sector | Contents |
-                |--------|----------|
-                | 0–15   | ISO9660 filesystem header |
-                | 16–23  | SYSTEM.CNF + boot files |
-                | 24+    | SLUS_006.62 executable |
-                | ...    | STR/, MOV/, BGM/ data |
+                ```bash
+                grep -c ',\s*c,' configs/USA/disc1.yaml   # C leaves (source of truth)
+                grep -c ',\s*asm\]' configs/USA/disc1.yaml # yaml asm segments (NOT fn count)
+                scripts/verify_us.sh                       # phase label + exact rebuild
+                ```
 
-                The main executable is ~2.1 MB. TEXT section starts at
-                offset 0x800 within the file, DATA at 0x13A400.
+                Yaml `asm` segments are not remaining functions — one segment can
+                hold dozens of glabels. Never count `asm/disc1/*.s` from disk
+                (git-ignored; orphans and pads).
 
-                See `docs/disc-layout.md` for the full map.
+                Progress dashboard: https://blizz127.github.io/parasite-eve-progress/
+                Target SHA-1: `452fb033f2eaa4b18aa20a5bca60b8125af3a37b`
                 """,
-            CreatedAt = now.AddDays(-6),
+            CreatedAt = now.AddDays(-5),
         });
         notes.Add(new Note
         {
             ProjectId = project.Id,
-            Title = "Why parked?",
+            Title = "Era toolchain rules",
             Content =
                 """
-                # Status: Parked
+                # Era dual-toolchain
 
-                This project is parked because the current focus is on
-                Xenogears decompilation. Parasite Eve was verified as a
-                known-good target — the disc matches, the executable is
-                understood — but active decomp hasn't started yet.
+                - Default leaves: GCC 14.2 in Distrobox `pe-mipsel`
+                - Era leaves: `era_compile` = cpp → cc1 → maspsx → GNU as
+                  (typically `-O2 -G0`; some leaves `-O1 -G0` or +`-fschedule-insns2`)
+                - Maspsx: `ERA_ASPSX_VER=2.21` + `--dont-expand-li`
+                - Opt-in env per leaf:
+                  - `MASPSX_FILL_STORE_DELAY_SLOT=1` — sw in `j $31` delay
+                  - `MASPSX_THREE_WORD_SYMBOL_STORE=1` — 3-word indexed symbol store/load
 
-                When ready to resume:
-                1. Pick a small, self-contained function (e.g. boot init)
-                2. Set up the matching build toolchain
-                3. Claim the first frontier
+                Proven levers: `-O1` for per-use constant materialization;
+                aggregate element type for addressing mode; sched2 for
+                store-adjacent `li` placement.
+
+                See `docs/ai_context/ACTIVE_HANDOFF.md` for the full fingerprint table.
                 """,
             CreatedAt = now.AddDays(-2),
         });
