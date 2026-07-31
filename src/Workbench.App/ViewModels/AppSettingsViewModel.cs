@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using Avalonia;
+using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Workbench.Core.Models;
@@ -16,6 +18,7 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
 {
     private readonly AppServices _services;
     private readonly Action _goBack;
+    private readonly Action? _onSaved;
 
     [ObservableProperty]
     private string _sharedStateFolder;
@@ -33,14 +36,26 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
     /// <summary>Result lines from the last reload/import/export action.</summary>
     public ObservableCollection<string> ActivityLog { get; } = [];
 
+    [ObservableProperty]
+    private string _theme;
+
+    [ObservableProperty]
+    private bool _reducedMotion;
+
+    /// <summary>Available UI themes (persisted as-is in settings.json).</summary>
+    public string[] Themes { get; } = ["dark", "light"];
+
     public string SettingsPath => _services.AppSettings.SettingsPath;
 
-    public AppSettingsViewModel(AppServices services, Action goBack)
+    public AppSettingsViewModel(AppServices services, Action goBack, Action? onSaved = null)
     {
         _services = services;
         _goBack = goBack;
+        _onSaved = onSaved;
         _sharedStateFolder = services.AppSettings.SharedStateFolder ?? string.Empty;
         _machineName = services.AppSettings.MachineName;
+        _theme = services.AppSettings.Settings.Theme;
+        _reducedMotion = services.AppSettings.Settings.ReducedMotion;
         RefreshSharedFolderStatus();
     }
 
@@ -56,10 +71,26 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
             string.IsNullOrWhiteSpace(MachineName) || MachineName.Trim() == Environment.MachineName
                 ? null
                 : MachineName.Trim();
+        _services.AppSettings.Settings.Theme = Theme;
+        _services.AppSettings.Settings.ReducedMotion = ReducedMotion;
         _services.AppSettings.Save();
+        ApplyTheme();
+        _onSaved?.Invoke();
         MachineName = _services.AppSettings.MachineName;
         StatusMessage = $"Saved at {DateTime.Now:HH:mm:ss}";
         RefreshSharedFolderStatus();
+    }
+
+    /// <summary>Applies the selected theme immediately (still requires Save to persist).</summary>
+    private void ApplyTheme()
+    {
+        if (Application.Current is { } app)
+        {
+            app.RequestedThemeVariant =
+                string.Equals(Theme, "light", StringComparison.OrdinalIgnoreCase)
+                    ? ThemeVariant.Light
+                    : ThemeVariant.Dark;
+        }
     }
 
     /// <summary>Re-reads the shared folder and reports every project file's state against local.</summary>

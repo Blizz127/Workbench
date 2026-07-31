@@ -7,12 +7,16 @@ using Workbench.Core.Models;
 namespace Workbench.App.ViewModels;
 
 /// <summary>
-/// Mission control: every registered project as a card, filterable by status.
-/// Git information is loaded asynchronously after the cards appear so the
-/// dashboard stays responsive with dozens of projects.
+/// Mission control: every registered project as a card, filterable by status,
+/// tag, and machine availability, sortable by activity/blockers/failures/name,
+/// in comfortable or compact density. Git, milestone, blocker, and run-history
+/// data is loaded asynchronously after the cards appear so the dashboard stays
+/// responsive with dozens of projects.
 /// </summary>
 public sealed partial class DashboardViewModel : ViewModelBase
 {
+    private const string AllTagsLabel = "All tags";
+
     private readonly AppServices _services;
     private readonly Action<long> _openProject;
     private List<ProjectCardViewModel> _allCards = [];
@@ -21,11 +25,30 @@ public sealed partial class DashboardViewModel : ViewModelBase
 
     public string[] StatusFilters { get; } = ["All", "Active", "Waiting", "Broken", "Research", "Complete"];
 
+    public ObservableCollection<string> TagFilters { get; } = [AllTagsLabel];
+
+    public string[] AvailabilityFilters { get; } = ["All", "Available here", "Missing here"];
+
+    public string[] SortOptions { get; } = ["Recently active", "Blocked", "Failing", "Alphabetical"];
+
     [ObservableProperty]
     private string _selectedFilter = "All";
 
     [ObservableProperty]
+    private string _selectedTag = AllTagsLabel;
+
+    [ObservableProperty]
+    private string _selectedAvailability = "All";
+
+    [ObservableProperty]
+    private string _selectedSort = "Recently active";
+
+    [ObservableProperty]
     private string _summaryText = string.Empty;
+
+    /// <summary>Compact density; persisted as AppSettings.DashboardDensity.</summary>
+    [ObservableProperty]
+    private bool _isCompact;
 
     // "Add project" panel
     [ObservableProperty]
@@ -44,6 +67,7 @@ public sealed partial class DashboardViewModel : ViewModelBase
     {
         _services = services;
         _openProject = openProject;
+        IsCompact = services.AppSettings.Settings.DashboardDensity == "compact";
         Reload();
     }
 
@@ -51,14 +75,16 @@ public sealed partial class DashboardViewModel : ViewModelBase
     {
         var projects = _services.Projects.GetAll();
         _allCards = projects
-            .Select(p => new ProjectCardViewModel(_services, p, _openProject))
+            .Select(p => new ProjectCardViewModel(_services, p, _openProject) { IsCompact = IsCompact })
             .ToList();
 
+        RebuildTagFilters(projects);
         ApplyFilter();
         UpdateSummary(projects);
 
         // Enrich with git state off the UI thread, one repo at a time; shared
-        // state files are read (never written) in the same pass.
+        // state files are read (never written) in the same pass. Milestone,
+        // blocker, and run-history reads are cheap local queries batched in.
         var cards = _allCards.ToList();
         var sharedFolder = _services.AppSettings.SharedStateFolder;
         var machineName = _services.AppSettings.MachineName;
@@ -71,37 +97,37 @@ public sealed partial class DashboardViewModel : ViewModelBase
             {
                 var snapshot = _services.Git.GetSnapshot(card.Project.RepositoryPath, recentCommitCount: 1);
                 var badge = SharedBadgeFor(card.Project, sharedFiles, machineName);
+                var milestones = _services.Milestones.GetForProject(card.Project.Id);
+                var openBlockers = _services.Blockers.GetOpen(card.Project.Id).Count;
+                var lastRun = _services.Builds.GetLatest(card.Project.Id, ExecutionKind.Run);
                 Dispatcher.UIThread.Post(() =>
                 {
                     card.ApplyGitSnapshot(snapshot);
                     card.SharedBadge = badge;
+                    card.ApplyEnrichment(milestones.Count, milestones.Count(m => m.IsCompleted), openBlockers, lastRun);
                 });
             }
         });
+    }
+
+    private void RebuildTagFilters(IReadOnlyList<Project> projects)
+    {
+        var tags = projects.SelectMany(p => p.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+        TagFilters.Clear();
+        TagFilters.Add(AllTagsLabel);
+        foreach (var tag in tags)
+            TagFilters.Add(tag);
+        if (!TagFilters.Contains(SelectedTag))
+            SelectedTag = AllTagsLabel;
     }
 
     /// <summary>Compares a project against its shared file; null means in sync (or not shared).</summary>
     private string? SharedBadgeFor(
         Project project,
         IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles,
-        string machineName)
-    {
-        if (project.SharedId is null)
-            return null;
-
-        var file = sharedFiles.FirstOrDefault(f => f.State.Id == project.SharedId);
-        if (file is null)
-            return "shared file missing";
-
-        var preview = _services.SharedState.PreviewImport(file.State, project, machineName);
-        return preview switch
-        {
-            { HasConflict: true } => "conflict with shared",
-            { SharedChangedSinceSync: true } => "shared is newer",
-            { LocalChangedSinceSync: true } => "not exported",
-            _ => null,
-        };
-    }
+        string machineName) =>
+        SharedStatusBadge.For(_services.SharedState, project, sharedFiles, machineName);
 
     private void UpdateSummary(IReadOnlyList<Project> projects)
     {
@@ -112,15 +138,53 @@ public sealed partial class DashboardViewModel : ViewModelBase
     }
 
     partial void OnSelectedFilterChanged(string value) => ApplyFilter();
+    partial void OnSelectedTagChanged(string value) => ApplyFilter();
+    partial void OnSelectedAvailabilityChanged(string value) => ApplyFilter();
+    partial void OnSelectedSortChanged(string value) => ApplyFilter();
+
+    partial void OnIsCompactChanged(bool value)
+    {
+        foreach (var card in _allCards)
+            card.IsCompact = value;
+
+        var density = value ? "compact" : "comfortable";
+        if (_services.AppSettings.Settings.DashboardDensity != density)
+        {
+            _services.AppSettings.Settings.DashboardDensity = density;
+            _services.AppSettings.Save();
+        }
+    }
+
+    [RelayCommand]
+    private void SetDensity(string density) => IsCompact = density == "compact";
 
     private void ApplyFilter()
     {
-        Cards.Clear();
-        foreach (var card in _allCards)
+        IEnumerable<ProjectCardViewModel> query = _allCards;
+
+        if (SelectedFilter != "All")
+            query = query.Where(c => c.Status == SelectedFilter);
+        if (SelectedTag != AllTagsLabel)
+            query = query.Where(c => c.Tags.Contains(SelectedTag));
+        query = SelectedAvailability switch
         {
-            if (SelectedFilter == "All" || card.Status == SelectedFilter)
-                Cards.Add(card);
-        }
+            "Available here" => query.Where(c => !c.IsUnavailable),
+            "Missing here" => query.Where(c => c.IsUnavailable),
+            _ => query,
+        };
+        query = SelectedSort switch
+        {
+            "Blocked" => query.OrderByDescending(c => c.OpenBlockerCount)
+                .ThenByDescending(c => c.Project.UpdatedAt),
+            "Failing" => query.OrderByDescending(c => c.IsFailing)
+                .ThenByDescending(c => c.Project.UpdatedAt),
+            "Alphabetical" => query.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase),
+            _ => query.OrderByDescending(c => c.Project.UpdatedAt),
+        };
+
+        Cards.Clear();
+        foreach (var card in query)
+            Cards.Add(card);
     }
 
     [RelayCommand]

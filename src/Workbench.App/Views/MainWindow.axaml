@@ -7,49 +7,151 @@
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen">
 
-    <Grid>
-        <DockPanel>
-            <!-- Header bar -->
-            <Border DockPanel.Dock="Top" Background="#1B1F24" Padding="16,10">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="12"
-                                VerticalAlignment="Center">
-                        <Button Content="⌂ Dashboard" Command="{Binding NavigateHomeCommand}" />
-                        <TextBlock Text="WORKBENCH" Classes="h1" VerticalAlignment="Center"
-                                   Foreground="#E8EDF2" />
-                        <TextBlock Text="mission control" Classes="muted" VerticalAlignment="Center" />
-                    </StackPanel>
+    <Grid ColumnDefinitions="Auto,*">
 
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6"
-                                HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBox Width="320" Watermark="Search projects, notes, timeline, frontiers…"
-                                 Text="{Binding SearchText}">
+        <!-- Left navigation rail -->
+        <Border Grid.Column="0" Classes="rail" Width="{StaticResource RailWidth}">
+            <StackPanel Spacing="{StaticResource Space1}">
+                <TextBlock Text="WB" Classes="mono" FontWeight="Bold"
+                           HorizontalAlignment="Center" Margin="{StaticResource Space2Bottom}"
+                           AutomationProperties.Name="Workbench" />
+                <Button Classes="nav-rail" Classes.selected="{Binding IsDashboardSelected}"
+                        Command="{Binding NavigateHomeCommand}"
+                        ToolTip.Tip="Dashboard" AutomationProperties.Name="Dashboard">
+                    <StackPanel Spacing="{StaticResource Space0}">
+                        <PathIcon Data="{StaticResource IconHome}"
+                                  Width="{StaticResource IconSize}" Height="{StaticResource IconSize}"
+                                  HorizontalAlignment="Center" />
+                        <TextBlock Text="Home" FontSize="{StaticResource FontSizeMicro}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="nav-rail" Classes.selected="{Binding IsSettingsSelected}"
+                        Command="{Binding NavigateSettingsCommand}"
+                        ToolTip.Tip="App Settings" AutomationProperties.Name="App Settings">
+                    <StackPanel Spacing="{StaticResource Space0}">
+                        <PathIcon Data="{StaticResource IconGear}"
+                                  Width="{StaticResource IconSize}" Height="{StaticResource IconSize}"
+                                  HorizontalAlignment="Center" />
+                        <TextBlock Text="Settings" FontSize="{StaticResource FontSizeMicro}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- Top bar + main content + activity panel -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+
+            <Border Grid.Row="0" Classes="top-bar">
+                <DockPanel>
+                    <!-- Search + panel toggle -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                Spacing="{StaticResource Space2}" VerticalAlignment="Center">
+                        <TextBox Width="{StaticResource SearchBoxWidth}"
+                                 Watermark="Search projects, notes, timeline, frontiers…"
+                                 Text="{Binding SearchText}"
+                                 AutomationProperties.Name="Global search">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding RunSearchCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <Button Content="Search" Command="{Binding RunSearchCommand}" />
-                        <Button Content="⚙ Settings" Command="{Binding NavigateSettingsCommand}" />
+                        <Button Content="Search" Classes="command.ghost" Command="{Binding RunSearchCommand}" />
+                        <Button Classes="command.ghost" Classes.selected="{Binding IsRightPanelVisible}"
+                                Command="{Binding ToggleRightPanelCommand}"
+                                ToolTip.Tip="Toggle activity panel"
+                                AutomationProperties.Name="Toggle activity panel">
+                            <PathIcon Data="{StaticResource IconPanel}"
+                                      Width="{StaticResource IconSizeSmall}" Height="{StaticResource IconSizeSmall}" />
+                        </Button>
                     </StackPanel>
-                    <Panel />
+
+                    <!-- Context: project, machine, repo, git, shared sync -->
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}"
+                                VerticalAlignment="Center"
+                                DataContext="{Binding TopBar}" x:DataType="vm:TopBarViewModel">
+                        <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" MaxWidth="280"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding ProjectName}"
+                                   AutomationProperties.Name="Current project" />
+                        <Border Classes="badge" ToolTip.Tip="Machine" AutomationProperties.Name="Machine">
+                            <TextBlock Text="{Binding MachineName}" />
+                        </Border>
+                        <Border Classes="badge" Classes.success="{Binding IsRepoAvailable}"
+                                IsVisible="{Binding HasProjectContext}"
+                                ToolTip.Tip="Repository availability"
+                                AutomationProperties.Name="Repository availability">
+                            <TextBlock Text="{Binding RepoStatusText}" />
+                        </Border>
+                        <TextBlock Classes="mono muted" Text="{Binding GitText}"
+                                   IsVisible="{Binding HasGit}"
+                                   ToolTip.Tip="Git branch (* = uncommitted changes, ↑ ahead, ↓ behind)"
+                                   AutomationProperties.Name="Git status" />
+                        <Border Classes="badge" Classes.warning="{Binding IsSyncBadgeWarning}"
+                                IsVisible="{Binding HasSyncBadge}"
+                                ToolTip.Tip="Shared-state sync status"
+                                AutomationProperties.Name="Shared sync status">
+                            <TextBlock Text="{Binding SyncBadge}" />
+                        </Border>
+                    </StackPanel>
                 </DockPanel>
             </Border>
 
-            <!-- Current page -->
-            <ContentControl Content="{Binding CurrentPage}" />
-        </DockPanel>
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                <!-- Current page (cross-fades on navigation; skipped under reduced motion) -->
+                <TransitioningContentControl Grid.Column="0" Content="{Binding CurrentPage}"
+                                             PageTransition="{Binding PageTransition}" />
 
-        <!-- Search results overlay -->
-        <Border IsVisible="{Binding IsSearchOpen}"
-                Background="#F0161A1F" BorderBrush="#44FFFFFF" BorderThickness="1"
-                CornerRadius="8" Padding="10"
+                <!-- Collapsible activity panel -->
+                <Border Grid.Column="1" Classes="activity-panel"
+                        Width="{StaticResource ActivityPanelWidth}"
+                        IsVisible="{Binding IsRightPanelVisible}">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Recent activity" Classes="section-header" />
+                        <Border Classes="empty-state" IsVisible="{Binding !HasProjectContext}">
+                            <TextBlock Classes="empty-state"
+                                       Text="Open a project to see its recent activity." />
+                        </Border>
+                        <ScrollViewer IsVisible="{Binding HasProjectContext}">
+                            <ItemsControl ItemsSource="{Binding ActivityEntries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TimelineEntryViewModel">
+                                        <StackPanel Margin="{StaticResource Space2Bottom}"
+                                                    Spacing="{StaticResource Space0}">
+                                            <StackPanel Orientation="Horizontal"
+                                                        Spacing="{StaticResource Space2}">
+                                                <TextBlock Text="{Binding Timestamp}" Classes="mono muted"
+                                                           FontSize="{StaticResource FontSizeCaption}" />
+                                                <Border Classes="badge">
+                                                    <TextBlock Text="{Binding Category}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap"
+                                                       FontSize="{StaticResource FontSizeSmall}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Search results overlay (anchored to the top bar) -->
+        <Border Grid.Column="1" IsVisible="{Binding IsSearchOpen}"
+                Background="{DynamicResource OverlayBackgroundBrush}" BorderBrush="{DynamicResource OverlayBorderBrush}"
+                BorderThickness="{StaticResource BorderThin}"
+                CornerRadius="{StaticResource RadiusMedium}" Padding="{StaticResource Space4All}"
                 HorizontalAlignment="Right" VerticalAlignment="Top"
-                Margin="0,58,16,0" Width="520" MaxHeight="480">
+                Margin="{StaticResource SearchOverlayMargin}"
+                Width="{StaticResource SearchOverlayWidth}" MaxHeight="{StaticResource SearchOverlayMaxHeight}">
             <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <DockPanel DockPanel.Dock="Top" Margin="{StaticResource Space3Bottom}">
                     <TextBlock Text="Search results" Classes="h2" />
                     <Button Content="✕" Command="{Binding CloseSearchCommand}"
-                            HorizontalAlignment="Right" Padding="6,2" />
+                            HorizontalAlignment="Right" Padding="{StaticResource CompactButtonPadding}"
+                            AutomationProperties.Name="Close search results" />
                 </DockPanel>
                 <ScrollViewer>
                     <ItemsControl ItemsSource="{Binding SearchResults}">
@@ -58,12 +160,12 @@
                                 <Button Command="{Binding OpenCommand}"
                                         HorizontalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch"
-                                        Margin="0,2" Padding="10,6"
-                                        Background="#22FFFFFF">
-                                    <StackPanel Spacing="2">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                        Margin="{StaticResource Space0Vertical}" Padding="{StaticResource ListItemPadding}"
+                                        Background="{DynamicResource NeutralTintBrush}">
+                                    <StackPanel Spacing="{StaticResource Space0}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
                                             <Border Classes="chip">
-                                                <TextBlock Text="{Binding Domain}" FontSize="11" />
+                                                <TextBlock Text="{Binding Domain}" FontSize="{StaticResource FontSizeCaption}" />
                                             </Border>
                                             <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
                                                        TextTrimming="CharacterEllipsis" />

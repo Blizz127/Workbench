@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Self-drawn filled glyphs on a 24x24 grid (silhouettes, so they render
+         correctly in a PathIcon). No icon fonts — nothing to redistribute. -->
+    <StreamGeometry x:Key="IconHome">M12 3 L22 12 H19 V21 H14 V15 H10 V21 H5 V12 H2 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconGear">M18.77,9.54 L21.85,10.26 L21.85,13.74 L18.77,14.46 L18.53,15.04 L20.19,17.74 L17.74,20.19 L15.04,18.53 L14.46,18.77 L13.74,21.85 L10.26,21.85 L9.54,18.77 L8.96,18.53 L6.26,20.19 L3.81,17.74 L5.47,15.04 L5.23,14.46 L2.15,13.74 L2.15,10.26 L5.23,9.54 L5.47,8.96 L3.81,6.26 L6.26,3.81 L8.96,5.47 L9.54,5.23 L10.26,2.15 L13.74,2.15 L14.46,5.23 L15.04,5.47 L17.74,3.81 L20.19,6.26 L18.53,8.96 Z M15.20,12.00 L14.96,13.22 L14.26,14.26 L13.22,14.96 L12.00,15.20 L10.78,14.96 L9.74,14.26 L9.04,13.22 L8.80,12.00 L9.04,10.78 L9.74,9.74 L10.78,9.04 L12.00,8.80 L13.22,9.04 L14.26,9.74 L14.96,10.78 Z</StreamGeometry>
+    <StreamGeometry x:Key="IconPanel">M2 4 H22 V20 H2 Z M4 6 V18 H14 V6 Z</StreamGeometry>
+</ResourceDictionary>

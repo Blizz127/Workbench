@@ -2,186 +2,45 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Workbench.App.ViewModels"
              xmlns:core="using:Workbench.Core.Models"
-             xmlns:conv="using:Workbench.App.Converters"
              x:Class="Workbench.App.Views.OverviewView"
              x:DataType="vm:OverviewViewModel">
 
-    <ScrollViewer>
-        <Grid ColumnDefinitions="3*,12,2*" Margin="0,8,0,0">
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <Grid ColumnDefinitions="*,12,*">
 
-            <!-- Left column: repository -->
-            <StackPanel Grid.Column="0" Spacing="12">
+            <!-- Left column: focus + blockers -->
+            <StackPanel Grid.Column="0" Spacing="{StaticResource Space5}">
                 <Border Classes="card">
-                    <StackPanel Spacing="6">
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Refresh"
-                                    Command="{Binding RefreshRepositoryCommand}"
-                                    IsEnabled="{Binding !IsScanning}" />
-                            <TextBlock Text="Repository" Classes="h2" />
-                        </DockPanel>
-                        <TextBlock Text="{Binding RepoSummary}" />
-                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto">
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="branch" Classes="muted" />
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Branch}" Classes="mono" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="HEAD" Classes="muted" />
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding LastCommitText}"
-                                       Classes="mono" TextWrapping="Wrap" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card" DataContext="{Binding GitSync}">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="GitHub" Classes="h2" />
-                        <TextBlock Text="{Binding SyncStateText}" Classes="muted" />
-
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="⇅ Fetch/Update from GitHub" Command="{Binding FetchCommand}" />
-                            <Button Content="⏩ Pull (fast-forward)" Command="{Binding PreparePullCommand}"
-                                    IsVisible="{Binding CanPull}" />
-                            <Button Content="⬆ Push committed changes" Command="{Binding PreparePushCommand}"
-                                    IsVisible="{Binding CanPush}" />
-                            <Button Content="■ Cancel" Command="{Binding CancelRunCommand}"
-                                    IsVisible="{Binding IsBusy}" Background="#9E3A38" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding RunStatus}" Classes="muted" IsVisible="{Binding RunStatus.Length}" />
-                        <TextBlock Text="{Binding LastResultMessage}" IsVisible="{Binding LastResultMessage.Length}"
-                                   Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-
-                        <!-- Pull preview/confirm: nothing runs until Confirm -->
-                        <Border IsVisible="{Binding IsPullPreviewOpen}" BorderBrush="#4C82C7" BorderThickness="2"
-                                CornerRadius="6" Padding="10" Margin="0,4,0,0">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="{Binding PullPreviewText}" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Confirm Pull" Command="{Binding ConfirmPullCommand}" />
-                                    <Button Content="Cancel" Command="{Binding CancelPullPreviewCommand}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Push preview/confirm: nothing runs until Confirm -->
-                        <Border IsVisible="{Binding IsPushPreviewOpen}" BorderBrush="#4C82C7" BorderThickness="2"
-                                CornerRadius="6" Padding="10" Margin="0,4,0,0">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="{Binding PushPreviewText}" TextWrapping="Wrap" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="Confirm Push" Command="{Binding ConfirmPushCommand}" />
-                                    <Button Content="Cancel" Command="{Binding CancelPushPreviewCommand}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card" IsVisible="{Binding RepoValid}">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Recent commits" Classes="h2" />
-                        <ItemsControl ItemsSource="{Binding RecentCommits}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="core:CommitInfo">
-                                    <Grid ColumnDefinitions="Auto,10,*,10,Auto" Margin="0,2">
-                                        <TextBlock Grid.Column="0" Text="{Binding ShortSha}" Classes="mono muted" />
-                                        <TextBlock Grid.Column="2" Text="{Binding MessageSummary}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="4" Text="{Binding Author}" Classes="muted" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card" IsVisible="{Binding RepoValid}">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Modified files" Classes="h2" />
-                        <TextBlock Text="Working tree clean." Classes="muted"
-                                   IsVisible="{Binding !ModifiedFiles.Count}" />
-                        <ItemsControl ItemsSource="{Binding ModifiedFiles}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="core:FileChange">
-                                    <Grid ColumnDefinitions="80,*" Margin="0,1">
-                                        <TextBlock Grid.Column="0" Text="{Binding State}" Classes="muted" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Path}" Classes="mono"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Open TODO items" Classes="h2" />
-                        <TextBlock Text="No TODO comments found." Classes="muted"
-                                   IsVisible="{Binding !Todos.Count}" />
-                        <ItemsControl ItemsSource="{Binding Todos}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="core:TodoItem">
-                                    <StackPanel Margin="0,2">
-                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="{Binding FilePath}" Classes="mono muted" FontSize="11" />
-                                            <TextBlock Text=":" Classes="muted" FontSize="11" />
-                                            <TextBlock Text="{Binding LineNumber}" Classes="mono muted" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <!-- Right column: progress -->
-            <StackPanel Grid.Column="2" Spacing="12">
-                <Border Classes="card">
-                    <StackPanel Spacing="6">
+                    <StackPanel Spacing="{StaticResource Space2}">
                         <TextBlock Text="Focus" Classes="h2" />
                         <TextBlock Text="Current objective" Classes="muted" />
                         <TextBox Text="{Binding CurrentObjective}" Watermark="What is this project driving toward?" />
                         <TextBlock Text="Active task" Classes="muted" />
                         <TextBox Text="{Binding ActiveTask}" Watermark="What is being worked on right now?" />
-                        <Button Content="Save" Command="{Binding SaveFocusCommand}" HorizontalAlignment="Right" />
+                        <Button Content="Save" Classes="command.secondary" Command="{Binding SaveFocusCommand}"
+                                HorizontalAlignment="Right" />
                     </StackPanel>
                 </Border>
 
                 <Border Classes="card">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Frontier" Classes="h2" />
-                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="current" Classes="muted" />
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding CurrentFrontier}" TextWrapping="Wrap" />
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="next" Classes="muted" />
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding NextFrontier}" TextWrapping="Wrap" />
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="milestone" Classes="muted" />
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding CurrentMilestone}" TextWrapping="Wrap" />
-                        </Grid>
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Advance"
-                                    Command="{Binding AdvanceFrontierCommand}" Margin="6,0,0,0" />
-                            <TextBox Text="{Binding NewFrontierTitle}"
-                                     Watermark="New frontier (completes the current one)" />
-                        </DockPanel>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card">
-                    <StackPanel Spacing="6">
+                    <StackPanel Spacing="{StaticResource Space2}">
                         <TextBlock Text="Blockers" Classes="h2" />
                         <TextBlock Text="Nothing is blocked." Classes="muted"
                                    IsVisible="{Binding !OpenBlockers.Count}" />
                         <ItemsControl ItemsSource="{Binding OpenBlockers}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:BlockerItemViewModel">
-                                    <Border Background="#33912F2D" CornerRadius="6" Padding="8" Margin="0,3">
-                                        <StackPanel Spacing="4">
+                                    <Border Background="{DynamicResource DangerTintBrush}"
+                                            CornerRadius="{StaticResource RadiusMedium}"
+                                            Padding="{StaticResource Space3All}" Margin="{StaticResource Space1Vertical}">
+                                        <StackPanel Spacing="{StaticResource Space1}">
                                             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Since}" Classes="muted" FontSize="11" />
+                                            <TextBlock Text="{Binding Since}" Classes="muted"
+                                                       FontSize="{StaticResource FontSizeCaption}" />
                                             <DockPanel>
                                                 <Button DockPanel.Dock="Right" Content="Resolve"
-                                                        Command="{Binding ResolveCommand}" Margin="6,0,0,0" />
+                                                        Classes="command.secondary"
+                                                        Command="{Binding ResolveCommand}" Margin="{StaticResource Space3Left}" />
                                                 <TextBox Text="{Binding ResolutionText}" Watermark="How was it resolved?" />
                                             </DockPanel>
                                         </StackPanel>
@@ -190,23 +49,51 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Add"
-                                    Command="{Binding AddBlockerCommand}" Margin="6,0,0,0" />
+                            <Button DockPanel.Dock="Right" Content="Add" Classes="command.secondary"
+                                    Command="{Binding AddBlockerCommand}" Margin="{StaticResource Space3Left}" />
                             <TextBox Text="{Binding NewBlockerText}" Watermark="Describe a new blocker" />
                         </DockPanel>
                     </StackPanel>
                 </Border>
+            </StackPanel>
+
+            <!-- Right column: TODOs + recent notes -->
+            <StackPanel Grid.Column="2" Spacing="{StaticResource Space5}">
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Open TODO items" Classes="h2" />
+                        <TextBlock Text="No TODO comments found." Classes="muted"
+                                   IsVisible="{Binding !Todos.Count}" />
+                        <ItemsControl ItemsSource="{Binding Todos}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:TodoItem">
+                                    <StackPanel Margin="{StaticResource Space0Vertical}">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space1}">
+                                            <TextBlock Text="{Binding FilePath}" Classes="mono muted"
+                                                       FontSize="{StaticResource FontSizeCaption}" />
+                                            <TextBlock Text=":" Classes="muted" FontSize="{StaticResource FontSizeCaption}" />
+                                            <TextBlock Text="{Binding LineNumber}" Classes="mono muted"
+                                                       FontSize="{StaticResource FontSizeCaption}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
 
                 <Border Classes="card">
-                    <StackPanel Spacing="6">
+                    <StackPanel Spacing="{StaticResource Space2}">
                         <TextBlock Text="Recent notes" Classes="h2" />
                         <TextBlock Text="No notes yet." Classes="muted"
                                    IsVisible="{Binding !RecentNotes.Count}" />
                         <ItemsControl ItemsSource="{Binding RecentNotes}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="core:Note">
-                                    <DockPanel Margin="0,2">
-                                        <TextBlock DockPanel.Dock="Right" Classes="muted" FontSize="11"
+                                    <DockPanel Margin="{StaticResource Space0Vertical}">
+                                        <TextBlock DockPanel.Dock="Right" Classes="muted"
+                                                   FontSize="{StaticResource FontSizeCaption}"
                                                    Text="{Binding UpdatedAt, StringFormat={}{0:MM-dd HH:mm}}" />
                                         <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
                                     </DockPanel>

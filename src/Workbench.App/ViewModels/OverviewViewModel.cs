@@ -42,13 +42,18 @@ public sealed partial class OverviewViewModel : ViewModelBase
 
     public ObservableCollection<Note> RecentNotes { get; } = [];
 
-    public OverviewViewModel(AppServices services, Project project)
+    public OverviewViewModel(AppServices services, Project project, Action? afterGitSync = null)
     {
         _services = services;
         _project = project;
         _activeTask = project.ActiveTask ?? string.Empty;
         _currentObjective = project.CurrentObjective ?? string.Empty;
-        GitSync = new GitSyncViewModel(services, project, RefreshRepository);
+        GitSync = new GitSyncViewModel(services, project, () =>
+        {
+            RefreshRepository();
+            // Lets the shell refresh its top-bar git state after a sync.
+            afterGitSync?.Invoke();
+        });
 
         LoadProgress();
         LoadNotes();

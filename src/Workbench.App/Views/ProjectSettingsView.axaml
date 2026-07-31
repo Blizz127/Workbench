@@ -1,19 +1,19 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Workbench.App.ViewModels"
-             xmlns:core="using:Workbench.Core.Services"
              x:Class="Workbench.App.Views.ProjectSettingsView"
              x:DataType="vm:ProjectSettingsViewModel">
 
-    <ScrollViewer Margin="0,8,0,0">
-        <StackPanel Spacing="12" MaxWidth="720" HorizontalAlignment="Left">
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="720" HorizontalAlignment="Left">
             <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Project" Classes="h2" />
                     <TextBlock Text="Name" Classes="muted" />
                     <TextBox Text="{Binding Name}" />
                     <TextBlock Text="Status" Classes="muted" />
-                    <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding Status}" Width="200" />
+                    <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding Status}" Width="200"
+                              HorizontalAlignment="Left" />
                     <TextBlock Text="Description" Classes="muted" />
                     <TextBox Text="{Binding Description}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" />
                     <TextBlock Text="Tags (comma separated)" Classes="muted" />
@@ -22,7 +22,7 @@
             </Border>
 
             <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Repository &amp; commands" Classes="h2" />
                     <TextBlock Text="Repository path" Classes="muted" />
                     <TextBox Text="{Binding RepositoryPath}" Classes="mono" />
@@ -36,7 +36,7 @@
             </Border>
 
             <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Paths" Classes="h2" />
                     <TextBlock Text="Documentation paths (one per line)" Classes="muted" />
                     <TextBox Text="{Binding DocumentationPaths}" AcceptsReturn="True" MinHeight="60" Classes="mono" />
@@ -46,87 +46,31 @@
             </Border>
 
             <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Configuration file" Classes="h2" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="Each project can carry a workbench.json at its repository root so the configuration travels with the code." />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Export workbench.json" Command="{Binding ExportConfigCommand}" />
-                        <Button Content="Import workbench.json" Command="{Binding ImportConfigCommand}" />
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                        <Button Content="Export workbench.json" Classes="command.secondary"
+                                Command="{Binding ExportConfigCommand}" />
+                        <Button Content="Import workbench.json" Classes="command.secondary"
+                                Command="{Binding ImportConfigCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <Border Classes="card">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Shared Workbench State" Classes="h2" />
-                    <TextBlock Classes="muted" TextWrapping="Wrap"
-                               Text="Cross-machine project state in the Shared State Folder (App Settings). Import always previews before applying; export warns if another machine wrote a newer version. Local history and logs are never shared." />
-
-                    <TextBlock Text="Shared file" Classes="muted" />
-                    <TextBlock Text="{Binding SharedFilePath}" Classes="mono" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" Spacing="16">
-                        <TextBlock Text="{Binding SharedLastExportedText, StringFormat='Last exported: {0}'}" Classes="muted" />
-                        <TextBlock Text="{Binding SharedLastImportedText, StringFormat='Last imported: {0}'}" Classes="muted" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Export to shared state" Command="{Binding ExportToSharedCommand}"
-                                IsEnabled="{Binding HasSharedFolder}" />
-                        <Button Content="Import from shared state…" Command="{Binding PreviewSharedImportCommand}"
-                                IsEnabled="{Binding HasSharedFolder}" />
-                        <CheckBox Content="Overwrite shared file" IsChecked="{Binding ConfirmSharedOverwrite}" />
-                    </StackPanel>
-
-                    <TextBlock Text="{Binding SharedStatusMessage}" Classes="muted" TextWrapping="Wrap"
-                               IsVisible="{Binding SharedStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-                    <!-- Import preview: nothing is applied until the user confirms. -->
-                    <Border Background="#22FFFFFF" CornerRadius="6" Padding="10"
-                            IsVisible="{Binding IsImportPreviewOpen}">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Import preview — changes that would apply" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding ImportConflictMessage}" Foreground="#F16A50" TextWrapping="Wrap"
-                                       IsVisible="{Binding ImportConflictMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            <TextBlock Text="{Binding ImportAvailabilityNote}" Classes="muted" TextWrapping="Wrap"
-                                       IsVisible="{Binding ImportAvailabilityNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            <TextBlock Text="No differences — this project already matches the shared file." Classes="muted"
-                                       IsVisible="{Binding !ImportChanges.Count}" />
-                            <ItemsControl ItemsSource="{Binding ImportChanges}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="core:SharedFieldChange">
-                                        <StackPanel Margin="0,2">
-                                            <TextBlock Text="{Binding Field}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding LocalValue, StringFormat='  local:  {0}'}" Classes="muted mono"
-                                                       TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding SharedValue, StringFormat='  shared: {0}'}" Classes="mono"
-                                                       TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Apply shared state" Command="{Binding ApplySharedImportCommand}"
-                                        FontWeight="SemiBold" />
-                                <Button Content="Cancel (keep local)" Command="{Binding CancelSharedImportCommand}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
-
-            <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Danger zone" Classes="h2" />
                     <CheckBox Content="I understand this deletes the project and all its history"
                               IsChecked="{Binding ConfirmDelete}" />
-                    <Button Content="Delete project" Command="{Binding DeleteProjectCommand}"
-                            Background="#9E3A38" />
+                    <Button Content="Delete project" Classes="command danger"
+                            Command="{Binding DeleteProjectCommand}" HorizontalAlignment="Left" />
                 </StackPanel>
             </Border>
 
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <Button Content="Save changes" Command="{Binding SaveCommand}" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space5}">
+                <Button Content="Save changes" Classes="command" Command="{Binding SaveCommand}" />
                 <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" />
             </StackPanel>
         </StackPanel>

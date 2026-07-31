@@ -4,9 +4,9 @@
              x:Class="Workbench.App.Views.TimelineView"
              x:DataType="vm:TimelineViewModel">
 
-    <DockPanel Margin="0,8,0,0">
+    <DockPanel Margin="{StaticResource Space3Top}">
         <!-- Add entry row -->
-        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
+        <Border DockPanel.Dock="Top" Classes="card" Margin="{StaticResource Space5Bottom}">
             <Grid ColumnDefinitions="Auto,8,*,8,Auto">
                 <ComboBox Grid.Column="0" Width="130"
                           ItemsSource="{Binding Categories}"
@@ -25,16 +25,16 @@
             <ItemsControl ItemsSource="{Binding Entries}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:TimelineEntryViewModel">
-                        <Border Classes="card" Margin="0,0,0,6" Padding="10">
-                            <StackPanel Spacing="3">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Classes="card" Margin="{StaticResource Space2Bottom}" Padding="{StaticResource Space4All}">
+                            <StackPanel Spacing="{StaticResource Space1}">
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space4}">
                                     <TextBlock Text="{Binding Timestamp}" Classes="mono muted" />
                                     <Border Classes="chip">
-                                        <TextBlock Text="{Binding Category}" FontSize="11" />
+                                        <TextBlock Text="{Binding Category}" FontSize="{StaticResource FontSizeCaption}" />
                                     </Border>
                                     <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
                                 </StackPanel>
-                                <TextBlock Text="{Binding Detail}" Classes="mono muted" FontSize="11"
+                                <TextBlock Text="{Binding Detail}" Classes="mono muted" FontSize="{StaticResource FontSizeCaption}"
                                            TextWrapping="Wrap" MaxLines="6"
                                            IsVisible="{Binding HasDetail}" />
                             </StackPanel>

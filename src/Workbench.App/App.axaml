@@ -1,47 +1,25 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:Workbench.App"
-             x:Class="Workbench.App.App"
-             RequestedThemeVariant="Dark">
+             x:Class="Workbench.App.App">
+    <!-- RequestedThemeVariant is set from AppSettings in App.axaml.cs. -->
 
     <Application.DataTemplates>
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Workbench.App/Styles/Tokens.axaml" />
+                <ResourceInclude Source="avares://Workbench.App/Styles/Colors.axaml" />
+                <ResourceInclude Source="avares://Workbench.App/Styles/Icons.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme />
-
-        <!-- Card container used across the dashboard and detail views -->
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="#22FFFFFF" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="BorderBrush" Value="#33FFFFFF" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-
-        <Style Selector="TextBlock.h1">
-            <Setter Property="FontSize" Value="22" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.h2">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,6" />
-        </Style>
-        <Style Selector="TextBlock.muted">
-            <Setter Property="Foreground" Value="#88FFFFFF" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-        <Style Selector="TextBlock.mono">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,DejaVu Sans Mono,monospace" />
-        </Style>
-
-        <!-- Small status/tag chip -->
-        <Style Selector="Border.chip">
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Background" Value="#33FFFFFF" />
-        </Style>
+        <StyleInclude Source="avares://Workbench.App/Styles/Controls.axaml" />
     </Application.Styles>
 </Application>

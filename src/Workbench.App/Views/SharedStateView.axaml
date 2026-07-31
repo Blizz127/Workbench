@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:core="using:Workbench.Core.Services"
+             x:Class="Workbench.App.Views.SharedStateView"
+             x:DataType="vm:ProjectSettingsViewModel">
+
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="720" HorizontalAlignment="Left">
+            <Border Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Shared Workbench State" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Cross-machine project state in the Shared State Folder (App Settings). Import always previews before applying; export warns if another machine wrote a newer version. Local history and logs are never shared." />
+
+                    <!-- Folder probe warnings -->
+                    <Border Classes="warning-banner" IsVisible="{Binding HasSharedFolderWarnings}">
+                        <ItemsControl ItemsSource="{Binding SharedFolderWarnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="{StaticResource Space0Vertical}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Shared folder" Classes="muted" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SharedFolderPath}" Classes="mono"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Shared file" Classes="muted" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding SharedFilePath}" Classes="mono"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Last exported" Classes="muted" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SharedLastExportedText}" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Last imported" Classes="muted" />
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding SharedLastImportedText}" />
+                    </Grid>
+
+                    <WrapPanel>
+                        <Button Content="Export to shared state" Classes="command"
+                                Command="{Binding ExportToSharedCommand}" IsEnabled="{Binding HasSharedFolder}"
+                                Margin="{StaticResource Space3Right}" />
+                        <Button Content="Import from shared state…" Classes="command.secondary"
+                                Command="{Binding PreviewSharedImportCommand}" IsEnabled="{Binding HasSharedFolder}"
+                                Margin="{StaticResource Space3Right}" />
+                        <Button Content="Reload shared state" Classes="command.ghost"
+                                Command="{Binding ReloadSharedStateCommand}" Margin="{StaticResource Space3Right}" />
+                        <CheckBox Content="Overwrite shared file" IsChecked="{Binding ConfirmSharedOverwrite}"
+                                  VerticalAlignment="Center" />
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding SharedStatusMessage}" Classes="muted" TextWrapping="Wrap"
+                               IsVisible="{Binding SharedStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                    <!-- Import preview: nothing is applied until the user confirms. -->
+                    <Border Background="{DynamicResource NeutralTintBrush}" CornerRadius="{StaticResource RadiusMedium}"
+                            Padding="{StaticResource Space4All}" IsVisible="{Binding IsImportPreviewOpen}">
+                        <StackPanel Spacing="{StaticResource Space2}">
+                            <TextBlock Text="Import preview — changes that would apply" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding ImportConflictMessage}" Foreground="{DynamicResource DangerBrush}"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding ImportConflictMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding ImportAvailabilityNote}" Classes="muted" TextWrapping="Wrap"
+                                       IsVisible="{Binding ImportAvailabilityNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="No differences — this project already matches the shared file." Classes="muted"
+                                       IsVisible="{Binding !ImportChanges.Count}" />
+                            <ItemsControl ItemsSource="{Binding ImportChanges}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="core:SharedFieldChange">
+                                        <StackPanel Margin="{StaticResource Space0Vertical}">
+                                            <TextBlock Text="{Binding Field}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding LocalValue, StringFormat='  local:  {0}'}" Classes="muted mono"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding SharedValue, StringFormat='  shared: {0}'}" Classes="mono"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                                <Button Content="Apply shared state" Classes="command"
+                                        Command="{Binding ApplySharedImportCommand}" />
+                                <Button Content="Cancel (keep local)" Classes="command.ghost"
+                                        Command="{Binding CancelSharedImportCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

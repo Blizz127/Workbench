@@ -1,0 +1,97 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Spacing scale (px): plain doubles for Spacing, Thickness variants for Margin/Padding. -->
+    <sys:Double x:Key="Space0">2</sys:Double>
+    <sys:Double x:Key="Space1">4</sys:Double>
+    <sys:Double x:Key="Space2">6</sys:Double>
+    <sys:Double x:Key="Space3">8</sys:Double>
+    <sys:Double x:Key="Space4">10</sys:Double>
+    <sys:Double x:Key="Space5">12</sys:Double>
+    <sys:Double x:Key="Space6">16</sys:Double>
+    <sys:Double x:Key="Space7">20</sys:Double>
+    <sys:Double x:Key="Space8">24</sys:Double>
+
+    <Thickness x:Key="Space0Vertical">0,2</Thickness>
+    <Thickness x:Key="Space1Bottom">0,0,0,4</Thickness>
+    <Thickness x:Key="Space2Top">0,6,0,0</Thickness>
+    <Thickness x:Key="Space2Bottom">0,0,0,6</Thickness>
+    <Thickness x:Key="Space3Top">0,8,0,0</Thickness>
+    <Thickness x:Key="Space3Bottom">0,0,0,8</Thickness>
+    <Thickness x:Key="Space3Left">8,0,0,0</Thickness>
+    <Thickness x:Key="Space4Right">0,0,10,0</Thickness>
+    <Thickness x:Key="Space5Top">0,12,0,0</Thickness>
+    <Thickness x:Key="Space5Bottom">0,0,0,12</Thickness>
+    <Thickness x:Key="Space5Left">12,0,0,0</Thickness>
+    <Thickness x:Key="Space4All">10</Thickness>
+    <Thickness x:Key="Space6All">16</Thickness>
+    <Thickness x:Key="Space8All">24</Thickness>
+    <Thickness x:Key="Space3All">8</Thickness>
+    <Thickness x:Key="Space5All">12</Thickness>
+    <Thickness x:Key="ListItemPadding">10,6</Thickness>
+
+    <Thickness x:Key="CardPadding">14</Thickness>
+    <Thickness x:Key="ChipPadding">8,2</Thickness>
+    <Thickness x:Key="BadgePadding">6,1</Thickness>
+    <Thickness x:Key="BannerPadding">10</Thickness>
+    <Thickness x:Key="CompactButtonPadding">6,2</Thickness>
+    <Thickness x:Key="CommandButtonPadding">16,6</Thickness>
+    <Thickness x:Key="GhostButtonPadding">8,4</Thickness>
+
+    <!-- Corner radii -->
+    <CornerRadius x:Key="RadiusSmall">4</CornerRadius>
+    <CornerRadius x:Key="RadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="RadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">10</CornerRadius>
+
+    <!-- Control metrics -->
+    <sys:Double x:Key="ControlHeightCompact">28</sys:Double>
+    <sys:Double x:Key="ControlHeight">34</sys:Double>
+    <Thickness x:Key="BorderThin">1</Thickness>
+    <Thickness x:Key="BorderThick">2</Thickness>
+    <Thickness x:Key="BorderThinRight">0,0,1,0</Thickness>
+    <Thickness x:Key="BorderThinBottom">0,0,0,1</Thickness>
+    <Thickness x:Key="BorderThinLeft">1,0,0,0</Thickness>
+    <sys:Double x:Key="ProgressBarHeightThin">8</sys:Double>
+
+    <!-- Shell metrics -->
+    <sys:Double x:Key="RailWidth">68</sys:Double>
+    <Thickness x:Key="RailPadding">6,8</Thickness>
+    <sys:Double x:Key="ActivityPanelWidth">300</sys:Double>
+    <Thickness x:Key="TopBarPadding">16,8</Thickness>
+    <Thickness x:Key="NavRailButtonPadding">4,6</Thickness>
+    <sys:Double x:Key="SearchBoxWidth">260</sys:Double>
+    <sys:Double x:Key="SearchOverlayWidth">520</sys:Double>
+    <sys:Double x:Key="SearchOverlayMaxHeight">480</sys:Double>
+    <Thickness x:Key="SearchOverlayMargin">0,52,16,0</Thickness>
+    <sys:Double x:Key="IconSize">20</sys:Double>
+    <sys:Double x:Key="IconSizeSmall">16</sys:Double>
+
+    <!-- Workspace section nav -->
+    <sys:Double x:Key="SectionNavWidth">150</sys:Double>
+    <Thickness x:Key="SectionNavPadding">10,8</Thickness>
+    <Thickness x:Key="HeroButtonPadding">20,10</Thickness>
+    <Thickness x:Key="Space1Vertical">0,4</Thickness>
+    <Thickness x:Key="Space1Top">0,4,0,0</Thickness>
+
+    <!-- Dashboard metrics -->
+    <sys:Double x:Key="CardWidth">360</sys:Double>
+    <sys:Double x:Key="AvatarSize">28</sys:Double>
+    <sys:Double x:Key="FilterComboWidth">150</sys:Double>
+    <sys:Double x:Key="FilterComboWidthWide">190</sys:Double>
+    <Thickness x:Key="Space3Right">0,0,8,0</Thickness>
+    <Thickness x:Key="CardMargin">0,0,12,12</Thickness>
+    <Thickness x:Key="ChipMargin">0,0,4,2</Thickness>
+
+    <!-- Type scale -->
+    <sys:Double x:Key="FontSizeMicro">10</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">11</sys:Double>
+    <sys:Double x:Key="FontSizeSmall">12</sys:Double>
+    <sys:Double x:Key="FontSizeBody">13</sys:Double>
+    <sys:Double x:Key="FontSizeSubtitle">15</sys:Double>
+    <sys:Double x:Key="FontSizeTitle">22</sys:Double>
+
+    <!-- Monospace stack (system fonts only; nothing bundled). -->
+    <FontFamily x:Key="MonoFontFamily">Cascadia Mono,JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+</ResourceDictionary>

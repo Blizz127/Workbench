@@ -1,0 +1,356 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- App window surface -->
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+    </Style>
+
+    <!-- Card container used across the dashboard and detail views -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+    </Style>
+
+    <!-- Denser card for dashboard metrics -->
+    <Style Selector="Border.metric-card">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Padding" Value="{StaticResource Space4All}" />
+    </Style>
+
+    <!-- Typography -->
+    <Style Selector="TextBlock.h1">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="{StaticResource Space2Bottom}" />
+    </Style>
+    <Style Selector="TextBlock.section-header">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="Margin" Value="{StaticResource Space1Bottom}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}" />
+    </Style>
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+    </Style>
+    <Style Selector="TextBox.mono">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+    </Style>
+
+    <!-- Small status/tag chip -->
+    <Style Selector="Border.chip">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
+        <Setter Property="Padding" Value="{StaticResource ChipPadding}" />
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+    </Style>
+
+    <!-- Squared badge with status variants (tinted background + matching foreground) -->
+    <Style Selector="Border.badge">
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+        <Setter Property="Padding" Value="{StaticResource BadgePadding}" />
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+    </Style>
+    <Style Selector="Border.badge TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.badge.success">
+        <Setter Property="Background" Value="{DynamicResource SuccessTintBrush}" />
+    </Style>
+    <Style Selector="Border.badge.success TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="Border.badge.warning">
+        <Setter Property="Background" Value="{DynamicResource WarningTintBrush}" />
+    </Style>
+    <Style Selector="Border.badge.warning TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="Border.badge.danger">
+        <Setter Property="Background" Value="{DynamicResource DangerTintBrush}" />
+    </Style>
+    <Style Selector="Border.badge.danger TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
+    <Style Selector="Border.badge.info">
+        <Setter Property="Background" Value="{DynamicResource InfoTintBrush}" />
+    </Style>
+    <Style Selector="Border.badge.info TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
+    </Style>
+
+    <!-- Full-width banner for warnings; .danger variant for errors -->
+    <Style Selector="Border.warning-banner">
+        <Setter Property="Background" Value="{DynamicResource WarningTintBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Padding" Value="{StaticResource BannerPadding}" />
+    </Style>
+    <Style Selector="Border.warning-banner.danger">
+        <Setter Property="Background" Value="{DynamicResource DangerTintBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+    </Style>
+
+    <!-- Placeholder for empty lists/panels -->
+    <Style Selector="Border.empty-state">
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Padding" Value="{StaticResource Space8All}" />
+    </Style>
+    <Style Selector="TextBlock.empty-state">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Terminal-style log output: intentionally dark in both themes; its text
+         brush stays light either way (see Colors.axaml). -->
+    <Style Selector="Border.output-panel">
+        <Setter Property="Background" Value="{DynamicResource OutputPanelBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="Padding" Value="{StaticResource Space4All}" />
+    </Style>
+    <Style Selector="Border.output-panel TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource OutputPanelTextBrush}" />
+    </Style>
+
+    <!-- Command buttons: accent primary + secondary/danger/ghost variants -->
+    <Style Selector="Button.command">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Padding" Value="{StaticResource CommandButtonPadding}" />
+    </Style>
+    <Style Selector="Button.command:pointerover">
+        <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+    </Style>
+    <Style Selector="Button.command:pressed">
+        <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+    </Style>
+    <Style Selector="Button.command:disabled">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+
+    <Style Selector="Button.command.secondary">
+        <Setter Property="Background" Value="{DynamicResource CardRaisedBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Padding" Value="{StaticResource CommandButtonPadding}" />
+    </Style>
+    <Style Selector="Button.command.secondary:pointerover">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+    </Style>
+    <Style Selector="Button.command.secondary:pressed">
+        <Setter Property="Background" Value="{DynamicResource DividerBrush}" />
+    </Style>
+
+    <Style Selector="Button.command.danger">
+        <Setter Property="Background" Value="{DynamicResource DangerTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThin}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeight}" />
+        <Setter Property="Padding" Value="{StaticResource CommandButtonPadding}" />
+    </Style>
+    <Style Selector="Button.command.danger:pointerover">
+        <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+
+    <Style Selector="Button.command.ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="MinHeight" Value="{StaticResource ControlHeightCompact}" />
+        <Setter Property="Padding" Value="{StaticResource GhostButtonPadding}" />
+    </Style>
+    <Style Selector="Button.command.ghost:pointerover">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <!-- Keyboard-navigation focus indicator -->
+    <Style Selector="Button:focus-visible">
+        <Setter Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+    </Style>
+
+    <!-- Slim progress indicator -->
+    <!-- Slim progress indicator. MinWidth overrides Fluent's 200px minimum,
+         which squeezes label columns in dense rows. -->
+    <Style Selector="ProgressBar.thin">
+        <Setter Property="MinWidth" Value="20" />
+        <Setter Property="Height" Value="{StaticResource ProgressBarHeightThin}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Shell: left navigation rail -->
+    <Style Selector="Border.rail">
+        <Setter Property="Background" Value="{DynamicResource ChromeBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThinRight}" />
+        <Setter Property="Padding" Value="{StaticResource RailPadding}" />
+    </Style>
+    <Style Selector="Button.nav-rail">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="Padding" Value="{StaticResource NavRailButtonPadding}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.nav-rail:pointerover">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.nav-rail.selected">
+        <Setter Property="Background" Value="{DynamicResource InfoTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Shell: top context bar -->
+    <Style Selector="Border.top-bar">
+        <Setter Property="Background" Value="{DynamicResource ChromeBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThinBottom}" />
+        <Setter Property="Padding" Value="{StaticResource TopBarPadding}" />
+    </Style>
+
+    <!-- Shell: right-side activity/details panel -->
+    <Style Selector="Border.activity-panel">
+        <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThinLeft}" />
+        <Setter Property="Padding" Value="{StaticResource Space5All}" />
+    </Style>
+
+    <!-- Toggle-button state for ghost buttons (e.g. the panel toggle) -->
+    <Style Selector="Button.command.ghost.selected">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
+    <!-- Dashboard project card (use together with .card; .compact tightens it) -->
+    <Style Selector="Border.project-card">
+        <Setter Property="Width" Value="{StaticResource CardWidth}" />
+    </Style>
+    <Style Selector="Border.project-card.compact">
+        <Setter Property="Padding" Value="{StaticResource Space4All}" />
+    </Style>
+    <Style Selector="StackPanel.card-body">
+        <Setter Property="Spacing" Value="{StaticResource Space2}" />
+    </Style>
+    <Style Selector="Border.project-card.compact StackPanel.card-body">
+        <Setter Property="Spacing" Value="{StaticResource Space1}" />
+    </Style>
+
+    <!-- Initial-letter accent tile (background set per card from the status brush) -->
+    <Style Selector="Border.card-accent">
+        <Setter Property="Width" Value="{StaticResource AvatarSize}" />
+        <Setter Property="Height" Value="{StaticResource AvatarSize}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+    </Style>
+
+    <!-- Card title; the whole title is the open-target button -->
+    <Style Selector="TextBlock.card-title">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Border.project-card.compact TextBlock.card-title">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+    </Style>
+    <Style Selector="Button.card-open">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.card-open:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Workspace: left section navigation (text-only sibling of the app rail) -->
+    <Style Selector="Button.section-nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="Padding" Value="{StaticResource SectionNavPadding}" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.section-nav:pointerover">
+        <Setter Property="Background" Value="{DynamicResource NeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.section-nav.selected">
+        <Setter Property="Background" Value="{DynamicResource InfoTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Large primary action (Run page Start button) -->
+    <Style Selector="Button.command.hero">
+        <Setter Property="Padding" Value="{StaticResource HeroButtonPadding}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}" />
+    </Style>
+
+    <!-- Read-only log boxes inside an output panel inherit the terminal look -->
+    <Style Selector="Border.output-panel TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource OutputPanelTextBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <!-- Completed checklist items -->
+    <Style Selector="TextBlock.done">
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="TextDecorations" Value="Strikethrough" />
+    </Style>
+
+    <!-- Workspace section switch: brief fade-in (skipped under reduced motion) -->
+    <Style Selector="Grid.section-host">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.18">
+                    <DoubleTransition.Easing>
+                        <CubicEaseOut />
+                    </DoubleTransition.Easing>
+                </DoubleTransition>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Grid.section-host.no-motion">
+        <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+
+    <!-- Short hover/press transitions on the design-system buttons -->
+    <Style Selector="Button.command, Button.command.secondary, Button.command.danger, Button.command.ghost, Button.nav-rail, Button.section-nav, Button.card-open">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12" />
+                <BrushTransition Property="Foreground" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+</Styles>

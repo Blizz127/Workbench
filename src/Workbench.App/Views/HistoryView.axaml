@@ -5,19 +5,7 @@
              x:Class="Workbench.App.Views.HistoryView"
              x:DataType="vm:HistoryViewModel">
 
-    <DockPanel Margin="0,8,0,0">
-        <!-- Run controls -->
-        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="▶ Build" Command="{Binding RunBuildCommand}" />
-                <Button Content="▶ Run" Command="{Binding RunRunCommand}" />
-                <Button Content="▶ Test" Command="{Binding RunTestsCommand}" />
-                <TextBlock Text="{Binding RunStatus}" VerticalAlignment="Center" Classes="muted" />
-                <TextBlock Text="Commands are configured in the Settings tab. History is append-only."
-                           VerticalAlignment="Center" Classes="muted" />
-            </StackPanel>
-        </Border>
-
+    <DockPanel Margin="{StaticResource Space3Top}">
         <Grid ColumnDefinitions="*,12,*" RowDefinitions="*,12,220">
             <!-- Build history -->
             <Border Grid.Row="0" Grid.Column="0" Classes="card">
@@ -26,10 +14,10 @@
                     <ListBox ItemsSource="{Binding Builds}" SelectedItem="{Binding SelectedBuild}">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:BuildRecordViewModel">
-                                <Grid ColumnDefinitions="Auto,8,Auto,8,*,8,Auto,8,Auto" Margin="0,1">
+                                <Grid ColumnDefinitions="Auto,8,Auto,8,*,8,Auto,8,Auto" Margin="{StaticResource Space0Vertical}">
                                     <TextBlock Grid.Column="0" Text="{Binding StartedAt}" Classes="mono muted" />
                                     <Border Grid.Column="2" Classes="chip">
-                                        <TextBlock Text="{Binding Kind}" FontSize="10" />
+                                        <TextBlock Text="{Binding Kind}" FontSize="{StaticResource FontSizeMicro}" />
                                     </Border>
                                     <TextBlock Grid.Column="4" Text="{Binding Command}" Classes="mono"
                                                TextTrimming="CharacterEllipsis" />
@@ -50,7 +38,7 @@
                     <ListBox ItemsSource="{Binding Tests}" SelectedItem="{Binding SelectedTest}">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="vm:TestRecordViewModel">
-                                <StackPanel Margin="0,1" Spacing="2">
+                                <StackPanel Margin="{StaticResource Space0Vertical}" Spacing="{StaticResource Space0}">
                                     <Grid ColumnDefinitions="Auto,8,*,8,Auto,8,Auto">
                                         <TextBlock Grid.Column="0" Text="{Binding StartedAt}" Classes="mono muted" />
                                         <TextBlock Grid.Column="2" Text="{Binding Command}" Classes="mono"
@@ -59,7 +47,7 @@
                                         <TextBlock Grid.Column="6" Text="{Binding Result}" FontWeight="SemiBold"
                                                    Foreground="{Binding Passed, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
                                     </Grid>
-                                    <TextBlock Text="{Binding Notes}" Classes="muted" FontSize="11"
+                                    <TextBlock Text="{Binding Notes}" Classes="muted" FontSize="{StaticResource FontSizeCaption}"
                                                IsVisible="{Binding Notes.Length}" />
                                 </StackPanel>
                             </DataTemplate>
@@ -74,7 +62,7 @@
                     <TextBlock DockPanel.Dock="Top" Text="Output log" Classes="h2" />
                     <TextBox Text="{Binding SelectedLog}" IsReadOnly="True"
                              AcceptsReturn="True" TextWrapping="NoWrap"
-                             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="12" />
+                             Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
                 </DockPanel>
             </Border>
         </Grid>

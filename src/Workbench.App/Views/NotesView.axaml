@@ -5,20 +5,20 @@
              x:Class="Workbench.App.Views.NotesView"
              x:DataType="vm:NotesViewModel">
 
-    <Grid ColumnDefinitions="280,12,*" Margin="0,8,0,0">
+    <Grid ColumnDefinitions="280,12,*" Margin="{StaticResource Space3Top}">
         <!-- Note list -->
         <DockPanel Grid.Column="0">
             <TextBox DockPanel.Dock="Top" Text="{Binding FilterText}"
-                     Watermark="Search notes…" Margin="0,0,0,8" />
+                     Watermark="Search notes…" Margin="{StaticResource Space3Bottom}" />
             <Button DockPanel.Dock="Bottom" Content="+ New note" Command="{Binding NewNoteCommand}"
-                    HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                    HorizontalAlignment="Stretch" Margin="{StaticResource Space3Top}" />
             <ListBox ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="core:Note">
-                        <StackPanel Spacing="2" Margin="0,2">
+                        <StackPanel Spacing="{StaticResource Space0}" Margin="{StaticResource Space0Vertical}">
                             <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis" />
-                            <TextBlock Classes="muted" FontSize="11"
+                            <TextBlock Classes="muted" FontSize="{StaticResource FontSizeCaption}"
                                        Text="{Binding UpdatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" />
                         </StackPanel>
                     </DataTemplate>
@@ -28,18 +28,18 @@
 
         <!-- Editor -->
         <DockPanel Grid.Column="2" IsEnabled="{Binding IsEditorEnabled}">
-            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0">
+            <DockPanel DockPanel.Dock="Top" Margin="{StaticResource Space3Bottom}">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="{StaticResource Space2}" Margin="{StaticResource Space3Left}">
                     <Button Content="Save" Command="{Binding SaveNoteCommand}" />
                     <Button Content="Delete" Command="{Binding DeleteNoteCommand}" />
                 </StackPanel>
                 <TextBox Text="{Binding EditorTitle}" Watermark="Note title" />
             </DockPanel>
-            <TextBlock DockPanel.Dock="Bottom" Classes="muted" Margin="0,6,0,0"
+            <TextBlock DockPanel.Dock="Bottom" Classes="muted" Margin="{StaticResource Space2Top}"
                        Text="Markdown supported. Notes are searchable from the global search bar." />
             <TextBox Text="{Binding EditorContent}"
                      AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
-                     FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                     Classes="mono"
                      VerticalContentAlignment="Top"
                      Watermark="# Write markdown here…" />
         </DockPanel>

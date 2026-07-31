@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:core="using:Workbench.Core.Models"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.GitHubView"
+             x:DataType="vm:OverviewViewModel">
+
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <Grid ColumnDefinitions="*,12,*">
+
+            <!-- Left: repository + GitHub sync -->
+            <StackPanel Grid.Column="0" Spacing="{StaticResource Space5}">
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Refresh" Classes="command.ghost"
+                                    Command="{Binding RefreshRepositoryCommand}"
+                                    IsEnabled="{Binding !IsScanning}" />
+                            <TextBlock Text="Repository" Classes="h2" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding RepoSummary}" />
+                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="branch" Classes="muted" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Branch}" Classes="mono" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="HEAD" Classes="muted" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding LastCommitText}"
+                                       Classes="mono" TextWrapping="Wrap" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" DataContext="{Binding GitSync}" x:DataType="vm:GitSyncViewModel">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="GitHub" Classes="h2" />
+                        <TextBlock Text="{Binding SyncStateText}" Classes="muted" />
+
+                        <WrapPanel>
+                            <Button Content="⇅ Fetch/Update from GitHub" Classes="command.secondary"
+                                    Command="{Binding FetchCommand}" Margin="{StaticResource Space3Right}" />
+                            <Button Content="⏩ Pull (fast-forward)" Classes="command.secondary"
+                                    Command="{Binding PreparePullCommand}" IsVisible="{Binding CanPull}"
+                                    Margin="{StaticResource Space3Right}" />
+                            <Button Content="⬆ Push committed changes" Classes="command.secondary"
+                                    Command="{Binding PreparePushCommand}" IsVisible="{Binding CanPush}"
+                                    Margin="{StaticResource Space3Right}" />
+                            <Button Content="■ Cancel" Classes="command danger"
+                                    Command="{Binding CancelRunCommand}" IsVisible="{Binding IsBusy}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding RunStatus}" Classes="muted" IsVisible="{Binding RunStatus.Length}" />
+                        <TextBlock Text="{Binding LastResultMessage}" IsVisible="{Binding LastResultMessage.Length}"
+                                   Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+                        <!-- Pull preview/confirm: nothing runs until Confirm -->
+                        <Border Classes="warning-banner" IsVisible="{Binding IsPullPreviewOpen}"
+                                Margin="{StaticResource Space1Top}">
+                            <StackPanel Spacing="{StaticResource Space3}">
+                                <TextBlock Text="{Binding PullPreviewText}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                                    <Button Content="Confirm Pull" Classes="command" Command="{Binding ConfirmPullCommand}" />
+                                    <Button Content="Cancel" Classes="command.ghost" Command="{Binding CancelPullPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Push preview/confirm: nothing runs until Confirm -->
+                        <Border Classes="warning-banner" IsVisible="{Binding IsPushPreviewOpen}"
+                                Margin="{StaticResource Space1Top}">
+                            <StackPanel Spacing="{StaticResource Space3}">
+                                <TextBlock Text="{Binding PushPreviewText}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                                    <Button Content="Confirm Push" Classes="command" Command="{Binding ConfirmPushCommand}" />
+                                    <Button Content="Cancel" Classes="command.ghost" Command="{Binding CancelPushPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Right: commits + modified files -->
+            <StackPanel Grid.Column="2" Spacing="{StaticResource Space5}">
+                <Border Classes="card" IsVisible="{Binding RepoValid}">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Recent commits" Classes="h2" />
+                        <ItemsControl ItemsSource="{Binding RecentCommits}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:CommitInfo">
+                                    <Grid ColumnDefinitions="Auto,10,*,10,Auto" Margin="{StaticResource Space0Vertical}">
+                                        <TextBlock Grid.Column="0" Text="{Binding ShortSha}" Classes="mono muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding MessageSummary}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Author}" Classes="muted" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card" IsVisible="{Binding RepoValid}">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Modified files" Classes="h2" />
+                        <TextBlock Text="Working tree clean." Classes="muted"
+                                   IsVisible="{Binding !ModifiedFiles.Count}" />
+                        <ItemsControl ItemsSource="{Binding ModifiedFiles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="core:FileChange">
+                                    <Grid ColumnDefinitions="80,*" Margin="{StaticResource Space0Vertical}">
+                                        <TextBlock Grid.Column="0" Text="{Binding State}" Classes="muted" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Path}" Classes="mono"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

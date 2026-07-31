@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             x:Class="Workbench.App.Views.ProgressView"
+             x:DataType="vm:ProjectDetailViewModel">
+
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="760" HorizontalAlignment="Left">
+
+            <!-- Milestone progress (milestone-based only — no other percentages) -->
+            <Border Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Milestones" Classes="h2" />
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Milestones.ProgressText}" Classes="muted"
+                                   VerticalAlignment="Center" />
+                        <ProgressBar Classes="thin" Value="{Binding Milestones.Progress}" Maximum="100"
+                                     VerticalAlignment="Center" Margin="{StaticResource Space3Right}" />
+                    </DockPanel>
+
+                    <ItemsControl ItemsSource="{Binding Milestones.Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MilestoneItemViewModel">
+                                <DockPanel Margin="{StaticResource Space0Vertical}">
+                                    <Button DockPanel.Dock="Right" Content="✕" Classes="command.ghost"
+                                            Padding="{StaticResource CompactButtonPadding}"
+                                            Command="{Binding RemoveCommand}"
+                                            AutomationProperties.Name="Remove milestone" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding CompletedText}"
+                                               Classes="muted" VerticalAlignment="Center"
+                                               Margin="{StaticResource Space4Right}"
+                                               IsVisible="{Binding IsCompleted}" />
+                                    <CheckBox IsChecked="{Binding IsCompleted}" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" Classes.done="{Binding IsCompleted}" />
+                                    </CheckBox>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Add milestone" Classes="command.secondary"
+                                Command="{Binding Milestones.AddMilestoneCommand}" Margin="{StaticResource Space3Left}" />
+                        <TextBox Text="{Binding Milestones.NewMilestoneTitle}" Watermark="New milestone title">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding Milestones.AddMilestoneCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Frontier -->
+            <Border Classes="card">
+                <StackPanel Spacing="{StaticResource Space2}">
+                    <TextBlock Text="Frontier" Classes="h2" />
+                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="current" Classes="muted" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Overview.CurrentFrontier}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="next" Classes="muted" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Overview.NextFrontier}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="milestone" Classes="muted" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Overview.CurrentMilestone}" TextWrapping="Wrap" />
+                    </Grid>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Advance" Classes="command.secondary"
+                                Command="{Binding Overview.AdvanceFrontierCommand}" Margin="{StaticResource Space3Left}" />
+                        <TextBox Text="{Binding Overview.NewFrontierTitle}"
+                                 Watermark="New frontier (completes the current one)" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

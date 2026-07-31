@@ -4,9 +4,9 @@
              x:Class="Workbench.App.Views.HandoffView"
              x:DataType="vm:HandoffViewModel">
 
-    <DockPanel Margin="0,8,0,0">
-        <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+    <DockPanel Margin="{StaticResource Space3Top}">
+        <Border DockPanel.Dock="Top" Classes="card" Margin="{StaticResource Space5Bottom}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
                 <Button Content="↻ Regenerate" Command="{Binding RegenerateCommand}" />
                 <Button x:Name="CopyButton" Content="Copy to clipboard" Click="OnCopyClicked" />
                 <TextBlock VerticalAlignment="Center" Classes="muted"
@@ -17,7 +17,7 @@
         <Border Classes="card">
             <TextBox Text="{Binding HandoffMarkdown}" IsReadOnly="True"
                      AcceptsReturn="True" TextWrapping="Wrap"
-                     FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="13" />
+                     Classes="mono" FontSize="{StaticResource FontSizeBody}" />
         </Border>
     </DockPanel>
 </UserControl>

@@ -5,14 +5,30 @@
              x:DataType="vm:AppSettingsViewModel">
 
     <ScrollViewer>
-        <StackPanel Margin="16" Spacing="12" MaxWidth="900" HorizontalAlignment="Left">
+        <StackPanel Margin="{StaticResource Space6All}" Spacing="{StaticResource Space5}" MaxWidth="900" HorizontalAlignment="Left">
             <DockPanel>
                 <Button DockPanel.Dock="Left" Content="← Back" Command="{Binding GoBackCommand}" />
-                <TextBlock Text="App Settings" Classes="h1" Margin="12,0,0,0" VerticalAlignment="Center" />
+                <TextBlock Text="App Settings" Classes="h1" Margin="{StaticResource Space5Left}" VerticalAlignment="Center" />
             </DockPanel>
 
             <Border Classes="card">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Appearance" Classes="h2" />
+                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Theme" Classes="muted"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="0" Grid.Column="2" ItemsSource="{Binding Themes}"
+                                  SelectedItem="{Binding Theme}" Width="200" HorizontalAlignment="Left" />
+                        <CheckBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                  Content="Reduced motion (skip page and section transitions)"
+                                  IsChecked="{Binding ReducedMotion}" />
+                    </Grid>
+                    <TextBlock Classes="muted" Text="Theme applies when you save settings." />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Shared Workbench State" Classes="h2" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="Point this at your Dropbox folder (default: ~/Dropbox/workbench). Dropbox syncs it between your PCs externally — Workbench never runs sync commands. Project configuration is shared as projects/*.workbench.json files. Local history, logs, and the database never leave this machine. Sync is always explicit — nothing runs in the background." />
@@ -25,7 +41,7 @@
                     <TextBlock Text="Current Machine Name" Classes="muted" />
                     <TextBox Text="{Binding MachineName}" Watermark="detected automatically" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
                         <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" />
                         <Button Content="Open shared folder" Command="{Binding OpenSharedFolderCommand}" />
                         <Button Content="Reload shared state" Command="{Binding ReloadSharedStateCommand}" />
@@ -41,12 +57,12 @@
 
             <Border Classes="card"
                     IsVisible="{Binding ActivityLog.Count}">
-                <StackPanel Spacing="6">
+                <StackPanel Spacing="{StaticResource Space2}">
                     <TextBlock Text="Result" Classes="h2" />
                     <ItemsControl ItemsSource="{Binding ActivityLog}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1" />
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="{StaticResource Space0Vertical}" />
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

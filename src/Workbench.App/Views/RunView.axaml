@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.RunView"
+             x:DataType="vm:HistoryViewModel">
+
+    <DockPanel Margin="{StaticResource Space3Top}">
+
+        <!-- Launch profiles -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,12,*,12,*" Margin="{StaticResource Space5Bottom}">
+
+            <!-- Build profile -->
+            <Border Grid.Column="0" Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Build" Classes="h2" />
+                    <Border Classes="output-panel">
+                        <TextBlock Classes="mono" Text="{Binding BuildCommandText}"
+                                   FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Text="{Binding LastBuildSummary}"
+                               Foreground="{Binding LastBuildOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                    <Button Content="Build" Classes="command.secondary" Command="{Binding RunBuildCommand}"
+                            HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+
+            <!-- Run profile (the star) -->
+            <Border Grid.Column="2" Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Classes="badge" Classes.info="{Binding IsRunning}"
+                                VerticalAlignment="Center" AutomationProperties.Name="Run state">
+                            <TextBlock Text="{Binding RunStateText}" />
+                        </Border>
+                        <TextBlock Text="Run" Classes="h2" />
+                    </DockPanel>
+                    <Border Classes="output-panel">
+                        <TextBlock Classes="mono" Text="{Binding RunCommandText}"
+                                   FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Text="{Binding LastRunSummary}"
+                               Foreground="{Binding LastRunOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                    <TextBlock Text="{Binding RunStatus}" Classes="muted"
+                               IsVisible="{Binding RunStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <WrapPanel>
+                        <Button Content="▶ Start" Classes="command hero" Command="{Binding RunRunCommand}"
+                                Margin="{StaticResource Space3Right}" AutomationProperties.Name="Start run" />
+                        <Button Content="■ Stop" Classes="command danger" Command="{Binding StopCommand}"
+                                Margin="{StaticResource Space3Right}" AutomationProperties.Name="Stop run" />
+                        <Button Content="↻ Restart" Classes="command secondary" Command="{Binding RestartRunCommand}"
+                                AutomationProperties.Name="Restart run" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Test profile -->
+            <Border Grid.Column="4" Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Test" Classes="h2" />
+                    <Border Classes="output-panel">
+                        <TextBlock Classes="mono" Text="{Binding TestCommandText}"
+                                   FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Text="{Binding LastTestSummary}"
+                               Foreground="{Binding LastTestOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                    <Button Content="Smoke test" Classes="command.secondary" Command="{Binding RunTestsCommand}"
+                            HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Latest output -->
+        <Border Classes="output-panel">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Latest output" Classes="section-header" />
+                <TextBox Text="{Binding SelectedLog}" IsReadOnly="True"
+                         AcceptsReturn="True" TextWrapping="NoWrap"
+                         Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</UserControl>

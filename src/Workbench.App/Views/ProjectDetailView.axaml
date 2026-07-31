@@ -6,41 +6,125 @@
              x:Class="Workbench.App.Views.ProjectDetailView"
              x:DataType="vm:ProjectDetailViewModel">
 
-    <DockPanel Margin="16">
-        <!-- Header -->
-        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <Button Content="← Back" Command="{Binding GoBackCommand}" />
-                <TextBlock Text="{Binding HeaderName}" Classes="h1" VerticalAlignment="Center" />
-                <Border Classes="chip" VerticalAlignment="Center"
-                        Background="{Binding HeaderStatus, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
-                    <TextBlock Text="{Binding HeaderStatus}" FontSize="12" />
+    <DockPanel Margin="{StaticResource Space6All}">
+
+        <!-- Workspace header -->
+        <DockPanel DockPanel.Dock="Top" Margin="{StaticResource Space5Bottom}">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                        Spacing="{StaticResource Space3}" VerticalAlignment="Center">
+                <Button Content="▶ Start" Classes="command" Command="{Binding StartCommand}"
+                        IsVisible="{Binding HasRunCommand}" ToolTip.Tip="Open the Run section"
+                        AutomationProperties.Name="Open Run section" />
+                <Button Content="Open folder" Classes="command.ghost" Command="{Binding OpenFolderCommand}"
+                        ToolTip.Tip="{Binding Project.RepositoryPath}"
+                        AutomationProperties.Name="Open repository folder" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}" VerticalAlignment="Center">
+                <Button Content="← Back" Classes="command.ghost" Command="{Binding GoBackCommand}" />
+                <TextBlock Text="{Binding HeaderName}" Classes="h1" VerticalAlignment="Center"
+                           MaxWidth="420" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding HeaderName}" />
+                <Border Classes="badge" VerticalAlignment="Center"
+                        Classes.success="{Binding StatusIsSuccess}"
+                        Classes.warning="{Binding StatusIsWarning}"
+                        Classes.danger="{Binding StatusIsDanger}"
+                        Classes.info="{Binding StatusIsInfo}">
+                    <TextBlock Text="{Binding HeaderStatus}" />
+                </Border>
+                <TextBlock Classes="mono muted" Text="{Binding HeaderGitText}"
+                           IsVisible="{Binding HasHeaderGit}" VerticalAlignment="Center"
+                           MaxWidth="260" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="Git branch (* = uncommitted changes, ↑ ahead, ↓ behind)"
+                           AutomationProperties.Name="Git status" />
+                <Border Classes="badge" Classes.warning="{Binding IsHeaderSharedBadgeWarning}"
+                        IsVisible="{Binding HasHeaderSharedBadge}" VerticalAlignment="Center"
+                        ToolTip.Tip="Shared-state sync status">
+                    <TextBlock Text="{Binding HeaderSharedBadge}" />
                 </Border>
             </StackPanel>
         </DockPanel>
 
-        <TabControl>
-            <TabItem Header="Overview">
-                <views:OverviewView DataContext="{Binding Overview}" />
-            </TabItem>
-            <TabItem Header="Timeline">
-                <views:TimelineView DataContext="{Binding Timeline}" />
-            </TabItem>
-            <TabItem Header="Milestones">
-                <views:MilestonesView DataContext="{Binding Milestones}" />
-            </TabItem>
-            <TabItem Header="Notes">
-                <views:NotesView DataContext="{Binding Notes}" />
-            </TabItem>
-            <TabItem Header="Builds &amp; Tests">
-                <views:HistoryView DataContext="{Binding History}" />
-            </TabItem>
-            <TabItem Header="Handoff">
-                <views:HandoffView DataContext="{Binding Handoff}" />
-            </TabItem>
-            <TabItem Header="Settings">
-                <views:ProjectSettingsView DataContext="{Binding Settings}" />
-            </TabItem>
-        </TabControl>
+        <Grid ColumnDefinitions="Auto,16,*">
+
+            <!-- Section nav -->
+            <Border Grid.Column="0" Classes="rail" Width="{StaticResource SectionNavWidth}">
+                <StackPanel Spacing="{StaticResource Space1}">
+                    <Button Classes="section-nav" Classes.selected="{Binding IsOverviewSelected}"
+                            Content="Overview" Command="{Binding SelectSectionCommand}" CommandParameter="Overview" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsRunSelected}"
+                            Content="Run" Command="{Binding SelectSectionCommand}" CommandParameter="Run" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsProgressSelected}"
+                            Content="Progress" Command="{Binding SelectSectionCommand}" CommandParameter="Progress" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsGitHubSelected}"
+                            Content="GitHub" Command="{Binding SelectSectionCommand}" CommandParameter="GitHub" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsSharedStateSelected}"
+                            Content="Shared State" Command="{Binding SelectSectionCommand}" CommandParameter="Shared State" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsHistorySelected}"
+                            Content="History" Command="{Binding SelectSectionCommand}" CommandParameter="History" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsTimelineSelected}"
+                            Content="Timeline" Command="{Binding SelectSectionCommand}" CommandParameter="Timeline" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsNotesSelected}"
+                            Content="Notes" Command="{Binding SelectSectionCommand}" CommandParameter="Notes" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsHandoffSelected}"
+                            Content="Handoff" Command="{Binding SelectSectionCommand}" CommandParameter="Handoff" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsSettingsSelected}"
+                            Content="Settings" Command="{Binding SelectSectionCommand}" CommandParameter="Settings" />
+                </StackPanel>
+            </Border>
+
+            <!-- Sections (all live, visibility-toggled so state survives switching).
+                 section-host fades the newly selected section in; no-motion skips it. -->
+            <Grid Grid.Column="2">
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsOverviewSelected}"
+                      Opacity="{Binding IsOverviewSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:OverviewView DataContext="{Binding Overview}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsRunSelected}"
+                      Opacity="{Binding IsRunSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:RunView DataContext="{Binding History}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsProgressSelected}"
+                      Opacity="{Binding IsProgressSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:ProgressView DataContext="{Binding}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsGitHubSelected}"
+                      Opacity="{Binding IsGitHubSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:GitHubView DataContext="{Binding Overview}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsSharedStateSelected}"
+                      Opacity="{Binding IsSharedStateSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:SharedStateView DataContext="{Binding Settings}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsHistorySelected}"
+                      Opacity="{Binding IsHistorySelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:HistoryView DataContext="{Binding History}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsTimelineSelected}"
+                      Opacity="{Binding IsTimelineSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:TimelineView DataContext="{Binding Timeline}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsNotesSelected}"
+                      Opacity="{Binding IsNotesSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:NotesView DataContext="{Binding Notes}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsHandoffSelected}"
+                      Opacity="{Binding IsHandoffSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:HandoffView DataContext="{Binding Handoff}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsSettingsSelected}"
+                      Opacity="{Binding IsSettingsSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:ProjectSettingsView DataContext="{Binding Settings}" />
+                </Grid>
+            </Grid>
+        </Grid>
     </DockPanel>
 </UserControl>

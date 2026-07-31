@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using Workbench.App.ViewModels;
 using Workbench.App.Views;
 using Workbench.Data.SampleData;
@@ -23,6 +24,10 @@ public sealed class App : Application
                 BindingPlugins.DataValidators.Remove(plugin);
 
             var services = new AppServices();
+            RequestedThemeVariant =
+                string.Equals(services.AppSettings.Settings.Theme, "light", StringComparison.OrdinalIgnoreCase)
+                    ? ThemeVariant.Light
+                    : ThemeVariant.Dark;
             XenogearsSeeder.SeedIfEmpty(services.Database);
 
             desktop.MainWindow = new MainWindow

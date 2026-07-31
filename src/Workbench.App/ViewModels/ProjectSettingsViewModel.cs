@@ -41,6 +41,14 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
 
     public ObservableCollection<SharedFieldChange> ImportChanges { get; } = [];
 
+    /// <summary>Folder probe warnings (missing/unwritable folder, conflicted copies) for the Shared State section.</summary>
+    public ObservableCollection<string> SharedFolderWarnings { get; } = [];
+
+    public bool HasSharedFolderWarnings => SharedFolderWarnings.Count > 0;
+
+    public string SharedFolderPath =>
+        _services.AppSettings.SharedStateFolder ?? "not configured — set it in App Settings";
+
     private SharedProjectState? _pendingImport;
 
     public bool HasSharedFolder => _services.AppSettings.SharedStateFolder is not null;
@@ -73,6 +81,22 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         _documentationPaths = string.Join(Environment.NewLine, project.DocumentationPaths);
         _aiContextPaths = string.Join(Environment.NewLine, project.AiContextPaths);
         _tags = string.Join(", ", project.Tags);
+        RefreshSharedFolderWarnings();
+    }
+
+    /// <summary>Re-probes the shared folder (existence, writability, conflicted copies) and refreshes the warnings banner.</summary>
+    [RelayCommand]
+    private void ReloadSharedState() => RefreshSharedFolderWarnings();
+
+    private void RefreshSharedFolderWarnings()
+    {
+        SharedFolderWarnings.Clear();
+        if (_services.AppSettings.SharedStateFolder is not { } folder)
+            SharedFolderWarnings.Add("Set the Shared State Folder in App Settings first.");
+        else
+            foreach (var warning in _services.SharedState.CheckSharedFolder(folder).Warnings)
+                SharedFolderWarnings.Add(warning);
+        OnPropertyChanged(nameof(HasSharedFolderWarnings));
     }
 
     [RelayCommand]
