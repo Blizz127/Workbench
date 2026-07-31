@@ -35,14 +35,37 @@ public sealed class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Shared_state_folder_defaults_to_dropbox_workbench()
+    {
+        var service = new AppSettingsService(Path.Combine(_directory, "settings.json"));
+
+        var expected = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Dropbox", "workbench");
+        Assert.Equal(expected, service.SharedStateFolder);
+        Assert.Equal(expected, AppSettingsService.GetDefaultSharedStateFolder());
+    }
+
+    [Fact]
+    public void Configured_shared_state_folder_overrides_the_default()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+
+        var service = new AppSettingsService(path);
+        service.Settings.SharedStateFolder = "/mnt/other/WorkbenchShared";
+        service.Save();
+
+        Assert.Equal("/mnt/other/WorkbenchShared", new AppSettingsService(path).SharedStateFolder);
+    }
+
+    [Fact]
     public void Missing_or_corrupt_settings_yield_defaults()
     {
         var path = Path.Combine(_directory, "settings.json");
-        Assert.Null(new AppSettingsService(path).SharedStateFolder);
+        Assert.Equal(AppSettingsService.GetDefaultSharedStateFolder(), new AppSettingsService(path).SharedStateFolder);
 
         File.WriteAllText(path, "{ not json ]");
         var service = new AppSettingsService(path);
-        Assert.Null(service.SharedStateFolder);
+        Assert.Equal(AppSettingsService.GetDefaultSharedStateFolder(), service.SharedStateFolder);
         Assert.Equal(Environment.MachineName, service.MachineName);
     }
 }

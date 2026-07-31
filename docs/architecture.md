@@ -146,8 +146,9 @@ automatically; the Settings tab can export/import at any time.
 ### Shared Workbench State (`Workbench.Core.SharedStateService`)
 
 Cross-machine project state without syncing SQLite. The user selects a
-**Shared State Folder** (App Settings) — any directory synced by Google Drive,
-Syncthing, Dropbox, OneDrive, a NAS, or nothing at all. Each project exports to
+**Shared State Folder** (App Settings) — their Dropbox folder (default
+`~/Dropbox/workbench`), which Dropbox syncs between machines externally;
+Workbench never runs sync commands. Each project exports to
 `projects/<slug>.workbench.json`: identity (a stable `id` that dedupes repeated
 imports), configuration, progress shape (objective, active task, frontier
 checklist, milestones, blocker class, evidence, next safest step), AI fields

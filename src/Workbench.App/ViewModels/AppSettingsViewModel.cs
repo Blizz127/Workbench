@@ -1,14 +1,16 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Workbench.Core.Models;
 
 namespace Workbench.App.ViewModels;
 
 /// <summary>
-/// Application settings page: the Shared State Folder (a directory synced by
-/// Google Drive, Syncthing, Dropbox, OneDrive, a NAS — or any plain folder),
-/// this machine's name, and the explicit shared-state actions. Sync is always
-/// manual; nothing here runs in the background.
+/// Application settings page: the Shared State Folder (the user's Dropbox
+/// folder — Dropbox syncs it between machines externally; Workbench never runs
+/// sync commands), this machine's name, and the explicit shared-state actions.
+/// Sync is always manual; nothing here runs in the background.
 /// </summary>
 public sealed partial class AppSettingsViewModel : ViewModelBase
 {
@@ -24,6 +26,10 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    /// <summary>One-line folder status: project file count or why the folder is unavailable.</summary>
+    [ObservableProperty]
+    private string _sharedFolderSummary = string.Empty;
+
     /// <summary>Result lines from the last reload/import/export action.</summary>
     public ObservableCollection<string> ActivityLog { get; } = [];
 
@@ -33,8 +39,9 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
     {
         _services = services;
         _goBack = goBack;
-        _sharedStateFolder = services.AppSettings.Settings.SharedStateFolder ?? string.Empty;
+        _sharedStateFolder = services.AppSettings.SharedStateFolder ?? string.Empty;
         _machineName = services.AppSettings.MachineName;
+        RefreshSharedFolderStatus();
     }
 
     [RelayCommand]
@@ -52,6 +59,7 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         _services.AppSettings.Save();
         MachineName = _services.AppSettings.MachineName;
         StatusMessage = $"Saved at {DateTime.Now:HH:mm:ss}";
+        RefreshSharedFolderStatus();
     }
 
     /// <summary>Re-reads the shared folder and reports every project file's state against local.</summary>
@@ -66,7 +74,6 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         if (files.Count == 0)
         {
             ActivityLog.Add($"No project files found under {_services.SharedState.GetProjectsFolder(folder)}.");
-            return;
         }
 
         var projects = _services.Projects.GetAll();
@@ -87,6 +94,32 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
                 { LocalChangedSinceSync: true } => "local has unexported changes.",
                 _ => "up to date.",
             }));
+        }
+
+        foreach (var warning in RefreshSharedFolderStatus().Warnings)
+            ActivityLog.Add("⚠ " + warning);
+    }
+
+    /// <summary>Opens the shared folder in the OS file manager.</summary>
+    [RelayCommand]
+    private void OpenSharedFolder()
+    {
+        var folder = SharedStateFolder.Trim();
+        if (folder.Length == 0 || !Directory.Exists(folder))
+        {
+            StatusMessage = folder.Length == 0
+                ? "Set the Shared State Folder first."
+                : $"Folder does not exist: {folder}";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not open folder: {ex.Message}";
         }
     }
 
@@ -135,9 +168,17 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
             return null;
         }
 
-        if (!Directory.Exists(folder))
+        // The check also creates projects/ when the folder is valid and writable.
+        var status = _services.SharedState.CheckSharedFolder(folder);
+        if (!status.Exists)
         {
-            StatusMessage = $"Folder does not exist: {folder}";
+            StatusMessage = $"Folder does not exist (Dropbox may not have synced it): {folder}";
+            return null;
+        }
+
+        if (!status.Writable)
+        {
+            StatusMessage = $"Folder is not writable: {folder}";
             return null;
         }
 
@@ -146,5 +187,22 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
 
         StatusMessage = string.Empty;
         return folder;
+    }
+
+    /// <summary>Probes the shared folder and updates the summary line; returns the probe result.</summary>
+    private SharedFolderStatus RefreshSharedFolderStatus()
+    {
+        var folder = SharedStateFolder.Trim();
+        if (folder.Length == 0)
+        {
+            SharedFolderSummary = "No shared folder set.";
+            return new SharedFolderStatus { Folder = folder };
+        }
+
+        var status = _services.SharedState.CheckSharedFolder(folder);
+        SharedFolderSummary = status.Exists
+            ? $"{status.ProjectFileCount} shared project file(s) under {_services.SharedState.GetProjectsFolder(folder)}"
+            : $"Folder not available — Dropbox may not have synced it: {folder}";
+        return status;
     }
 }

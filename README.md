@@ -66,9 +66,10 @@ Being explicit, because the name "AI-assisted" invites assumptions:
   (`~/.config/Workbench/workbench.db` on Linux, `%APPDATA%\Workbench` on
   Windows; override with `WORKBENCH_DATA_DIR`). Nothing is uploaded. Project
   configuration *can* be shared across machines through the **Shared State
-  Folder** (App Settings) — plain `projects/*.workbench.json` files in a
-  directory you point at Google Drive, Syncthing, Dropbox, OneDrive, or a NAS.
-  Sharing is explicit and manual (export/import with preview); command history,
+  Folder** (App Settings) — plain `projects/*.workbench.json` files in your
+  Dropbox folder (default `~/Dropbox/workbench`). Dropbox syncs the folder
+  externally; Workbench never runs sync commands. Sharing is explicit and
+  manual (export/import with preview); command history,
   logs, and the database itself never leave the machine.
 
 ## 3. Creating or importing a project

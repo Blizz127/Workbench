@@ -22,7 +22,7 @@ public interface IAppSettingsService
     /// <summary>Configured machine name, falling back to the detected one.</summary>
     string MachineName { get; }
 
-    /// <summary>The shared folder if configured and existing, else null.</summary>
+    /// <summary>The shared folder: the configured path, else <c>~/Dropbox/workbench</c>.</summary>
     string? SharedStateFolder { get; }
 
     void Save();
@@ -71,7 +71,13 @@ public sealed class AppSettingsService : IAppSettingsService
         string.IsNullOrWhiteSpace(Settings.MachineName) ? Environment.MachineName : Settings.MachineName.Trim();
 
     public string? SharedStateFolder =>
-        string.IsNullOrWhiteSpace(Settings.SharedStateFolder) ? null : Settings.SharedStateFolder.Trim();
+        string.IsNullOrWhiteSpace(Settings.SharedStateFolder)
+            ? GetDefaultSharedStateFolder()
+            : Settings.SharedStateFolder.Trim();
+
+    /// <summary>The Dropbox-synced shared folder used when none is configured.</summary>
+    public static string GetDefaultSharedStateFolder() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Dropbox", "workbench");
 
     public void Save()
     {

@@ -406,4 +406,76 @@ public sealed class SharedStateServiceTests : IDisposable
         Assert.Equal(before, after.UpdatedAt);
         Assert.Equal("sync-only", after.SharedId);
     }
+
+    [Fact]
+    public void CheckSharedFolder_reports_missing_folder()
+    {
+        var missing = Path.Combine(_sharedFolder, "does-not-exist");
+
+        var status = _service.CheckSharedFolder(missing);
+
+        Assert.False(status.Exists);
+        Assert.False(status.Writable);
+        Assert.Equal(0, status.ProjectFileCount);
+        Assert.Single(status.Warnings);
+        Assert.Contains("missing or unavailable", status.Warnings[0]);
+    }
+
+    [Fact]
+    public void CheckSharedFolder_creates_projects_folder_and_counts_files()
+    {
+        var project = AddFullProject();
+        _service.Export(_sharedFolder, project, "desktop");
+        Directory.Delete(_service.GetProjectsFolder(_sharedFolder), recursive: true);
+
+        var status = _service.CheckSharedFolder(_sharedFolder);
+
+        Assert.True(status.Exists);
+        Assert.True(status.Writable);
+        Assert.True(status.ProjectsFolderExists);
+        Assert.True(Directory.Exists(_service.GetProjectsFolder(_sharedFolder)));
+        Assert.Equal(0, status.ProjectFileCount);
+        Assert.Empty(status.Warnings);
+
+        _service.Export(_sharedFolder, project, "desktop", force: true);
+        status = _service.CheckSharedFolder(_sharedFolder);
+        Assert.Equal(1, status.ProjectFileCount);
+        Assert.Empty(status.Warnings);
+    }
+
+    [Fact]
+    public void CheckSharedFolder_warns_about_dropbox_conflicted_copies()
+    {
+        var project = AddFullProject();
+        var result = _service.Export(_sharedFolder, project, "desktop");
+        File.Copy(result.FilePath, Path.Combine(
+            _service.GetProjectsFolder(_sharedFolder),
+            "xenogears-decompilation (laptop's conflicted copy 2026-07-30).workbench.json"));
+
+        var status = _service.CheckSharedFolder(_sharedFolder);
+
+        Assert.Equal(2, status.ProjectFileCount);
+        var warning = Assert.Single(status.Warnings);
+        Assert.Contains("conflicted copy", warning, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CheckSharedFolder_warns_about_unreadable_files()
+    {
+        var project = AddFullProject();
+        _service.Export(_sharedFolder, project, "desktop");
+        File.WriteAllText(
+            Path.Combine(_service.GetProjectsFolder(_sharedFolder), "broken.workbench.json"),
+            "{ not json ]");
+        File.WriteAllText(
+            Path.Combine(_service.GetProjectsFolder(_sharedFolder), "empty.workbench.json"),
+            string.Empty);
+
+        var status = _service.CheckSharedFolder(_sharedFolder);
+
+        Assert.Equal(3, status.ProjectFileCount);
+        Assert.Equal(2, status.Warnings.Count);
+        Assert.Contains(status.Warnings, w => w.Contains("broken.workbench.json") && w.Contains("unreadable"));
+        Assert.Contains(status.Warnings, w => w.Contains("empty.workbench.json") && w.Contains("unreadable"));
+    }
 }

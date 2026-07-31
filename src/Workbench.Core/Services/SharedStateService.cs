@@ -91,13 +91,21 @@ public interface ISharedStateService
 
     /// <summary>Exports every local project, skipping (with a warning) those whose shared file is newer.</summary>
     SharedSyncSummary ExportAll(string sharedFolder, string machineName);
+
+    /// <summary>
+    /// Probes the shared folder: existence, writability, project file count, and
+    /// warnings (Dropbox conflicted copies, unreadable files). Creates
+    /// <c>projects/</c> when the folder is valid and writable. Touches nothing
+    /// outside the folder and only ever reads <c>*.workbench.json</c> files.
+    /// </summary>
+    SharedFolderStatus CheckSharedFolder(string sharedFolder);
 }
 
 /// <summary>
-/// File-based cross-machine project state. The shared folder is any directory
-/// the user points at a sync service (Google Drive, Syncthing, Dropbox,
-/// OneDrive, a NAS) — sync is always explicit and manual, never background.
-/// Local SQLite history (runs, logs, timeline) is never written here.
+/// File-based cross-machine project state. The shared folder is the user's
+/// Dropbox folder (<c>~/Dropbox/workbench</c> by default) — Dropbox syncs it
+/// between machines externally; Workbench never runs sync commands. Local
+/// SQLite history (runs, logs, timeline) is never written here.
 /// </summary>
 public sealed class SharedStateService(
     IProjectRepository projects,
@@ -327,6 +335,57 @@ public sealed class SharedStateService(
         }
 
         return summary;
+    }
+
+    public SharedFolderStatus CheckSharedFolder(string sharedFolder)
+    {
+        var status = new SharedFolderStatus { Folder = sharedFolder };
+
+        if (string.IsNullOrWhiteSpace(sharedFolder) || !Directory.Exists(sharedFolder))
+        {
+            status.Warnings.Add($"Shared folder is missing or unavailable (Dropbox may not have synced it): {sharedFolder}");
+            return status;
+        }
+
+        status.Exists = true;
+        status.Writable = ProbeWritable(sharedFolder);
+        if (!status.Writable)
+        {
+            status.Warnings.Add($"Shared folder is not writable: {sharedFolder}");
+            return status;
+        }
+
+        var projectsFolder = GetProjectsFolder(sharedFolder);
+        Directory.CreateDirectory(projectsFolder);
+        status.ProjectsFolderExists = true;
+
+        foreach (var path in Directory.EnumerateFiles(projectsFolder, "*" + FileSuffix, SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            status.ProjectFileCount++;
+            var name = Path.GetFileName(path);
+            if (name.Contains("conflicted copy", StringComparison.OrdinalIgnoreCase))
+                status.Warnings.Add($"{name}: Dropbox conflicted copy — resolve it against the original file.");
+            else if (LoadFile(path) is null)
+                status.Warnings.Add($"{name}: unreadable or corrupt — the file could not be loaded.");
+        }
+
+        return status;
+    }
+
+    /// <summary>Writes and deletes a temp probe file to prove the folder is writable.</summary>
+    private static bool ProbeWritable(string folder)
+    {
+        var probe = Path.Combine(folder, ".workbench-write-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The shared state for a project as it would be exported right now.</summary>

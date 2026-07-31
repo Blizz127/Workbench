@@ -3,9 +3,9 @@ namespace Workbench.Core.Models;
 /// <summary>
 /// The cross-machine, file-based representation of one project, stored as
 /// <c>&lt;slug&gt;.workbench.json</c> inside the shared state folder's
-/// <c>projects/</c> subfolder. The shared folder is a plain directory the user
-/// points at Google Drive, Syncthing, Dropbox, OneDrive, a NAS mount, or any
-/// normal folder — Workbench never talks to a sync service directly.
+/// <c>projects/</c> subfolder. The shared folder is the user's Dropbox folder
+/// (<c>~/Dropbox/workbench</c> by default), synced externally by Dropbox —
+/// Workbench never talks to a sync service directly.
 ///
 /// Shared state carries configuration and progress shape only. Local history
 /// (command runs, logs, timeline, dirty state) never leaves the local SQLite
