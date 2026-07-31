@@ -11,6 +11,32 @@ public sealed class AppSettings
 
     /// <summary>Overrides the detected machine name used for machine profiles.</summary>
     public string? MachineName { get; set; }
+
+    /// <summary>Last window size, restored on startup.</summary>
+    public double WindowWidth { get; set; } = 1280;
+    public double WindowHeight { get; set; } = 800;
+
+    /// <summary>Last window position; null means "center on screen" on startup.</summary>
+    public int? WindowX { get; set; }
+    public int? WindowY { get; set; }
+
+    /// <summary>Project selected when the app was last closed, if any.</summary>
+    public long? LastSelectedProjectId { get; set; }
+
+    /// <summary>Page shown when the app was last closed ("dashboard", "project", …).</summary>
+    public string LastPage { get; set; } = "dashboard";
+
+    /// <summary>Whether the right-hand details panel is visible.</summary>
+    public bool RightPanelVisible { get; set; }
+
+    /// <summary>Dashboard row density ("comfortable" or "compact").</summary>
+    public string DashboardDensity { get; set; } = "comfortable";
+
+    /// <summary>UI theme: "dark" (default) or "light".</summary>
+    public string Theme { get; set; } = "dark";
+
+    /// <summary>When true, page/section fade transitions are skipped (reduced motion).</summary>
+    public bool ReducedMotion { get; set; }
 }
 
 public interface IAppSettingsService

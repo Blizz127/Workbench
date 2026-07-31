@@ -68,4 +68,80 @@ public sealed class AppSettingsServiceTests : IDisposable
         Assert.Equal(AppSettingsService.GetDefaultSharedStateFolder(), service.SharedStateFolder);
         Assert.Equal(Environment.MachineName, service.MachineName);
     }
+
+    [Fact]
+    public void Ui_state_fields_round_trip_through_settings_json()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+
+        var service = new AppSettingsService(path);
+        service.Settings.WindowWidth = 1440;
+        service.Settings.WindowHeight = 900;
+        service.Settings.WindowX = 120;
+        service.Settings.WindowY = 80;
+        service.Settings.LastSelectedProjectId = 42;
+        service.Settings.LastPage = "project";
+        service.Settings.RightPanelVisible = true;
+        service.Settings.DashboardDensity = "compact";
+        service.Settings.ReducedMotion = true;
+        service.Save();
+
+        var reloaded = new AppSettingsService(path).Settings;
+        Assert.Equal(1440, reloaded.WindowWidth);
+        Assert.Equal(900, reloaded.WindowHeight);
+        Assert.Equal(120, reloaded.WindowX);
+        Assert.Equal(80, reloaded.WindowY);
+        Assert.Equal(42, reloaded.LastSelectedProjectId);
+        Assert.Equal("project", reloaded.LastPage);
+        Assert.True(reloaded.RightPanelVisible);
+        Assert.Equal("compact", reloaded.DashboardDensity);
+        Assert.True(reloaded.ReducedMotion);
+    }
+
+    [Fact]
+    public void Legacy_settings_json_without_ui_state_fields_loads_with_defaults()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared",
+          "machineName": "desktop"
+        }
+        """);
+
+        var settings = new AppSettingsService(path).Settings;
+        Assert.Equal("/mnt/gdrive/WorkbenchShared", settings.SharedStateFolder);
+        Assert.Equal("desktop", settings.MachineName);
+        Assert.Equal(1280, settings.WindowWidth);
+        Assert.Equal(800, settings.WindowHeight);
+        Assert.Null(settings.WindowX);
+        Assert.Null(settings.WindowY);
+        Assert.Null(settings.LastSelectedProjectId);
+        Assert.Equal("dashboard", settings.LastPage);
+        Assert.False(settings.RightPanelVisible);
+        Assert.Equal("comfortable", settings.DashboardDensity);
+        Assert.Equal("dark", settings.Theme);
+        Assert.False(settings.ReducedMotion);
+    }
+
+    [Fact]
+    public void Theme_round_trips_and_legacy_files_default_to_dark()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+
+        var service = new AppSettingsService(path);
+        Assert.Equal("dark", service.Settings.Theme);
+        service.Settings.Theme = "light";
+        service.Save();
+
+        Assert.Equal("light", new AppSettingsService(path).Settings.Theme);
+
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared",
+          "machineName": "desktop"
+        }
+        """);
+        Assert.Equal("dark", new AppSettingsService(path).Settings.Theme);
+    }
 }

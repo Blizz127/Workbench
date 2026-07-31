@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Workbench.Core.Models;
 using Workbench.Core.Services;
 using Workbench.Data.Repositories;
@@ -91,5 +92,36 @@ public sealed class ExecutionServiceTests : IClassFixture<DatabaseFixture>
 
         Assert.NotNull(record);
         Assert.Equal(TestResult.TimedOut, record.Result);
+    }
+
+    [Fact]
+    public async Task Cancelled_command_completes_quickly_without_throwing()
+    {
+        var (service, id, _, _, _) = CreateHarness();
+        var project = new Project { Id = id, TestCommand = "sleep 30" };
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+
+        var stopwatch = Stopwatch.StartNew();
+        var record = await service.RunTestsAsync(project, cancellationToken: cts.Token);
+        stopwatch.Stop();
+
+        Assert.NotNull(record);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
+        // ProcessRunner reports cancellation as a null exit code, which maps to Error.
+        Assert.Equal(TestResult.Error, record.Result);
+        Assert.Contains("cancelled", record.OutputLog);
+    }
+
+    [Fact]
+    public async Task Cancelled_build_after_green_journals_no_regression()
+    {
+        var (service, id, _, _, timeline) = CreateHarness();
+
+        await service.RunBuildAsync(new Project { Id = id, BuildCommand = "true" }, ExecutionKind.Build);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        await service.RunBuildAsync(
+            new Project { Id = id, BuildCommand = "sleep 30" }, ExecutionKind.Build, cancellationToken: cts.Token);
+
+        Assert.DoesNotContain(timeline.GetForProject(id), e => e.Category == TimelineCategory.Regression);
     }
 }

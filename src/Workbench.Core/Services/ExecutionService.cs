@@ -54,7 +54,8 @@ public sealed class ExecutionService(
             Detail = record.Succeeded ? null : Tail(result.Output),
         });
 
-        if (previous is { } prev && prev.Succeeded && !record.Succeeded)
+        // A user-cancelled run reports a null exit code; don't treat it as a regression.
+        if (!cancellationToken.IsCancellationRequested && previous is { } prev && prev.Succeeded && !record.Succeeded)
         {
             timeline.Add(new TimelineEntry
             {
@@ -106,7 +107,9 @@ public sealed class ExecutionService(
             Detail = testResult == TestResult.Passed ? null : Tail(result.Output),
         });
 
-        if (previous is { Result: TestResult.Passed } && testResult != TestResult.Passed)
+        // A user-cancelled run maps to TestResult.Error; don't treat it as a regression.
+        if (!cancellationToken.IsCancellationRequested
+            && previous is { Result: TestResult.Passed } && testResult != TestResult.Passed)
         {
             timeline.Add(new TimelineEntry
             {
