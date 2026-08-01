@@ -53,6 +53,48 @@ public sealed class RepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public void Project_launch_profile_roundtrips_through_add_and_update()
+    {
+        var repo = new ProjectRepository(_fixture.Database);
+        var project = new Project
+        {
+            Name = $"launch-{Guid.NewGuid():N}",
+            Launch = new LaunchProfile
+            {
+                StartupGraceSeconds = 15,
+                StatusCommand = "podman ps",
+                RequiredServices = ["database", "map"],
+                OptionalServices = ["metrics"],
+                HealthyPatterns = ["up"],
+                FailedPatterns = ["Segmentation fault"],
+                ServiceLogCommand = "podman logs {service}",
+                HealthCheckRetries = 4,
+                HealthCheckIntervalSeconds = 8,
+            },
+        };
+
+        var id = repo.Add(project);
+        var loaded = repo.GetById(id)!;
+        Assert.Equal(15, loaded.Launch.StartupGraceSeconds);
+        Assert.Equal("podman ps", loaded.Launch.StatusCommand);
+        Assert.Equal(["database", "map"], loaded.Launch.RequiredServices);
+        Assert.Equal(["metrics"], loaded.Launch.OptionalServices);
+        Assert.Equal(["up"], loaded.Launch.HealthyPatterns);
+        Assert.Equal(["Segmentation fault"], loaded.Launch.FailedPatterns);
+        Assert.Equal("podman logs {service}", loaded.Launch.ServiceLogCommand);
+        Assert.Equal(4, loaded.Launch.HealthCheckRetries);
+        Assert.Equal(8, loaded.Launch.HealthCheckIntervalSeconds);
+
+        loaded.Launch.RequiredServices = ["database"];
+        loaded.Launch.StatusCommand = null;
+        repo.Update(loaded);
+
+        var reloaded = repo.GetById(id)!;
+        Assert.Null(reloaded.Launch.StatusCommand);
+        Assert.Equal(["database"], reloaded.Launch.RequiredServices);
+    }
+
+    [Fact]
     public void Project_update_persists_and_bumps_updated_at()
     {
         var repo = new ProjectRepository(_fixture.Database);

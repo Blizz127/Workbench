@@ -13,7 +13,10 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         active_task, current_objective, created_at, updated_at,
         shared_id, blocker_class, evidence, next_safest_step, prompt_rules,
         custom_log_patterns, github_repo_url, default_branch,
-        shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp
+        shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp,
+        launch_grace_seconds, launch_status_command, launch_required_services,
+        launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
+        launch_service_log_command, launch_health_retries, launch_health_interval_seconds
         """;
 
     public IReadOnlyList<Project> GetAll()
@@ -73,14 +76,20 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 active_task, current_objective, created_at, updated_at,
                 shared_id, blocker_class, evidence, next_safest_step, prompt_rules,
                 custom_log_patterns, github_repo_url, default_branch,
-                shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp)
+                shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp,
+                launch_grace_seconds, launch_status_command, launch_required_services,
+                launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
+                launch_service_log_command, launch_health_retries, launch_health_interval_seconds)
             VALUES (
                 $name, $status, $description, $repository_path, $build_command, $run_command,
                 $test_command, $documentation_paths, $ai_context_paths, $preferred_ai_provider,
                 $active_task, $current_objective, $created_at, $updated_at,
                 $shared_id, $blocker_class, $evidence, $next_safest_step, $prompt_rules,
                 $custom_log_patterns, $github_repo_url, $default_branch,
-                $shared_last_imported_at, $shared_last_exported_at, $shared_last_synced_stamp);
+                $shared_last_imported_at, $shared_last_exported_at, $shared_last_synced_stamp,
+                $launch_grace_seconds, $launch_status_command, $launch_required_services,
+                $launch_optional_services, $launch_healthy_patterns, $launch_failed_patterns,
+                $launch_service_log_command, $launch_health_retries, $launch_health_interval_seconds);
             SELECT last_insert_rowid();
             """;
         BindParameters(command, project);
@@ -113,7 +122,16 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 custom_log_patterns = $custom_log_patterns, github_repo_url = $github_repo_url,
                 default_branch = $default_branch, shared_last_imported_at = $shared_last_imported_at,
                 shared_last_exported_at = $shared_last_exported_at,
-                shared_last_synced_stamp = $shared_last_synced_stamp
+                shared_last_synced_stamp = $shared_last_synced_stamp,
+                launch_grace_seconds = $launch_grace_seconds,
+                launch_status_command = $launch_status_command,
+                launch_required_services = $launch_required_services,
+                launch_optional_services = $launch_optional_services,
+                launch_healthy_patterns = $launch_healthy_patterns,
+                launch_failed_patterns = $launch_failed_patterns,
+                launch_service_log_command = $launch_service_log_command,
+                launch_health_retries = $launch_health_retries,
+                launch_health_interval_seconds = $launch_health_interval_seconds
             WHERE id = $id;
             """;
         BindParameters(command, project);
@@ -192,6 +210,15 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.Parameters.AddWithValue("$shared_last_imported_at", SqliteMapping.ToDb(p.SharedLastImportedAt));
         command.Parameters.AddWithValue("$shared_last_exported_at", SqliteMapping.ToDb(p.SharedLastExportedAt));
         command.Parameters.AddWithValue("$shared_last_synced_stamp", SqliteMapping.ToDb(p.SharedLastSyncedStamp));
+        command.Parameters.AddWithValue("$launch_grace_seconds", SqliteMapping.ToDbNullable(p.Launch.StartupGraceSeconds));
+        command.Parameters.AddWithValue("$launch_status_command", SqliteMapping.ToDbNullable(p.Launch.StatusCommand));
+        command.Parameters.AddWithValue("$launch_required_services", SqliteMapping.ToJson(p.Launch.RequiredServices));
+        command.Parameters.AddWithValue("$launch_optional_services", SqliteMapping.ToJson(p.Launch.OptionalServices));
+        command.Parameters.AddWithValue("$launch_healthy_patterns", SqliteMapping.ToJson(p.Launch.HealthyPatterns));
+        command.Parameters.AddWithValue("$launch_failed_patterns", SqliteMapping.ToJson(p.Launch.FailedPatterns));
+        command.Parameters.AddWithValue("$launch_service_log_command", SqliteMapping.ToDbNullable(p.Launch.ServiceLogCommand));
+        command.Parameters.AddWithValue("$launch_health_retries", SqliteMapping.ToDbNullable(p.Launch.HealthCheckRetries));
+        command.Parameters.AddWithValue("$launch_health_interval_seconds", SqliteMapping.ToDbNullable(p.Launch.HealthCheckIntervalSeconds));
     }
 
     private static Project Map(SqliteDataReader reader) => new()
@@ -223,6 +250,18 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         SharedLastImportedAt = reader.GetNullableDateTimeOffset(23),
         SharedLastExportedAt = reader.GetNullableDateTimeOffset(24),
         SharedLastSyncedStamp = reader.GetNullableDateTimeOffset(25),
+        Launch = new LaunchProfile
+        {
+            StartupGraceSeconds = reader.GetNullableInt32(26) ?? 5,
+            StatusCommand = reader.GetNullableString(27),
+            RequiredServices = SqliteMapping.FromJson(reader.GetNullableString(28)),
+            OptionalServices = SqliteMapping.FromJson(reader.GetNullableString(29)),
+            HealthyPatterns = SqliteMapping.FromJson(reader.GetNullableString(30)),
+            FailedPatterns = SqliteMapping.FromJson(reader.GetNullableString(31)),
+            ServiceLogCommand = reader.GetNullableString(32),
+            HealthCheckRetries = reader.GetNullableInt32(33) ?? 3,
+            HealthCheckIntervalSeconds = reader.GetNullableInt32(34) ?? 5,
+        },
     };
 
     private static List<string> LoadTags(SqliteConnection connection, long projectId)

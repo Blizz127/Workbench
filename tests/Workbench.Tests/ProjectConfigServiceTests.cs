@@ -54,4 +54,58 @@ public sealed class ProjectConfigServiceTests : IDisposable
         File.WriteAllText(Path.Combine(_directory, "workbench.json"), "{ not json ]");
         Assert.Null(service.Load(_directory));
     }
+
+    [Fact]
+    public void Launch_profile_roundtrips_through_workbench_json()
+    {
+        var service = new ProjectConfigService();
+        var project = new Project
+        {
+            Name = "Banshee",
+            RepositoryPath = _directory,
+            RunCommand = "podman compose up -d",
+            Launch = new LaunchProfile
+            {
+                StartupGraceSeconds = 20,
+                StatusCommand = "podman ps --format '{{.Names}} {{.Status}}'",
+                RequiredServices = ["database", "map"],
+                OptionalServices = ["metrics"],
+                FailedPatterns = ["Segmentation fault"],
+                ServiceLogCommand = "podman logs --tail=200 banshee_{service}_1",
+                HealthCheckRetries = 4,
+                HealthCheckIntervalSeconds = 10,
+            },
+        };
+
+        service.Save(project);
+        var json = File.ReadAllText(Path.Combine(_directory, "workbench.json"));
+        Assert.Contains("\"launchProfile\"", json);
+
+        var loaded = service.Load(_directory);
+        Assert.NotNull(loaded?.LaunchProfile);
+        Assert.Equal(20, loaded.LaunchProfile.StartupGraceSeconds);
+        Assert.Equal(["database", "map"], loaded.LaunchProfile.RequiredServices);
+
+        var target = new Project();
+        service.ApplyTo(loaded, target);
+        Assert.Equal("podman compose up -d", target.RunCommand);
+        Assert.Equal(["database", "map"], target.Launch.RequiredServices);
+        Assert.Equal(["metrics"], target.Launch.OptionalServices);
+        Assert.Equal(["Segmentation fault"], target.Launch.FailedPatterns);
+        Assert.Equal("podman logs --tail=200 banshee_{service}_1", target.Launch.ServiceLogCommand);
+        Assert.Equal(4, target.Launch.HealthCheckRetries);
+        Assert.Equal(10, target.Launch.HealthCheckIntervalSeconds);
+    }
+
+    [Fact]
+    public void Project_without_a_status_command_omits_the_launch_profile()
+    {
+        var service = new ProjectConfigService();
+        var project = new Project { Name = "plain", RepositoryPath = _directory };
+
+        service.Save(project);
+        var json = File.ReadAllText(Path.Combine(_directory, "workbench.json"));
+
+        Assert.DoesNotContain("launchProfile", json);
+    }
 }

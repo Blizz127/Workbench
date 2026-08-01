@@ -10,7 +10,20 @@ public sealed record ProcessResult(
     int? ExitCode,
     TimeSpan Duration,
     string Output,
-    bool TimedOut);
+    bool TimedOut)
+{
+    /// <summary>
+    /// The command's own outcome. Success here only means the launcher exited
+    /// 0 — it says nothing about the health of anything it left running.
+    /// </summary>
+    public Models.CommandResult Result => this switch
+    {
+        { TimedOut: true } => Models.CommandResult.TimedOut,
+        { ExitCode: 0 } => Models.CommandResult.Succeeded,
+        { ExitCode: null } => Models.CommandResult.Cancelled,
+        _ => Models.CommandResult.Failed,
+    };
+}
 
 public interface IProcessRunner
 {

@@ -48,6 +48,22 @@ public static class DraenorSeeder
             Tags = ["Game Preservation", "Server Revival", "Reverse Engineering", "WoW", "WoD", "Build Engineering"],
             ActiveTask = "Phase 4 world playability: content batches + 20779 gameplay smoke baseline",
             CurrentObjective = "Stable 6.2.3.20779 frFR play session with fixed content gaps; enUS pack re-verify later",
+            Launch = new LaunchProfile
+            {
+                // Detached setsid/distrobox launchers; evidence is the TCP
+                // listeners from runtime/start-all.sh (devbox 3307/1119/8085,
+                // host :53/:80/:87 from the sudo setup step).
+                StartupGraceSeconds = 15,
+                StatusCommand = "check() { if distrobox enter draenor-devbox -- bash -lc \"ss -ltn | grep -q ':$2 '\" 2>/dev/null; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; " +
+                                "check mariadb 3307; check authserver 1119; check worldserver 8085; " +
+                                "if ss -lun 2>/dev/null | grep -q ':53 '; then echo 'dns up'; else echo 'dns down'; fi; " +
+                                "if ss -ltn 2>/dev/null | grep -q ':80 '; then echo 'ngdp-http up'; else echo 'ngdp-http down'; fi; " +
+                                "if ss -ltn 2>/dev/null | grep -q ':87 '; then echo 'auth-relay up'; else echo 'auth-relay down'; fi",
+                RequiredServices = ["mariadb", "authserver", "worldserver"],
+                OptionalServices = ["dns", "ngdp-http", "auth-relay"],
+                HealthCheckRetries = 6,
+                HealthCheckIntervalSeconds = 20,
+            },
             CreatedAt = now.AddDays(-30),
         };
         projects.Add(project);

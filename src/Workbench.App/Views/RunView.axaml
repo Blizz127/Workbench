@@ -41,6 +41,12 @@
                     </Border>
                     <TextBlock Text="{Binding LastRunSummary}"
                                Foreground="{Binding LastRunOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                    <TextBlock Text="{Binding CommandResultText}" Classes="muted"
+                               IsVisible="{Binding CommandResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Text="{Binding RuntimeHealthText}"
+                               Foreground="{Binding CurrentHealth, Converter={x:Static conv:HealthToBrushConverter.Instance}}" />
+                    <TextBlock Text="{Binding FailedComponentText}" Classes="muted"
+                               IsVisible="{Binding HasFailedComponent}" />
                     <TextBlock Text="{Binding RunStatus}" Classes="muted"
                                IsVisible="{Binding RunStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     <WrapPanel>
@@ -50,6 +56,12 @@
                                 Margin="{StaticResource Space3Right}" AutomationProperties.Name="Stop run" />
                         <Button Content="↻ Restart" Classes="command secondary" Command="{Binding RestartRunCommand}"
                                 AutomationProperties.Name="Restart run" />
+                    </WrapPanel>
+                    <WrapPanel>
+                        <Button Content="♥ Recheck health" Classes="command secondary" Command="{Binding RecheckHealthCommand}"
+                                Margin="{StaticResource Space3Right}" AutomationProperties.Name="Recheck health" />
+                        <Button Content="🧾 Failed service logs" Classes="command secondary" Command="{Binding ViewFailedServiceLogsCommand}"
+                                AutomationProperties.Name="View failed service logs" />
                     </WrapPanel>
                 </StackPanel>
             </Border>

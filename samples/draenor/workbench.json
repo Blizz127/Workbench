@@ -26,5 +26,13 @@
     "WoW",
     "WoD",
     "Build Engineering"
-  ]
+  ],
+  "launchProfile": {
+    "startupGraceSeconds": 15,
+    "statusCommand": "check() { if distrobox enter draenor-devbox -- bash -lc \"ss -ltn | grep -q ':$2 '\" 2>/dev/null; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; check mariadb 3307; check authserver 1119; check worldserver 8085; if ss -lun 2>/dev/null | grep -q ':53 '; then echo 'dns up'; else echo 'dns down'; fi; if ss -ltn 2>/dev/null | grep -q ':80 '; then echo 'ngdp-http up'; else echo 'ngdp-http down'; fi; if ss -ltn 2>/dev/null | grep -q ':87 '; then echo 'auth-relay up'; else echo 'auth-relay down'; fi",
+    "requiredServices": ["mariadb", "authserver", "worldserver"],
+    "optionalServices": ["dns", "ngdp-http", "auth-relay"],
+    "healthCheckRetries": 6,
+    "healthCheckIntervalSeconds": 20
+  }
 }

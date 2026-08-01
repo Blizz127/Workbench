@@ -34,6 +34,23 @@ public sealed class ProjectConfig
 
     /// <summary>Log-line patterns of interest (guards, markers) for this project.</summary>
     public List<LogPatternConfig> CustomLogPatterns { get; set; } = [];
+
+    /// <summary>Post-launch runtime health validation; null means no health checking.</summary>
+    public LaunchProfileConfig? LaunchProfile { get; set; }
+}
+
+/// <summary>The <c>launchProfile</c> section of <c>workbench.json</c>.</summary>
+public sealed class LaunchProfileConfig
+{
+    public int? StartupGraceSeconds { get; set; }
+    public string? StatusCommand { get; set; }
+    public List<string> RequiredServices { get; set; } = [];
+    public List<string> OptionalServices { get; set; } = [];
+    public List<string> HealthyPatterns { get; set; } = [];
+    public List<string> FailedPatterns { get; set; } = [];
+    public string? ServiceLogCommand { get; set; }
+    public int? HealthCheckRetries { get; set; }
+    public int? HealthCheckIntervalSeconds { get; set; }
 }
 
 /// <summary>A single log-pattern entry in <c>workbench.json</c>.</summary>
@@ -124,6 +141,22 @@ public sealed class ProjectConfigService : IProjectConfigService
                 .Select(p => $"{p.Name}|{p.Pattern}|{(p.IsRegex ? "1" : "0")}|{p.Category}")
                 .ToList();
         }
+
+        if (config.LaunchProfile is { } launch)
+        {
+            project.Launch = new LaunchProfile
+            {
+                StartupGraceSeconds = launch.StartupGraceSeconds ?? 5,
+                StatusCommand = launch.StatusCommand,
+                RequiredServices = [.. launch.RequiredServices],
+                OptionalServices = [.. launch.OptionalServices],
+                HealthyPatterns = [.. launch.HealthyPatterns],
+                FailedPatterns = [.. launch.FailedPatterns],
+                ServiceLogCommand = launch.ServiceLogCommand,
+                HealthCheckRetries = launch.HealthCheckRetries ?? 3,
+                HealthCheckIntervalSeconds = launch.HealthCheckIntervalSeconds ?? 5,
+            };
+        }
     }
 
     public ProjectConfig FromProject(Project project) => new()
@@ -142,5 +175,23 @@ public sealed class ProjectConfigService : IProjectConfigService
             ? string.Join('\n', project.PromptRules)
             : null,
         CustomLogPatterns = [],
+        LaunchProfile = HasLaunchProfile(project.Launch)
+            ? new LaunchProfileConfig
+            {
+                StartupGraceSeconds = project.Launch.StartupGraceSeconds,
+                StatusCommand = project.Launch.StatusCommand,
+                RequiredServices = [.. project.Launch.RequiredServices],
+                OptionalServices = [.. project.Launch.OptionalServices],
+                HealthyPatterns = [.. project.Launch.HealthyPatterns],
+                FailedPatterns = [.. project.Launch.FailedPatterns],
+                ServiceLogCommand = project.Launch.ServiceLogCommand,
+                HealthCheckRetries = project.Launch.HealthCheckRetries,
+                HealthCheckIntervalSeconds = project.Launch.HealthCheckIntervalSeconds,
+            }
+            : null,
     };
+
+    // A profile only counts (and is only written) once it can actually assess health.
+    private static bool HasLaunchProfile(LaunchProfile launch) =>
+        !string.IsNullOrWhiteSpace(launch.StatusCommand);
 }

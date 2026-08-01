@@ -76,3 +76,11 @@ public interface ITestHistoryRepository
     TestRecord? GetLatest(long projectId);
     long Add(TestRecord record);
 }
+
+public interface IRuntimeHealthRepository
+{
+    /// <summary>Newest first.</summary>
+    IReadOnlyList<RuntimeHealthRecord> GetForProject(long projectId, int limit = 20);
+    RuntimeHealthRecord? GetLatest(long projectId);
+    long Add(RuntimeHealthRecord record);
+}

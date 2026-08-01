@@ -44,6 +44,19 @@ public static class TenRevivalSeeder
             Tags = ["Networking", "Game Preservation", "Reverse Engineering", "Server Revival", "TEN"],
             ActiveTask = "Verify P10 cgs-darksun local INI resolve in the 86Box VM (correct ten_darks.exe binary)",
             CurrentObjective = "Original TEN client launches mdark.exe with a valid multiplayer session handoff",
+            Launch = new LaunchProfile
+            {
+                // The lab script is foreground; evidence is its TCP listeners
+                // (7504 monitor, 7 echo, plus background 21 ftp / 8010 web).
+                StartupGraceSeconds = 5,
+                StatusCommand = "check() { if ss -ltn 2>/dev/null | grep -q \":$2 \"; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; " +
+                                "check monitor 7504; check echo 7; check ftp 21; check web 8010",
+                RequiredServices = ["monitor"],
+                OptionalServices = ["echo", "ftp", "web"],
+                ServiceLogCommand = "tail -200 captures/fake-ten-{service}.log",
+                HealthCheckRetries = 3,
+                HealthCheckIntervalSeconds = 5,
+            },
             CreatedAt = now.AddDays(-120),
         };
         projects.Add(project);

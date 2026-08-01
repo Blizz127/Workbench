@@ -222,7 +222,57 @@ public sealed class WorkbenchDatabase
         // custom_log_patterns on projects. A plain SQL batch would either be
         // skipped (version <= 3) or fail on the duplicate columns.
         new Migration(4, AddSharedStateColumns),
+
+        // Launch profiles (post-launch runtime health validation) and the
+        // append-only runtime_health table. Column-guarded like migration 4:
+        // live databases must upgrade in place.
+        new Migration(5, AddLaunchProfileAndRuntimeHealth),
     ];
+
+    private static void AddLaunchProfileAndRuntimeHealth(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        (string Name, string Definition)[] columns =
+        [
+            ("launch_grace_seconds", "INTEGER"),
+            ("launch_status_command", "TEXT"),
+            ("launch_required_services", "TEXT NOT NULL DEFAULT '[]'"),
+            ("launch_optional_services", "TEXT NOT NULL DEFAULT '[]'"),
+            ("launch_healthy_patterns", "TEXT NOT NULL DEFAULT '[]'"),
+            ("launch_failed_patterns", "TEXT NOT NULL DEFAULT '[]'"),
+            ("launch_service_log_command", "TEXT"),
+            ("launch_health_retries", "INTEGER"),
+            ("launch_health_interval_seconds", "INTEGER"),
+        ];
+
+        var existing = GetColumnNames(connection, transaction, "projects");
+        foreach (var (name, definition) in columns)
+        {
+            if (existing.Contains(name))
+                continue;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE projects ADD COLUMN {name} {definition};";
+            command.ExecuteNonQuery();
+        }
+
+        using var table = connection.CreateCommand();
+        table.Transaction = transaction;
+        table.CommandText =
+            """
+            CREATE TABLE IF NOT EXISTS runtime_health (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                checked_at       TEXT NOT NULL,
+                health           TEXT NOT NULL DEFAULT 'Unknown',
+                failed_component TEXT,
+                output           TEXT NOT NULL DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS ix_runtime_health_project_time
+                ON runtime_health(project_id, checked_at DESC);
+            """;
+        table.ExecuteNonQuery();
+    }
 
     private static void AddSharedStateColumns(SqliteConnection connection, SqliteTransaction transaction)
     {

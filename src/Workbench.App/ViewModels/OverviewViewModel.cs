@@ -357,22 +357,41 @@ public sealed partial class GitSyncViewModel : ViewModelBase
             var result = await Task.Run(() => action(cts.Token));
             await Dispatcher.UIThread.InvokeAsync(() => ReportResult(result));
         }
+        catch (OperationCanceledException)
+        {
+            // Cancelled by the user, or the dispatcher went away during
+            // application shutdown — nothing left to report either way.
+        }
         catch (Exception ex)
         {
             // ProcessRunner and the git snapshot reader are designed never to
             // throw, but a failure further down (e.g. journaling to the
             // timeline database) would otherwise escape as an unhandled
             // command exception. Surface it like any other failure instead.
-            await Dispatcher.UIThread.InvokeAsync(() => ReportException(ex));
+            try
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => ReportException(ex));
+            }
+            catch (OperationCanceledException)
+            {
+                // Dispatcher shut down while reporting; app is exiting.
+            }
         }
         finally
         {
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            try
             {
-                _runCts = null;
-                IsBusy = false;
-                RunStatus = string.Empty;
-            });
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    _runCts = null;
+                    IsBusy = false;
+                    RunStatus = string.Empty;
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // Dispatcher shut down while finishing; app is exiting.
+            }
         }
     }
 

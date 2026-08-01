@@ -100,3 +100,21 @@ not start or timed out.
 `id, project_id, command, result (Passed|Failed|Error|TimedOut), started_at,
 duration_ms, notes, commit_sha, output_log` — indexed on
 `(project_id, started_at DESC)`.
+
+### runtime_health
+
+`id, project_id, checked_at, health
+(Unknown|Starting|Healthy|Degraded|Failed|Stopped), failed_component
+(nullable), output` — indexed on `(project_id, checked_at DESC)`. Append-only
+like the other history tables; the newest row (by id) is the current known
+runtime state. Rows are written by `HealthCheckService` (post-launch checks,
+rechecks, start/stop tracking), never by hand.
+
+### projects launch columns
+
+Migration 5 also adds the launch profile to `projects`:
+`launch_grace_seconds, launch_status_command, launch_required_services,
+launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
+launch_service_log_command, launch_health_retries,
+launch_health_interval_seconds` (JSON arrays for the list columns). These map
+to `Project.Launch` and the `launchProfile` section of `workbench.json`.

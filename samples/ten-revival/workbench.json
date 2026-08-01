@@ -21,5 +21,14 @@
     "Reverse Engineering",
     "Server Revival",
     "TEN"
-  ]
+  ],
+  "launchProfile": {
+    "startupGraceSeconds": 5,
+    "statusCommand": "check() { if ss -ltn 2>/dev/null | grep -q \":$2 \"; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; check monitor 7504; check echo 7; check ftp 21; check web 8010",
+    "requiredServices": ["monitor"],
+    "optionalServices": ["echo", "ftp", "web"],
+    "serviceLogCommand": "tail -200 captures/fake-ten-{service}.log",
+    "healthCheckRetries": 3,
+    "healthCheckIntervalSeconds": 5
+  }
 }

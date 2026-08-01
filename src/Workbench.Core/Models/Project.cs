@@ -24,6 +24,9 @@ public sealed class Project
 
     public string? TestCommand { get; set; }
 
+    /// <summary>How to validate runtime health after the run command succeeds.</summary>
+    public LaunchProfile Launch { get; set; } = new();
+
     /// <summary>Paths (relative to the repository or absolute) to documentation.</summary>
     public List<string> DocumentationPaths { get; set; } = [];
 

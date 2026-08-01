@@ -23,6 +23,7 @@ public sealed class AppServices
     public INoteRepository Notes { get; }
     public IBuildHistoryRepository Builds { get; }
     public ITestHistoryRepository Tests { get; }
+    public IRuntimeHealthRepository RuntimeHealth { get; }
 
     public IGitService Git { get; }
     public ITodoScanner Todos { get; }
@@ -31,6 +32,7 @@ public sealed class AppServices
     public IProcessRunner Runner { get; }
     public IProjectConfigService Config { get; }
     public ExecutionService Execution { get; }
+    public HealthCheckService Health { get; }
     public IAppSettingsService AppSettings { get; }
     public ISharedStateService SharedState { get; }
     public IGitSyncService GitSync { get; }
@@ -47,6 +49,7 @@ public sealed class AppServices
         Notes = new NoteRepository(Database);
         Builds = new BuildHistoryRepository(Database);
         Tests = new TestHistoryRepository(Database);
+        RuntimeHealth = new RuntimeHealthRepository(Database);
 
         Git = new GitService();
         Todos = new TodoScanner();
@@ -55,6 +58,7 @@ public sealed class AppServices
         Runner = new ProcessRunner();
         Config = new ProjectConfigService();
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
+        Health = new HealthCheckService(RuntimeHealth, Timeline, Runner);
         AppSettings = new AppSettingsService();
         SharedState = new SharedStateService(Projects, Milestones, Frontiers);
         GitSync = new GitSyncService(Git, Timeline, Runner);

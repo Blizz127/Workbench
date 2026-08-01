@@ -49,6 +49,7 @@ container needed at this size).
 | Timeline | `TimelineEntry` | Append-only engineering journal. Categories: Build, Run, Test, Code, Milestone, Frontier, Blocker, Note, Regression, Status, GitSync, General. |
 | Build history | `BuildRecord` | Append-only (`ExecutionKind.Build` or `.Run`): command, timestamp, exit code, duration, full output log, HEAD sha. |
 | Test history | `TestRecord` | Append-only: command, result (Passed/Failed/Error/TimedOut), runtime, notes, associated commit. |
+| Runtime health | `RuntimeHealthRecord` | Append-only; newest row per project is the current state (Unknown/Starting/Healthy/Degraded/Failed/Stopped). Separate from the launch command's exit code. |
 | Note | `Note` | Markdown body, searchable. |
 
 ## Subsystems
@@ -125,6 +126,25 @@ timeout), then:
 2. journals a timeline entry (with an output-tail detail on failure),
 3. journals a **Regression** entry when a previously green build or previously
    passing test suite goes red.
+
+### Runtime health (`Workbench.Core.HealthCheckService`)
+
+The Run card tracks the launch command and the runtime separately: exit 0
+from a detached launcher (`podman compose up -d`, `setsid`, backgrounded
+scripts) says nothing about service health. After a successful Run start, the
+project's launch profile (`Project.Launch`, mirrored in `workbench.json` as
+`launchProfile`) drives post-launch validation: wait out a startup grace
+period, run the status command (with retries), and parse its output — a
+service counts as up when its name shares a line with a healthy token;
+required services down ⇒ `Failed` (with the failed component), optional
+services down ⇒ `Degraded`, a failed-state pattern anywhere ⇒ `Failed`
+immediately, and a failing status command ⇒ `Unknown`, never `Healthy`.
+Assessments append to `runtime_health` (newest row = current state, so they
+survive restarts) and transitions journal to the timeline under `Status`.
+A Start is blocked while the runtime is tracked as Starting/Healthy — the
+status command, not the launcher's process lifetime, is what makes detached
+runtimes trackable. The Run card also offers Recheck health and a per-service
+log action (`{service}` placeholder in the configured log command).
 
 ### Handoff (`Workbench.Core.HandoffService`)
 

@@ -89,6 +89,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         return new DashboardViewModel(_services, OpenProject);
     }
 
+    /// <summary>True when a project page has an in-flight build/run/test/health-check.</summary>
+    public bool HasActiveOperations =>
+        CurrentPage is ProjectDetailViewModel detail && detail.History.IsRunning;
+
+    /// <summary>
+    /// Cancels in-flight work and waits for it to wind down. The window delays
+    /// closing on this so no background execution races application teardown
+    /// (dispatcher callbacks after shutdown, process-tree kills mid-exit).
+    /// </summary>
+    public async Task ShutdownAsync()
+    {
+        if (CurrentPage is ProjectDetailViewModel detail)
+            await detail.History.ShutdownAsync();
+    }
+
     [RelayCommand]
     private void NavigateHome()
     {

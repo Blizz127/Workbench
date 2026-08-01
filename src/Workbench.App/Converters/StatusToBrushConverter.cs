@@ -72,3 +72,21 @@ public sealed class OutcomeToBrushConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Maps a RuntimeHealth value to a status brush: green only when genuinely healthy.</summary>
+public sealed class HealthToBrushConverter : IValueConverter
+{
+    public static readonly HealthToBrushConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        ThemeBrush.Lookup(value switch
+        {
+            Core.Models.RuntimeHealth.Healthy => "SuccessBrush",
+            Core.Models.RuntimeHealth.Starting or Core.Models.RuntimeHealth.Degraded => "StatusWaitingBrush",
+            Core.Models.RuntimeHealth.Failed => "DangerBrush",
+            _ => "TextMutedBrush",
+        });
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
