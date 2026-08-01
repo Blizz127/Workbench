@@ -1,18 +1,26 @@
 namespace Workbench.Core.Services;
 
 /// <summary>
-/// Lightweight reader for <c>docker-compose.yml</c> files. Service names are
-/// scraped by YAML indentation (top-level keys under the <c>services:</c>
-/// block) — deliberately no YAML parser dependency for a two-question job.
+/// Lightweight reader for compose files. Service names are scraped by YAML
+/// indentation (top-level keys under the <c>services:</c> block) —
+/// deliberately no YAML parser dependency for a two-question job.
 /// </summary>
 public static class ComposeFileInspector
 {
-    private static readonly string[] ComposeFileNames = ["docker-compose.yml", "docker-compose.yaml"];
+    /// <summary>Conventional compose filenames, in preference order.</summary>
+    private static readonly string[] ComposeFileNames =
+    [
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.docker.yml",
+        "compose.yml",
+        "compose.yaml",
+    ];
 
     /// <summary>Whether the directory carries a compose file at its root.</summary>
     public static bool HasComposeFile(string directory) => FindComposeFile(directory) is not null;
 
-    /// <summary>The compose file at the directory root, if any (<c>.yml</c> preferred over <c>.yaml</c>).</summary>
+    /// <summary>The compose file at the directory root, if any (conventional names in preference order).</summary>
     public static string? FindComposeFile(string directory)
     {
         foreach (var name in ComposeFileNames)

@@ -163,12 +163,19 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
 
             if (ComposeFileInspector.FindComposeFile(directory) is { } composeFile)
             {
-                project.RunCommand = "docker compose up -d";
+                // Record which file was found so Docker operations target it
+                // exactly; docker only auto-detects the standard names, so a
+                // variant like docker-compose.docker.yml needs -f everywhere.
+                var fileName = Path.GetFileName(composeFile);
+                project.ComposeFile = fileName;
+                var compose = DockerAutoDetects(fileName) ? "docker compose" : $"docker compose -f \"{fileName}\"";
+
+                project.RunCommand = $"{compose} up -d";
                 project.Launch = new LaunchProfile
                 {
-                    StatusCommand = "docker compose ps --format '{{.Service}} {{.State}} {{.Health}}'",
-                    StopCommand = "docker compose down",
-                    LogsCommand = "docker compose logs --no-color --tail=120",
+                    StatusCommand = $"{compose} ps --format '{{{{.Service}}}} {{{{.State}}}} {{{{.Health}}}}'",
+                    StopCommand = $"{compose} down",
+                    LogsCommand = $"{compose} logs --no-color --tail=120",
                     RequiredServices = [.. ComposeFileInspector.GetServiceNames(composeFile)],
                 };
             }
@@ -185,4 +192,8 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
 
     private static string NormalizePath(string path) =>
         Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// <summary>Whether plain <c>docker compose</c> finds this filename on its own.</summary>
+    private static bool DockerAutoDetects(string fileName) =>
+        fileName is "docker-compose.yml" or "docker-compose.yaml" or "compose.yml" or "compose.yaml";
 }

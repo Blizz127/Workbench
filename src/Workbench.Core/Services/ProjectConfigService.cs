@@ -26,6 +26,12 @@ public sealed class ProjectConfig
     /// <summary>Optional separate build command for regression/matching builds.</summary>
     public string? MatchingBuildCommand { get; set; }
 
+    /// <summary>
+    /// Explicit compose file selection for Docker operations (filename relative
+    /// to the repository root, or an absolute path). Null means auto-detect.
+    /// </summary>
+    public string? ComposeFile { get; set; }
+
     public List<string> DocumentationPaths { get; set; } = [];
     public List<string> AiContextPaths { get; set; } = [];
     public string? PreferredAiProvider { get; set; }
@@ -127,6 +133,7 @@ public sealed class ProjectConfigService : IProjectConfigService
         project.BuildCommand = config.BuildCommand;
         project.RunCommand = config.RunCommand;
         project.TestCommand = config.TestCommand;
+        project.ComposeFile = config.ComposeFile ?? project.ComposeFile;
         project.DocumentationPaths = [.. config.DocumentationPaths];
         project.AiContextPaths = [.. config.AiContextPaths];
         project.PreferredAiProvider = config.PreferredAiProvider;
@@ -183,6 +190,7 @@ public sealed class ProjectConfigService : IProjectConfigService
         BuildCommand = project.BuildCommand,
         RunCommand = project.RunCommand,
         TestCommand = project.TestCommand,
+        ComposeFile = project.ComposeFile,
         DocumentationPaths = [.. project.DocumentationPaths],
         AiContextPaths = [.. project.AiContextPaths],
         PreferredAiProvider = project.PreferredAiProvider,

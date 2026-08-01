@@ -24,6 +24,13 @@ public sealed class Project
 
     public string? TestCommand { get; set; }
 
+    /// <summary>
+    /// Explicit compose file selection (filename relative to the repository
+    /// root, or an absolute path). Null means auto-detect via
+    /// <c>ComposeFileInspector</c>'s conventional names.
+    /// </summary>
+    public string? ComposeFile { get; set; }
+
     /// <summary>How to validate runtime health after the run command succeeds.</summary>
     public LaunchProfile Launch { get; set; } = new();
 

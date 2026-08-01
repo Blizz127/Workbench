@@ -231,7 +231,22 @@ public sealed class WorkbenchDatabase
         // Operations commands on the launch profile: real stop, all-service
         // logs, one-click update, and live metrics for the Run card.
         new Migration(6, AddOperationsCommands),
+
+        // Explicit compose file selection for Docker operations (Phase 1B).
+        new Migration(7, AddComposeFile),
     ];
+
+    private static void AddComposeFile(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var existing = GetColumnNames(connection, transaction, "projects");
+        if (existing.Contains("compose_file"))
+            return;
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "ALTER TABLE projects ADD COLUMN compose_file TEXT;";
+        command.ExecuteNonQuery();
+    }
 
     private static void AddOperationsCommands(SqliteConnection connection, SqliteTransaction transaction)
     {

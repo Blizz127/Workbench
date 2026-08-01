@@ -164,6 +164,38 @@ turn the Run card into an operations panel:
 The Run card also shows the repository's branch · HEAD commit and offers a
 Shell button that opens a terminal at the repository root.
 
+### Docker Compose operations (`Workbench.Core.DockerComposeService`)
+
+The project detail view's **Docker** section offers safe, explicit compose
+operations behind `IDockerComposeService`. `ComposeCommandBuilder` is the only
+place compose commands are constructed, and it deliberately has no destructive
+primitives: no `down`, no `-v`/`--volumes`, no `prune`, no `rm`/`rmi` —
+stopping keeps containers, images, and database volumes intact. Every command
+names the compose file explicitly (`-f`), so the exact command shown in the
+preview panel is the exact command that runs.
+
+- **Inspection** is read-only: `ps --all --format json` (NDJSON) parsed by
+  `ComposePsParser` into typed per-service rows (state, health, exit code),
+  rolled up per service with the worst state winning. A one-shot service that
+  exited 0 (e.g. `db-update`) is `Completed` — a success, not a failure.
+- **Actions**: start/stop/restart for the whole project or one service, plus
+  recent logs for one service or the whole project. Nothing runs at startup
+  beyond the read-only inspection; every mutating action is user-initiated and
+  passes through a preview panel showing the exact command. Stop/Restart
+  require confirmation, enforced in the service itself
+  (`ExecuteAsync(..., confirmed)` refuses otherwise) — the UI gate is only the
+  first line. All output is funneled through `SecretRedactor` (password-like
+  `KEY=value` / `KEY: value` / JSON pairs become `***`) before reaching the UI
+  or the timeline journal.
+
+Which compose file a project uses comes from `Project.ComposeFile` (the
+`composeFile` key in `workbench.json`, relative to the repository root or
+absolute); when unset, `ComposeFileInspector` auto-detects the conventional
+names (`docker-compose.yml`, `docker-compose.yaml`,
+`docker-compose.docker.yml`, `compose.yml`, `compose.yaml`). Discovery records
+the file it found and synthesizes `-f`-qualified commands for nonstandard
+filenames.
+
 ### Handoff (`Workbench.Core.HandoffService`)
 
 A pure function `HandoffContext → markdown`. The context (project, frontiers,

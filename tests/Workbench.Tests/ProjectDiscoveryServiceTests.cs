@@ -156,4 +156,57 @@ public sealed class ProjectDiscoveryServiceTests : IDisposable
         Assert.Equal(0, _service.Scan());
         Assert.Empty(_projects.GetAll());
     }
+
+    [Fact]
+    public void Repo_with_a_nonstandard_compose_filename_gets_dash_f_commands_and_an_explicit_selection()
+    {
+        var repo = Directory.CreateDirectory(Path.Combine(_root, "dockerized"));
+        Directory.CreateDirectory(Path.Combine(repo.FullName, ".git"));
+        File.WriteAllText(Path.Combine(repo.FullName, "docker-compose.docker.yml"), """
+            services:
+              database:
+                image: mariadb
+              map:
+                build: ./map
+            """);
+
+        Assert.Equal(1, _service.Scan());
+
+        var project = Assert.Single(_projects.GetAll());
+        Assert.Equal("docker-compose.docker.yml", project.ComposeFile);
+        Assert.Equal("docker compose -f \"docker-compose.docker.yml\" up -d", project.RunCommand);
+        Assert.Equal("docker compose -f \"docker-compose.docker.yml\" down", project.Launch.StopCommand);
+        Assert.Equal(["database", "map"], project.Launch.RequiredServices);
+    }
+
+    [Fact]
+    public void Repo_with_a_standard_compose_file_keeps_plain_commands_and_records_the_selection()
+    {
+        var repo = Directory.CreateDirectory(Path.Combine(_root, "standard"));
+        Directory.CreateDirectory(Path.Combine(repo.FullName, ".git"));
+        File.WriteAllText(Path.Combine(repo.FullName, "docker-compose.yml"), "services:\n  web:\n    image: nginx\n");
+
+        Assert.Equal(1, _service.Scan());
+
+        var project = Assert.Single(_projects.GetAll());
+        Assert.Equal("docker-compose.yml", project.ComposeFile);
+        Assert.Equal("docker compose up -d", project.RunCommand);
+    }
+
+    [Fact]
+    public void Workbench_json_compose_file_selection_is_adopted()
+    {
+        var repo = Directory.CreateDirectory(Path.Combine(_root, "selected"));
+        File.WriteAllText(Path.Combine(repo.FullName, "workbench.json"), """
+            {
+              "name": "Selected",
+              "composeFile": "docker-compose.docker.yml"
+            }
+            """);
+
+        Assert.Equal(1, _service.Scan());
+
+        var project = Assert.Single(_projects.GetAll());
+        Assert.Equal("docker-compose.docker.yml", project.ComposeFile);
+    }
 }

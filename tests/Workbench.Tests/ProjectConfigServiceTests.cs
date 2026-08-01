@@ -46,6 +46,28 @@ public sealed class ProjectConfigServiceTests : IDisposable
     }
 
     [Fact]
+    public void Compose_file_selection_roundtrips_through_workbench_json()
+    {
+        var service = new ProjectConfigService();
+        var project = new Project
+        {
+            Name = "Banshee",
+            RepositoryPath = _directory,
+            ComposeFile = "docker-compose.docker.yml",
+        };
+
+        service.Save(project);
+
+        var loaded = service.Load(_directory);
+        Assert.NotNull(loaded);
+        Assert.Equal("docker-compose.docker.yml", loaded.ComposeFile);
+
+        var target = new Project { Name = "placeholder" };
+        service.ApplyTo(loaded, target);
+        Assert.Equal("docker-compose.docker.yml", target.ComposeFile);
+    }
+
+    [Fact]
     public void Missing_or_corrupt_config_returns_null()
     {
         var service = new ProjectConfigService();

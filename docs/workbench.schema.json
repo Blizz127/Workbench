@@ -15,6 +15,10 @@
     "runCommand": { "type": ["string", "null"] },
     "testCommand": { "type": ["string", "null"] },
     "matchingBuildCommand": { "type": ["string", "null"] },
+    "composeFile": {
+      "type": ["string", "null"],
+      "description": "Explicit compose file for Docker operations (relative to the repository root or absolute). Null/omitted means auto-detect conventional names."
+    },
     "documentationPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
     "aiContextPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
     "preferredAiProvider": { "type": ["string", "null"] },

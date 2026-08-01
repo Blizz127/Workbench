@@ -17,7 +17,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         launch_grace_seconds, launch_status_command, launch_required_services,
         launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
         launch_service_log_command, launch_health_retries, launch_health_interval_seconds,
-        launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command
+        launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command,
+        compose_file
         """;
 
     public IReadOnlyList<Project> GetAll()
@@ -81,7 +82,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 launch_grace_seconds, launch_status_command, launch_required_services,
                 launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
                 launch_service_log_command, launch_health_retries, launch_health_interval_seconds,
-                launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command)
+                launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command,
+                compose_file)
             VALUES (
                 $name, $status, $description, $repository_path, $build_command, $run_command,
                 $test_command, $documentation_paths, $ai_context_paths, $preferred_ai_provider,
@@ -92,7 +94,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 $launch_grace_seconds, $launch_status_command, $launch_required_services,
                 $launch_optional_services, $launch_healthy_patterns, $launch_failed_patterns,
                 $launch_service_log_command, $launch_health_retries, $launch_health_interval_seconds,
-                $launch_stop_command, $launch_logs_command, $launch_update_command, $launch_metrics_command);
+                $launch_stop_command, $launch_logs_command, $launch_update_command, $launch_metrics_command,
+                $compose_file);
             SELECT last_insert_rowid();
             """;
         BindParameters(command, project);
@@ -138,7 +141,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 launch_stop_command = $launch_stop_command,
                 launch_logs_command = $launch_logs_command,
                 launch_update_command = $launch_update_command,
-                launch_metrics_command = $launch_metrics_command
+                launch_metrics_command = $launch_metrics_command,
+                compose_file = $compose_file
             WHERE id = $id;
             """;
         BindParameters(command, project);
@@ -230,6 +234,7 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.Parameters.AddWithValue("$launch_logs_command", SqliteMapping.ToDbNullable(p.Launch.LogsCommand));
         command.Parameters.AddWithValue("$launch_update_command", SqliteMapping.ToDbNullable(p.Launch.UpdateCommand));
         command.Parameters.AddWithValue("$launch_metrics_command", SqliteMapping.ToDbNullable(p.Launch.MetricsCommand));
+        command.Parameters.AddWithValue("$compose_file", SqliteMapping.ToDbNullable(p.ComposeFile));
     }
 
     private static Project Map(SqliteDataReader reader) => new()
@@ -277,6 +282,7 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
             UpdateCommand = reader.GetNullableString(37),
             MetricsCommand = reader.GetNullableString(38),
         },
+        ComposeFile = reader.GetNullableString(39),
     };
 
     private static List<string> LoadTags(SqliteConnection connection, long projectId)

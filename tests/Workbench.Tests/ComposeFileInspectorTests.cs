@@ -64,4 +64,27 @@ public sealed class ComposeFileInspectorTests : IDisposable
         Assert.True(ComposeFileInspector.HasComposeFile(_directory));
         Assert.Equal(path, ComposeFileInspector.FindComposeFile(_directory));
     }
+
+    [Theory]
+    [InlineData("docker-compose.docker.yml")]
+    [InlineData("compose.yml")]
+    [InlineData("compose.yaml")]
+    public void Alternative_compose_filenames_are_detected(string fileName)
+    {
+        var path = Path.Combine(_directory, fileName);
+        File.WriteAllText(path, "services:\n  web:\n    image: nginx\n");
+
+        Assert.True(ComposeFileInspector.HasComposeFile(_directory));
+        Assert.Equal(path, ComposeFileInspector.FindComposeFile(_directory));
+    }
+
+    [Fact]
+    public void Conventional_names_win_in_preference_order()
+    {
+        File.WriteAllText(Path.Combine(_directory, "compose.yaml"), "services: {}\n");
+        File.WriteAllText(Path.Combine(_directory, "docker-compose.docker.yml"), "services: {}\n");
+        File.WriteAllText(Path.Combine(_directory, "docker-compose.yml"), "services: {}\n");
+
+        Assert.Equal(Path.Combine(_directory, "docker-compose.yml"), ComposeFileInspector.FindComposeFile(_directory));
+    }
 }

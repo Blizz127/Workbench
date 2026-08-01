@@ -1,0 +1,154 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.DockerOperationsView"
+             x:DataType="vm:DockerOperationsViewModel">
+
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="980">
+
+            <Border Classes="card" IsVisible="{Binding HasNoComposeFile}">
+                <StackPanel Spacing="{StaticResource Space2}">
+                    <TextBlock Text="Docker" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="No compose file found for this project. Add a docker-compose.yml, compose.yml, or similar at the repository root — or set composeFile in workbench.json to point at one." />
+                </StackPanel>
+            </Border>
+
+            <StackPanel IsVisible="{Binding HasComposeFile}" Spacing="{StaticResource Space5}">
+
+                <!-- Project status (read-only) -->
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Refresh" Classes="command.ghost"
+                                    Command="{Binding RefreshCommand}"
+                                    AutomationProperties.Name="Refresh compose status" />
+                            <TextBlock Text="Docker Operations" Classes="h2" />
+                        </DockPanel>
+                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="compose file" Classes="muted" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ComposeFileText}" Classes="mono"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ComposeFileText}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="project" Classes="muted" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ProjectNameText}" Classes="mono" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="containers" Classes="muted" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding SummaryText}" Classes="mono" />
+                        </Grid>
+                        <Border Classes="warning-banner danger" IsVisible="{Binding HasError}"
+                                Margin="{StaticResource Space1Top}">
+                            <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" MaxHeight="160" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Project-wide actions: every one previews the exact command first -->
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Actions" Classes="section-header" />
+                        <WrapPanel>
+                            <Button Content="▶ Start all" Classes="command.secondary"
+                                    Command="{Binding PrepareStartAllCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="Preview the exact command before anything runs" />
+                            <Button Content="■ Stop all" Classes="command.secondary"
+                                    Command="{Binding PrepareStopAllCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="Stops containers only — volumes and images are preserved. Requires confirmation." />
+                            <Button Content="↻ Restart all" Classes="command.secondary"
+                                    Command="{Binding PrepareRestartAllCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="Requires confirmation" />
+                            <Button Content="View all logs" Classes="command.ghost"
+                                    Command="{Binding ViewAllLogsCommand}" Margin="{StaticResource Space3Right}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding BusyText}" Classes="muted" IsVisible="{Binding BusyText.Length}" />
+                        <TextBlock Text="{Binding LastResultText}" IsVisible="{Binding LastResultText.Length}"
+                                   Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+                        <!-- Preview/confirm: no mutating command runs before Confirm -->
+                        <Border Classes="warning-banner" Classes.danger="{Binding IsPreviewDanger}"
+                                IsVisible="{Binding IsPreviewOpen}" Margin="{StaticResource Space1Top}">
+                            <StackPanel Spacing="{StaticResource Space3}">
+                                <TextBlock Text="{Binding PreviewTitle}" Classes="section-header" />
+                                <TextBlock Text="{Binding PreviewDescription}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding PreviewCommand}" Classes="mono" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                                    <Button Content="Confirm" Classes="command"
+                                            Classes.danger="{Binding IsPreviewDanger}"
+                                            Command="{Binding ConfirmOperationCommand}"
+                                            AutomationProperties.Name="Confirm Docker operation" />
+                                    <Button Content="Cancel" Classes="command.ghost"
+                                            Command="{Binding CancelPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Services -->
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Services" Classes="section-header" />
+                        <TextBlock Text="No containers yet — Start all creates them." Classes="muted"
+                                   IsVisible="{Binding !Services.Count}" />
+                        <ItemsControl ItemsSource="{Binding Services}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ComposeServiceViewModel">
+                                    <Grid ColumnDefinitions="*,8,Auto,8,Auto,12,Auto"
+                                          Margin="{StaticResource Space0Vertical}">
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="mono"
+                                                   VerticalAlignment="Center" />
+                                        <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center"
+                                                Classes.success="{Binding IsRunning}"
+                                                Classes.info="{Binding IsCompleted}"
+                                                Classes.danger="{Binding IsFailed}"
+                                                ToolTip.Tip="{Binding StatusText}">
+                                            <TextBlock Text="{Binding StateText}" />
+                                        </Border>
+                                        <Border Grid.Column="4" Classes="badge" VerticalAlignment="Center"
+                                                IsVisible="{Binding HasHealth}"
+                                                Classes.success="{Binding IsHealthy}"
+                                                Classes.danger="{Binding IsUnhealthy}">
+                                            <TextBlock Text="{Binding HealthText}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="6" Orientation="Horizontal"
+                                                    Spacing="{StaticResource Space2}">
+                                            <Button Content="Start" Classes="command.ghost"
+                                                    Command="{Binding StartCommand}"
+                                                    CommandParameter="{Binding Name}"
+                                                    IsVisible="{Binding CanStart}" />
+                                            <Button Content="Stop" Classes="command.ghost"
+                                                    Command="{Binding StopCommand}"
+                                                    CommandParameter="{Binding Name}"
+                                                    IsVisible="{Binding CanStop}" />
+                                            <Button Content="Restart" Classes="command.ghost"
+                                                    Command="{Binding RestartCommand}"
+                                                    CommandParameter="{Binding Name}"
+                                                    IsVisible="{Binding CanRestart}" />
+                                            <Button Content="Logs" Classes="command.ghost"
+                                                    Command="{Binding LogsCommand}"
+                                                    CommandParameter="{Binding Name}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Logs panel -->
+                <Border Classes="output-panel" IsVisible="{Binding IsLogOpen}">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top">
+                            <Button DockPanel.Dock="Right" Content="Close" Classes="command.ghost"
+                                    Command="{Binding CloseLogCommand}" />
+                            <TextBlock Text="{Binding LogTitle}" Classes="section-header" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <TextBox Text="{Binding LogText}" IsReadOnly="True"
+                                 AcceptsReturn="True" TextWrapping="NoWrap" MaxHeight="420"
+                                 Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

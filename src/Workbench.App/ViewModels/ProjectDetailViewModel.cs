@@ -24,6 +24,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     public MilestonesViewModel Milestones { get; }
     public NotesViewModel Notes { get; }
     public HistoryViewModel History { get; }
+    public DockerOperationsViewModel Docker { get; }
     public HandoffViewModel Handoff { get; }
     public ProjectSettingsViewModel Settings { get; }
 
@@ -57,6 +58,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     // Section selection booleans drive the nav buttons and section visibility.
     public bool IsOverviewSelected => SelectedSection == "Overview";
     public bool IsRunSelected => SelectedSection == "Run";
+    public bool IsDockerSelected => SelectedSection == "Docker";
     public bool IsProgressSelected => SelectedSection == "Progress";
     public bool IsGitHubSelected => SelectedSection == "GitHub";
     public bool IsSharedStateSelected => SelectedSection == "Shared State";
@@ -85,6 +87,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         Milestones = new MilestonesViewModel(services, project);
         Notes = new NotesViewModel(services, project);
         History = new HistoryViewModel(services, project);
+        Docker = new DockerOperationsViewModel(services.Docker, project, services.Timeline);
         Handoff = new HandoffViewModel(services, project);
         Settings = new ProjectSettingsViewModel(services, project, goBack, RefreshHeader);
 
@@ -171,6 +174,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsOverviewSelected));
         OnPropertyChanged(nameof(IsRunSelected));
+        OnPropertyChanged(nameof(IsDockerSelected));
         OnPropertyChanged(nameof(IsProgressSelected));
         OnPropertyChanged(nameof(IsGitHubSelected));
         OnPropertyChanged(nameof(IsSharedStateSelected));
