@@ -83,6 +83,8 @@ public sealed class ProjectConfigServiceTests : IDisposable
 
         service.Save(project);
         var json = File.ReadAllText(Path.Combine(_directory, "workbench.json"));
+        Assert.Contains("\"$schema\"", json);
+        Assert.Contains("\"schemaVersion\": 1", json);
         Assert.Contains("\"launchProfile\"", json);
 
         var loaded = service.Load(_directory);

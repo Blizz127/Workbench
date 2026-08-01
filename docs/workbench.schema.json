@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Blizz127/workbench/main/docs/workbench.schema.json",
+  "title": "Workbench project metadata",
+  "description": "Portable project metadata consumed by the Workbench Development Lab.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "format": "uri-reference" },
+    "schemaVersion": { "type": "integer", "const": 1, "default": 1 },
+    "name": { "type": "string" },
+    "description": { "type": ["string", "null"] },
+    "repositoryPath": { "type": ["string", "null"] },
+    "buildCommand": { "type": ["string", "null"] },
+    "runCommand": { "type": ["string", "null"] },
+    "testCommand": { "type": ["string", "null"] },
+    "matchingBuildCommand": { "type": ["string", "null"] },
+    "documentationPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "aiContextPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "preferredAiProvider": { "type": ["string", "null"] },
+    "tags": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "promptRules": { "type": ["string", "null"] },
+    "customLogPatterns": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "pattern"],
+        "properties": {
+          "name": { "type": "string" },
+          "pattern": { "type": "string" },
+          "isRegex": { "type": "boolean", "default": false },
+          "category": { "type": "string", "default": "General" }
+        }
+      }
+    },
+    "launchProfile": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "startupGraceSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "statusCommand": { "type": ["string", "null"] },
+        "requiredServices": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "optionalServices": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "healthyPatterns": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "failedPatterns": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "serviceLogCommand": { "type": ["string", "null"] },
+        "healthCheckRetries": { "type": ["integer", "null"], "minimum": 0 },
+        "healthCheckIntervalSeconds": { "type": ["integer", "null"], "minimum": 0 },
+        "stopCommand": { "type": ["string", "null"] },
+        "logsCommand": { "type": ["string", "null"] },
+        "updateCommand": { "type": ["string", "null"] },
+        "metricsCommand": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

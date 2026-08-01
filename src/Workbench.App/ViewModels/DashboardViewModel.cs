@@ -46,6 +46,27 @@ public sealed partial class DashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string _summaryText = string.Empty;
 
+    [ObservableProperty]
+    private string _cpuText = "Loading…";
+
+    [ObservableProperty]
+    private string _memoryText = "Loading…";
+
+    [ObservableProperty]
+    private string _diskText = "Loading…";
+
+    [ObservableProperty]
+    private string _uptimeText = "Loading…";
+
+    [ObservableProperty]
+    private double _cpuPercent;
+
+    [ObservableProperty]
+    private double _memoryPercent;
+
+    [ObservableProperty]
+    private double _diskPercent;
+
     /// <summary>Compact density; persisted as AppSettings.DashboardDensity.</summary>
     [ObservableProperty]
     private bool _isCompact;
@@ -69,7 +90,44 @@ public sealed partial class DashboardViewModel : ViewModelBase
         _openProject = openProject;
         IsCompact = services.AppSettings.Settings.DashboardDensity == "compact";
         Reload();
+        _ = LoadSystemHealthAsync();
     }
+
+    private async Task LoadSystemHealthAsync()
+    {
+        try
+        {
+            var health = await _services.SystemHealth.GetSnapshotAsync();
+            CpuPercent = health.CpuUsagePercent;
+            MemoryPercent = health.MemoryUsagePercent;
+            DiskPercent = health.DiskUsagePercent;
+            CpuText = $"{health.CpuUsagePercent:F0}%";
+            MemoryText = $"{FormatBytes(health.UsedMemoryBytes)} / {FormatBytes(health.TotalMemoryBytes)}";
+            DiskText = $"{FormatBytes(health.UsedDiskBytes)} / {FormatBytes(health.TotalDiskBytes)}";
+            UptimeText = FormatUptime(health.Uptime);
+        }
+        catch (Exception)
+        {
+            CpuText = MemoryText = DiskText = UptimeText = "Unavailable";
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "GB", "TB"];
+        var value = (double)Math.Max(0, bytes);
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return $"{value:F1} {units[unit]}";
+    }
+
+    private static string FormatUptime(TimeSpan uptime) => uptime.TotalDays >= 1
+        ? $"{(int)uptime.TotalDays}d {uptime.Hours}h"
+        : $"{uptime.Hours}h {uptime.Minutes}m";
 
     private void Reload()
     {

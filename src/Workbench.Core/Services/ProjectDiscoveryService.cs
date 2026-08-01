@@ -16,9 +16,9 @@ public interface IProjectDiscoveryService
 /// Registers projects found on disk instead of requiring manual entry.
 /// The discovery folder (default <c>~/dev</c>) is scanned two levels deep —
 /// deep enough for layouts like <c>ffxi/Banshee-Realm-11</c> — and any
-/// directory carrying a <c>.git</c> folder, a <c>workbench.json</c>, or a
-/// compose file counts as a project. A <c>workbench.json</c> is adopted
-/// as-is; other candidates get dotnet/docker defaults synthesized from what
+/// directory carrying a <c>.git</c> marker, a <c>workbench.json</c>, a
+/// compose file, or a common root build manifest counts as a project. A
+/// <c>workbench.json</c> is adopted as-is; other candidates get dotnet/docker
 /// defaults synthesized from what the directory contains.
 /// </summary>
 public sealed class ProjectDiscoveryService : IProjectDiscoveryService
@@ -130,7 +130,12 @@ public sealed class ProjectDiscoveryService : IProjectDiscoveryService
         Directory.Exists(Path.Combine(directory, ".git")) ||
         File.Exists(Path.Combine(directory, ".git")) ||
         File.Exists(Path.Combine(directory, ProjectConfigService.FileName)) ||
-        ComposeFileInspector.HasComposeFile(directory);
+        ComposeFileInspector.HasComposeFile(directory) ||
+        File.Exists(Path.Combine(directory, "package.json")) ||
+        File.Exists(Path.Combine(directory, "Cargo.toml")) ||
+        File.Exists(Path.Combine(directory, "go.mod")) ||
+        Directory.EnumerateFiles(directory, "*.sln").Any() ||
+        Directory.EnumerateFiles(directory, "*.csproj").Any();
 
     private void Register(string directory, string root)
     {

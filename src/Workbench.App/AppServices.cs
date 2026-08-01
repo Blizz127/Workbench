@@ -36,6 +36,7 @@ public sealed class AppServices
     public ISharedStateService SharedState { get; }
     public IGitSyncService GitSync { get; }
     public IProjectDiscoveryService Discovery { get; }
+    public ISystemHealthService SystemHealth { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -62,6 +63,7 @@ public sealed class AppServices
         AppSettings = new AppSettingsService();
         SharedState = new SharedStateService(Projects, Milestones, Frontiers);
         GitSync = new GitSyncService(Git, Timeline, Runner);
+        SystemHealth = new SystemHealthService();
 
         // The sample seeders no longer run at startup — samples/ is inert demo
         // data (tests still reference it). Projects are discovered on disk instead.

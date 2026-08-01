@@ -26,10 +26,40 @@
                             ToolTip.Tip="Re-scan the discovery folder for new projects" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}" VerticalAlignment="Center">
-                    <TextBlock Text="Projects" Classes="h1" />
+                    <TextBlock Text="Development Lab" Classes="h1" />
                     <TextBlock Text="{Binding SummaryText}" Classes="muted" VerticalAlignment="Center" />
                 </StackPanel>
             </DockPanel>
+
+            <Grid ColumnDefinitions="*,12,*,12,*,12,*">
+                <Border Grid.Column="0" Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="CPU" Classes="muted" />
+                        <TextBlock Text="{Binding CpuText}" Classes="h2 mono" />
+                        <ProgressBar Classes="thin" Value="{Binding CpuPercent}" Maximum="100" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="RAM" Classes="muted" />
+                        <TextBlock Text="{Binding MemoryText}" Classes="h2 mono" />
+                        <ProgressBar Classes="thin" Value="{Binding MemoryPercent}" Maximum="100" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="4" Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Disk" Classes="muted" />
+                        <TextBlock Text="{Binding DiskText}" Classes="h2 mono" />
+                        <ProgressBar Classes="thin" Value="{Binding DiskPercent}" Maximum="100" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="6" Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Uptime" Classes="muted" />
+                        <TextBlock Text="{Binding UptimeText}" Classes="h2 mono" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}" VerticalAlignment="Center">
                 <TextBlock Text="Status" Classes="muted" VerticalAlignment="Center" />

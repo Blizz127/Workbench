@@ -100,6 +100,21 @@ public sealed class ProjectDiscoveryServiceTests : IDisposable
         Assert.Null(project.Launch.StatusCommand);
     }
 
+    [Theory]
+    [InlineData("package.json")]
+    [InlineData("Cargo.toml")]
+    [InlineData("go.mod")]
+    public void Project_manifest_is_discovered_without_git_metadata(string manifest)
+    {
+        var repo = Directory.CreateDirectory(Path.Combine(_root, "source-export"));
+        File.WriteAllText(Path.Combine(repo.FullName, manifest), "{}");
+
+        Assert.Equal(1, _service.Scan());
+
+        var project = Assert.Single(_projects.GetAll());
+        Assert.Equal("source-export", project.Name);
+    }
+
     [Fact]
     public void Empty_and_hidden_directories_are_skipped()
     {

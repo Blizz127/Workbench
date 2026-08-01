@@ -10,6 +10,12 @@ namespace Workbench.Core.Services;
 /// </summary>
 public sealed class ProjectConfig
 {
+    [JsonPropertyName("$schema")]
+    public string? Schema { get; set; }
+
+    /// <summary>Version of the portable project metadata contract.</summary>
+    public int SchemaVersion { get; set; } = 1;
+
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? RepositoryPath { get; set; }
@@ -169,6 +175,8 @@ public sealed class ProjectConfigService : IProjectConfigService
 
     public ProjectConfig FromProject(Project project) => new()
     {
+        Schema = "https://raw.githubusercontent.com/Blizz127/workbench/main/docs/workbench.schema.json",
+        SchemaVersion = 1,
         Name = project.Name,
         Description = project.Description,
         RepositoryPath = project.RepositoryPath,

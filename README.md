@@ -16,7 +16,8 @@ and Linux) · All data stays local in SQLite.
 
 ## 1. What Workbench does
 
-- **Project dashboard** — every registered project as a card: status
+- **Development Lab dashboard** — host CPU, RAM, disk usage, and uptime at a
+  glance, followed by every registered project as a card: status
   (Active / Waiting / Broken / Research / Complete), repository path, current
   branch, last commit, docker container state (for compose-based projects),
   last build result, last test result, current frontier,
@@ -121,6 +122,8 @@ only in one machine's database:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/Blizz127/workbench/main/docs/workbench.schema.json",
+  "schemaVersion": 1,
   "name": "Xenogears Decompilation",
   "description": "Decompilation of Xenogears (PSX) toward a native PC port.",
   "buildCommand": "make -j8",
@@ -143,6 +146,9 @@ only in one machine's database:
   does nothing in Phase 1.
 
 Commit `workbench.json` to the project's repo like any other config file.
+The complete versioned contract is available as
+[`docs/workbench.schema.json`](docs/workbench.schema.json); editors that honor
+`$schema` provide completion and validation automatically.
 Sample configurations for four project shapes live in [`samples/`](samples/).
 
 ## 5. How handoff / context files are used
