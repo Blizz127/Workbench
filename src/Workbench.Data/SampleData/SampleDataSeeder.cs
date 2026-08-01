@@ -62,6 +62,9 @@ public static class SampleDataSeeder
 
             [FfxiEventsDumpSeeder.ProjectName] = () =>
                 FfxiEventsDumpSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
+
+            [BansheeRealmSeeder.ProjectName] = () =>
+                BansheeRealmSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
         };
 
         foreach (var (projectName, seedAction) in seeders)

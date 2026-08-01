@@ -227,7 +227,34 @@ public sealed class WorkbenchDatabase
         // append-only runtime_health table. Column-guarded like migration 4:
         // live databases must upgrade in place.
         new Migration(5, AddLaunchProfileAndRuntimeHealth),
+
+        // Operations commands on the launch profile: real stop, all-service
+        // logs, one-click update, and live metrics for the Run card.
+        new Migration(6, AddOperationsCommands),
     ];
+
+    private static void AddOperationsCommands(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        string[] columns =
+        [
+            "launch_stop_command",
+            "launch_logs_command",
+            "launch_update_command",
+            "launch_metrics_command",
+        ];
+
+        var existing = GetColumnNames(connection, transaction, "projects");
+        foreach (var name in columns)
+        {
+            if (existing.Contains(name))
+                continue;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE projects ADD COLUMN {name} TEXT;";
+            command.ExecuteNonQuery();
+        }
+    }
 
     private static void AddLaunchProfileAndRuntimeHealth(SqliteConnection connection, SqliteTransaction transaction)
     {

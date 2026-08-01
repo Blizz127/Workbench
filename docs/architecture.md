@@ -146,6 +146,24 @@ status command, not the launcher's process lifetime, is what makes detached
 runtimes trackable. The Run card also offers Recheck health and a per-service
 log action (`{service}` placeholder in the configured log command).
 
+The launch profile additionally carries optional **operations commands** that
+turn the Run card into an operations panel:
+
+- `stopCommand` — really tears the runtime down (e.g. `docker compose down`);
+  without it, Stop on a detached runtime only stops tracking it. Restart runs
+  it before starting again.
+- `logsCommand` — recent logs across all services (the Logs button); the
+  per-service lights (parsed from the latest assessment's status output with
+  the same matching rules) fetch a single service's logs on click.
+- `updateCommand` — one-click update (e.g. pull + redeploy), followed by a
+  health reassessment. Stop/Update runs journal to the timeline under `Run`.
+- `metricsCommand` — emits `Label: value` lines (players, CPU, RAM, ...)
+  rendered as tiles; best-effort, refreshed in the background on every reload
+  and never gating any action.
+
+The Run card also shows the repository's branch · HEAD commit and offers a
+Shell button that opens a terminal at the repository root.
+
 ### Handoff (`Workbench.Core.HandoffService`)
 
 A pure function `HandoffContext → markdown`. The context (project, frontiers,
@@ -162,6 +180,28 @@ Each project can carry a `workbench.json` at its repository root (name,
 description, commands, documentation paths, AI context paths, preferred AI
 provider, tags). Registering a repository that contains one imports it
 automatically; the Settings tab can export/import at any time.
+
+### Project discovery (`Workbench.Core.ProjectDiscoveryService`)
+
+Projects are found on disk instead of seeded or entered by hand. At startup
+(and on the dashboard's **Rescan** button) the discovery folder — the
+configured `DiscoveryFolder` setting, default `~/dev` — is scanned two levels
+deep; any directory with a `.git` entry, a `workbench.json`, or a compose
+file is a candidate, deduped against existing `RepositoryPath` values. A
+`workbench.json` is adopted via `ProjectConfigService.ApplyTo`; other
+candidates get synthesized defaults (`dotnet build`/`dotnet test` for
+sln/csproj directories; `docker compose up -d` plus a launch profile — status,
+stop, logs commands and `RequiredServices` scraped from the compose file by
+`ComposeFileInspector` — for compose directories). The scan is fully guarded:
+a missing folder, a disabled setting, or one unreadable directory never
+breaks startup. The sample seeders (`Workbench.Data.SampleData`) no longer
+run at startup; `samples/` is inert demo data referenced only by tests.
+
+Dashboard cards also probe docker state in the background enrichment pass:
+for projects with a compose file (or a configured launch status command) a
+short `docker compose ps` counts running services and renders a `docker` row
+(`5/5 containers up`, `2/5 up`, `stopped`) under the git row, comfortable
+density only.
 
 ### Shared Workbench State (`Workbench.Core.SharedStateService`)
 

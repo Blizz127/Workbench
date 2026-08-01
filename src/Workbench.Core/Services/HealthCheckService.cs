@@ -92,6 +92,29 @@ public sealed class HealthCheckService(
             ? null
             : profile.ServiceLogCommand.Replace("{service}", service);
 
+    /// <summary>
+    /// Per-service up/down states parsed from status-command output with the
+    /// same matching rules as the health assessment: a service is up when its
+    /// name shares a line with a healthy token. Required services first, in
+    /// configured order.
+    /// </summary>
+    public static IReadOnlyList<ServiceState> GetServiceStates(LaunchProfile profile, string statusOutput)
+    {
+        var lines = statusOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        IReadOnlyList<string> healthyTokens =
+            profile.HealthyPatterns.Count > 0 ? profile.HealthyPatterns : DefaultHealthyTokens;
+
+        bool ServiceUp(string service) => lines.Any(line =>
+            line.Contains(service, StringComparison.OrdinalIgnoreCase) &&
+            healthyTokens.Any(token => line.Contains(token, StringComparison.OrdinalIgnoreCase)));
+
+        return
+        [
+            .. profile.RequiredServices.Select(s => new ServiceState(s, ServiceUp(s), IsRequired: true)),
+            .. profile.OptionalServices.Select(s => new ServiceState(s, ServiceUp(s), IsRequired: false)),
+        ];
+    }
+
     /// <summary>Pure assessment of one status-command result; internal for tests.</summary>
     internal static (RuntimeHealth Health, string? FailedComponent, bool Definitive) Parse(
         ProcessResult result, LaunchProfile profile)

@@ -74,6 +74,14 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
     [ObservableProperty]
     private string _gitText = "…";
 
+    /// <summary>One-line compose state (e.g. "5/5 containers up", "stopped"); empty until probed.</summary>
+    [ObservableProperty]
+    private string _dockerText = string.Empty;
+
+    /// <summary>Brush key for the docker row: null unknown/muted, true all up, false partial/stopped.</summary>
+    [ObservableProperty]
+    private bool? _dockerOutcome;
+
     [ObservableProperty]
     private bool _hasGit;
 
@@ -115,6 +123,9 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
 
     /// <summary>Shared timestamps row: comfortable density only, and only when shared at least once.</summary>
     public bool ShowSharedSync => HasSharedSync && !IsCompact;
+
+    /// <summary>Docker status row: comfortable density only, and only once a probe produced text.</summary>
+    public bool ShowDocker => DockerText.Length > 0 && !IsCompact;
 
     public bool HasSharedSync =>
         Project.SharedLastExportedAt is not null || Project.SharedLastImportedAt is not null;
@@ -211,7 +222,13 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsSharedBadgeWarning));
     }
 
-    partial void OnIsCompactChanged(bool value) => OnPropertyChanged(nameof(ShowSharedSync));
+    partial void OnIsCompactChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowSharedSync));
+        OnPropertyChanged(nameof(ShowDocker));
+    }
+
+    partial void OnDockerTextChanged(string value) => OnPropertyChanged(nameof(ShowDocker));
 
     partial void OnHasRunChanged(bool value) => OnPropertyChanged(nameof(RunOutcome));
     partial void OnLastRunOkChanged(bool value) => OnPropertyChanged(nameof(RunOutcome));

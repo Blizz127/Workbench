@@ -88,7 +88,7 @@ public sealed partial class DashboardViewModel : ViewModelBase
         var cards = _allCards.ToList();
         var sharedFolder = _services.AppSettings.SharedStateFolder;
         var machineName = _services.AppSettings.MachineName;
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles =
                 sharedFolder is null ? [] : _services.SharedState.LoadAll(sharedFolder);
@@ -100,14 +100,49 @@ public sealed partial class DashboardViewModel : ViewModelBase
                 var milestones = _services.Milestones.GetForProject(card.Project.Id);
                 var openBlockers = _services.Blockers.GetOpen(card.Project.Id).Count;
                 var lastRun = _services.Builds.GetLatest(card.Project.Id, ExecutionKind.Run);
+                var (dockerText, dockerOutcome) = await ProbeDocker(card.Project);
                 Dispatcher.UIThread.Post(() =>
                 {
                     card.ApplyGitSnapshot(snapshot);
                     card.SharedBadge = badge;
+                    card.DockerText = dockerText;
+                    card.DockerOutcome = dockerOutcome;
                     card.ApplyEnrichment(milestones.Count, milestones.Count(m => m.IsCompleted), openBlockers, lastRun);
                 });
             }
         });
+    }
+
+    /// <summary>
+    /// One-shot compose probe for the card's docker row: counts services in
+    /// state "running". Blank text means "no probe" (no compose file, no
+    /// status command, or the probe itself failed).
+    /// </summary>
+    private async Task<(string Text, bool? Outcome)> ProbeDocker(Project project)
+    {
+        var path = project.RepositoryPath;
+        if (path is null || !Directory.Exists(path))
+            return (string.Empty, null);
+        if (!Workbench.Core.Services.ComposeFileInspector.HasComposeFile(path) &&
+            string.IsNullOrWhiteSpace(project.Launch.StatusCommand))
+            return (string.Empty, null);
+
+        var result = await _services.Runner.RunAsync(
+            "docker compose ps --format '{{.Service}} {{.State}}'",
+            path,
+            TimeSpan.FromSeconds(5));
+        if (result.ExitCode != 0)
+            return (string.Empty, null);
+
+        var services = result.Output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var running = services.Count(l => l.Contains("running", StringComparison.OrdinalIgnoreCase));
+
+        return running == 0
+            ? ("stopped", false)
+            : running == services.Length
+                ? ($"{running}/{services.Length} containers up", true)
+                : ($"{running}/{services.Length} up", false);
     }
 
     private void RebuildTagFilters(IReadOnlyList<Project> projects)
@@ -157,6 +192,22 @@ public sealed partial class DashboardViewModel : ViewModelBase
 
     [RelayCommand]
     private void SetDensity(string density) => IsCompact = density == "compact";
+
+    /// <summary>Re-scans the discovery folder for new projects, then reloads the cards.</summary>
+    [RelayCommand]
+    private void Rescan()
+    {
+        try
+        {
+            _services.Discovery.Scan();
+        }
+        catch (Exception)
+        {
+            // Discovery must never take the dashboard down; Reload still runs.
+        }
+
+        Reload();
+    }
 
     private void ApplyFilter()
     {

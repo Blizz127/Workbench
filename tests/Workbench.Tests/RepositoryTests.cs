@@ -70,6 +70,10 @@ public sealed class RepositoryTests : IClassFixture<DatabaseFixture>
                 ServiceLogCommand = "podman logs {service}",
                 HealthCheckRetries = 4,
                 HealthCheckIntervalSeconds = 8,
+                StopCommand = "podman compose down",
+                LogsCommand = "podman compose logs",
+                UpdateCommand = "git pull --ff-only",
+                MetricsCommand = "echo 'Players: 0'",
             },
         };
 
@@ -84,6 +88,10 @@ public sealed class RepositoryTests : IClassFixture<DatabaseFixture>
         Assert.Equal("podman logs {service}", loaded.Launch.ServiceLogCommand);
         Assert.Equal(4, loaded.Launch.HealthCheckRetries);
         Assert.Equal(8, loaded.Launch.HealthCheckIntervalSeconds);
+        Assert.Equal("podman compose down", loaded.Launch.StopCommand);
+        Assert.Equal("podman compose logs", loaded.Launch.LogsCommand);
+        Assert.Equal("git pull --ff-only", loaded.Launch.UpdateCommand);
+        Assert.Equal("echo 'Players: 0'", loaded.Launch.MetricsCommand);
 
         loaded.Launch.RequiredServices = ["database"];
         loaded.Launch.StatusCommand = null;

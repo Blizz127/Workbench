@@ -65,7 +65,28 @@ public sealed class LaunchProfile
 
     /// <summary>Seconds between status-command attempts.</summary>
     public int HealthCheckIntervalSeconds { get; set; } = 5;
+
+    /// <summary>
+    /// Command that actually tears the runtime down (e.g. <c>docker compose down</c>).
+    /// Without it, Stop on a detached runtime only stops *tracking* it.
+    /// </summary>
+    public string? StopCommand { get; set; }
+
+    /// <summary>Command fetching recent logs across all services (the Logs button).</summary>
+    public string? LogsCommand { get; set; }
+
+    /// <summary>One-click update command (e.g. pull + redeploy). Runs from the repository root.</summary>
+    public string? UpdateCommand { get; set; }
+
+    /// <summary>
+    /// Command emitting live runtime metrics, one per line as <c>Label: value</c>
+    /// (e.g. <c>Players: 3</c>), rendered as tiles on the Run card.
+    /// </summary>
+    public string? MetricsCommand { get; set; }
 }
+
+/// <summary>Up/down state of one configured service, parsed from status-command output.</summary>
+public sealed record ServiceState(string Name, bool IsUp, bool IsRequired);
 
 /// <summary>One persisted health assessment; the newest row per project is the current state.</summary>
 public sealed class RuntimeHealthRecord

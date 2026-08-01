@@ -22,6 +22,8 @@
                                 AutomationProperties.Name="Compact density" />
                     </StackPanel>
                     <Button Content="+ Add project" Classes="command" Command="{Binding ToggleAddPanelCommand}" />
+                    <Button Content="Rescan" Classes="command" Command="{Binding RescanCommand}"
+                            ToolTip.Tip="Re-scan the discovery folder for new projects" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}" VerticalAlignment="Center">
                     <TextBlock Text="Projects" Classes="h1" />
@@ -139,6 +141,14 @@
                                     <TextBlock Grid.Column="0" Text="git" Classes="muted" />
                                     <TextBlock Grid.Column="2" Text="{Binding GitText}" Classes="mono"
                                                TextTrimming="CharacterEllipsis" />
+                                </Grid>
+
+                                <!-- Docker (comfortable only, once probed) -->
+                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowDocker}">
+                                    <TextBlock Grid.Column="0" Text="docker" Classes="muted" />
+                                    <TextBlock Grid.Column="2" Text="{Binding DockerText}" Classes="mono"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{Binding DockerOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
                                 </Grid>
 
                                 <!-- Milestone progress -->

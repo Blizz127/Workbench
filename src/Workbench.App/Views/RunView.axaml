@@ -25,7 +25,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Run profile (the star) -->
+            <!-- Run profile (the star): the operations panel -->
             <Border Grid.Column="2" Classes="card">
                 <StackPanel Spacing="{StaticResource Space3}">
                     <DockPanel>
@@ -39,6 +39,50 @@
                         <TextBlock Classes="mono" Text="{Binding RunCommandText}"
                                    FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
                     </Border>
+
+                    <!-- Per-service lights; click a service to pull its logs -->
+                    <ItemsControl ItemsSource="{Binding Services}" IsVisible="{Binding HasServices}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ServiceStateViewModel">
+                                <Button Classes="command ghost" Command="{Binding ViewLogsCommand}"
+                                        CommandParameter="{Binding Name}" ToolTip.Tip="View service logs"
+                                        Margin="{StaticResource Space3Right}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="●"
+                                                   Foreground="{Binding IsUp, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                        <TextBlock Text="{Binding Name}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Live metric tiles (players, CPU, RAM, ...) -->
+                    <ItemsControl ItemsSource="{Binding Metrics}" IsVisible="{Binding HasMetrics}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MetricViewModel">
+                                <StackPanel Margin="{StaticResource Space4Right}">
+                                    <TextBlock Text="{Binding Label}" Classes="muted"
+                                               FontSize="{StaticResource FontSizeSmall}" />
+                                    <TextBlock Text="{Binding Value}" Classes="h2" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding GitInfoText}" Classes="mono muted"
+                               FontSize="{StaticResource FontSizeSmall}" IsVisible="{Binding HasGitInfo}" />
+
                     <TextBlock Text="{Binding LastRunSummary}"
                                Foreground="{Binding LastRunOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
                     <TextBlock Text="{Binding CommandResultText}" Classes="muted"
@@ -56,6 +100,14 @@
                                 Margin="{StaticResource Space3Right}" AutomationProperties.Name="Stop run" />
                         <Button Content="↻ Restart" Classes="command secondary" Command="{Binding RestartRunCommand}"
                                 AutomationProperties.Name="Restart run" />
+                    </WrapPanel>
+                    <WrapPanel>
+                        <Button Content="🧾 Logs" Classes="command secondary" Command="{Binding OpenLogsCommand}"
+                                Margin="{StaticResource Space3Right}" AutomationProperties.Name="Open logs" />
+                        <Button Content="⬆ Update" Classes="command secondary" Command="{Binding RunUpdateCommand}"
+                                Margin="{StaticResource Space3Right}" AutomationProperties.Name="Run update" />
+                        <Button Content="⌨ Shell" Classes="command secondary" Command="{Binding OpenShellCommand}"
+                                AutomationProperties.Name="Open shell" />
                     </WrapPanel>
                     <WrapPanel>
                         <Button Content="♥ Recheck health" Classes="command secondary" Command="{Binding RecheckHealthCommand}"

@@ -24,6 +24,12 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
     private string _sharedStateFolder;
 
     [ObservableProperty]
+    private string _discoveryFolder;
+
+    [ObservableProperty]
+    private bool _discoveryEnabled;
+
+    [ObservableProperty]
     private string _machineName;
 
     [ObservableProperty]
@@ -53,6 +59,8 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         _goBack = goBack;
         _onSaved = onSaved;
         _sharedStateFolder = services.AppSettings.SharedStateFolder ?? string.Empty;
+        _discoveryFolder = services.AppSettings.DiscoveryFolder;
+        _discoveryEnabled = services.AppSettings.Settings.DiscoveryEnabled;
         _machineName = services.AppSettings.MachineName;
         _theme = services.AppSettings.Settings.Theme;
         _reducedMotion = services.AppSettings.Settings.ReducedMotion;
@@ -73,6 +81,9 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
                 : MachineName.Trim();
         _services.AppSettings.Settings.Theme = Theme;
         _services.AppSettings.Settings.ReducedMotion = ReducedMotion;
+        _services.AppSettings.Settings.DiscoveryFolder =
+            string.IsNullOrWhiteSpace(DiscoveryFolder) ? null : DiscoveryFolder.Trim();
+        _services.AppSettings.Settings.DiscoveryEnabled = DiscoveryEnabled;
         _services.AppSettings.Save();
         ApplyTheme();
         _onSaved?.Invoke();

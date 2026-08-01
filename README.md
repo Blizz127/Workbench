@@ -18,7 +18,8 @@ and Linux) · All data stays local in SQLite.
 
 - **Project dashboard** — every registered project as a card: status
   (Active / Waiting / Broken / Research / Complete), repository path, current
-  branch, last commit, last build result, last test result, current frontier,
+  branch, last commit, docker container state (for compose-based projects),
+  last build result, last test result, current frontier,
   active task, last updated. Filterable by status.
 - **Project details** — recent commits, git status, modified files, open
   TODO/FIXME comments scanned from the source tree, frontiers, blockers,
@@ -78,23 +79,36 @@ Being explicit, because the name "AI-assisted" invites assumptions:
 dotnet run --project src/Workbench.App
 ```
 
-On first launch a sample project (Xenogears Decompilation) is seeded so every
-screen has something to show. To add your own:
+**Projects are discovered automatically.** At startup (and whenever you hit
+the dashboard's **Rescan** button), Workbench scans the **discovery folder** —
+default `~/dev`, configurable in App Settings — two levels deep, so layouts
+like `ffxi/Banshee-Realm-11` are found. Any directory carrying a `.git`
+folder, a `workbench.json`, or a `docker-compose.yml` counts as a project and
+is registered if it isn't already:
 
-1. **Dashboard → “+ Add project”.** Give it a name, a repository path, or both.
-   The path can be any local git clone — decomp tree, server emulator,
-   ordinary software project.
-2. **Import happens automatically.** If the repository root contains a
-   `workbench.json` (see §4), its configuration — commands, docs paths, tags —
-   is adopted on registration.
-3. **Refine in Settings.** Each project's Settings tab edits status,
+1. **A `workbench.json` at the repository root is adopted as-is** (see §4) —
+   commands, docs paths, tags, launch profile.
+2. **Otherwise sensible defaults are synthesized** from what the directory
+   contains: a `*.sln`/`*.csproj` gets `dotnet build` / `dotnet test`; a
+   compose file gets `docker compose up -d` plus a launch profile (status,
+   stop, and logs commands, with the compose services as required services).
+3. **Manual registration still works.** Dashboard → “+ Add project” takes a
+   name, a repository path, or both, for anything outside the discovery
+   folder.
+4. **Refine in Settings.** Each project's Settings tab edits status,
    description, tags, repository path, build/run/test commands, documentation
    paths, and AI context paths, and can export/import `workbench.json` at any
    time.
-4. **Set your first frontier.** On the Overview tab, type the thing you are
+5. **Set your first frontier.** On the Overview tab, type the thing you are
    currently pushing on (a function address, a protocol message, a subsystem)
    and hit *Advance*. From then on the dashboard always shows where the edge
    of progress is.
+
+The sample seeders no longer run at startup — the configurations under
+[`samples/`](samples/) are inert demo data (copy one into your repo as a
+starting point). The **Shared State Folder** (App Settings) remains an
+optional, explicit export/import channel for sharing project configuration
+across machines.
 
 Deleting a project (Settings → danger zone) removes it and its history from
 Workbench only — your repository is untouched.

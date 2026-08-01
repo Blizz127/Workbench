@@ -74,6 +74,10 @@ public sealed class ProjectConfigServiceTests : IDisposable
                 ServiceLogCommand = "podman logs --tail=200 banshee_{service}_1",
                 HealthCheckRetries = 4,
                 HealthCheckIntervalSeconds = 10,
+                StopCommand = "podman compose down",
+                LogsCommand = "podman compose logs --tail=100",
+                UpdateCommand = "git pull --ff-only && podman compose up -d",
+                MetricsCommand = "echo 'Players: 0'",
             },
         };
 
@@ -95,6 +99,10 @@ public sealed class ProjectConfigServiceTests : IDisposable
         Assert.Equal("podman logs --tail=200 banshee_{service}_1", target.Launch.ServiceLogCommand);
         Assert.Equal(4, target.Launch.HealthCheckRetries);
         Assert.Equal(10, target.Launch.HealthCheckIntervalSeconds);
+        Assert.Equal("podman compose down", target.Launch.StopCommand);
+        Assert.Equal("podman compose logs --tail=100", target.Launch.LogsCommand);
+        Assert.Equal("git pull --ff-only && podman compose up -d", target.Launch.UpdateCommand);
+        Assert.Equal("echo 'Players: 0'", target.Launch.MetricsCommand);
     }
 
     [Fact]

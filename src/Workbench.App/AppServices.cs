@@ -1,7 +1,6 @@
 using Workbench.Core.Services;
 using Workbench.Data;
 using Workbench.Data.Repositories;
-using Workbench.Data.SampleData;
 using Workbench.Git;
 
 namespace Workbench.App;
@@ -36,6 +35,7 @@ public sealed class AppServices
     public IAppSettingsService AppSettings { get; }
     public ISharedStateService SharedState { get; }
     public IGitSyncService GitSync { get; }
+    public IProjectDiscoveryService Discovery { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -63,8 +63,17 @@ public sealed class AppServices
         SharedState = new SharedStateService(Projects, Milestones, Frontiers);
         GitSync = new GitSyncService(Git, Timeline, Runner);
 
-        // Seed sample projects (idempotent — skips already-registered projects).
-        SampleDataSeeder.SeedAll(Database);
+        // The sample seeders no longer run at startup — samples/ is inert demo
+        // data (tests still reference it). Projects are discovered on disk instead.
+        Discovery = new ProjectDiscoveryService(Projects, Config, Timeline, AppSettings);
+        try
+        {
+            Discovery.Scan();
+        }
+        catch (Exception)
+        {
+            // A bad discovery directory must never break startup.
+        }
     }
 
     /// <summary>Gathers everything the handoff generator needs for one project.</summary>

@@ -29,6 +29,19 @@
 
             <Border Classes="card">
                 <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="Project Discovery" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="At startup (and via the dashboard's Rescan button), Workbench scans this folder — two levels deep — for directories that look like projects (a .git folder, a workbench.json, or a docker-compose file) and registers any it hasn't seen before. Repositories with a workbench.json are adopted as-is; the rest get sensible dotnet/docker defaults." />
+
+                    <CheckBox Content="Discover projects automatically"
+                              IsChecked="{Binding DiscoveryEnabled}" />
+                    <TextBlock Text="Discovery Folder" Classes="muted" />
+                    <TextBox Text="{Binding DiscoveryFolder}" Watermark="~/dev" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Shared Workbench State" Classes="h2" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="Point this at your Dropbox folder (default: ~/Dropbox/workbench). Dropbox syncs it between your PCs externally — Workbench never runs sync commands. Project configuration is shared as projects/*.workbench.json files. Local history, logs, and the database never leave this machine. Sync is always explicit — nothing runs in the background." />

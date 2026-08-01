@@ -51,6 +51,10 @@ public sealed class LaunchProfileConfig
     public string? ServiceLogCommand { get; set; }
     public int? HealthCheckRetries { get; set; }
     public int? HealthCheckIntervalSeconds { get; set; }
+    public string? StopCommand { get; set; }
+    public string? LogsCommand { get; set; }
+    public string? UpdateCommand { get; set; }
+    public string? MetricsCommand { get; set; }
 }
 
 /// <summary>A single log-pattern entry in <c>workbench.json</c>.</summary>
@@ -155,6 +159,10 @@ public sealed class ProjectConfigService : IProjectConfigService
                 ServiceLogCommand = launch.ServiceLogCommand,
                 HealthCheckRetries = launch.HealthCheckRetries ?? 3,
                 HealthCheckIntervalSeconds = launch.HealthCheckIntervalSeconds ?? 5,
+                StopCommand = launch.StopCommand,
+                LogsCommand = launch.LogsCommand,
+                UpdateCommand = launch.UpdateCommand,
+                MetricsCommand = launch.MetricsCommand,
             };
         }
     }
@@ -187,6 +195,10 @@ public sealed class ProjectConfigService : IProjectConfigService
                 ServiceLogCommand = project.Launch.ServiceLogCommand,
                 HealthCheckRetries = project.Launch.HealthCheckRetries,
                 HealthCheckIntervalSeconds = project.Launch.HealthCheckIntervalSeconds,
+                StopCommand = project.Launch.StopCommand,
+                LogsCommand = project.Launch.LogsCommand,
+                UpdateCommand = project.Launch.UpdateCommand,
+                MetricsCommand = project.Launch.MetricsCommand,
             }
             : null,
     };

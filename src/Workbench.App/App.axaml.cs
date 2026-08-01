@@ -5,7 +5,6 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Workbench.App.ViewModels;
 using Workbench.App.Views;
-using Workbench.Data.SampleData;
 
 namespace Workbench.App;
 
@@ -28,7 +27,8 @@ public sealed class App : Application
                 string.Equals(services.AppSettings.Settings.Theme, "light", StringComparison.OrdinalIgnoreCase)
                     ? ThemeVariant.Light
                     : ThemeVariant.Dark;
-            XenogearsSeeder.SeedIfEmpty(services.Database);
+            // Sample seeders no longer run at startup — samples/ is inert demo
+            // data; AppServices already scanned the discovery folder above.
 
             desktop.MainWindow = new MainWindow
             {

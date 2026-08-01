@@ -1,0 +1,33 @@
+{
+  "name": "Banshee Realm 11",
+  "description": "FFXI private server (LandSandBoat fork) running as a five-service docker compose stack: database (MariaDB), connect, search, world, map. Lua scripts and settings are live-mounted, so content changes only need a service restart. The stack survives reboots via restart policies + banshee.service.",
+  "buildCommand": "docker build -f docker/ubuntu.Dockerfile --tag localhost/banshee-realm:latest --build-arg COMPILER=gcc --build-arg CMAKE_BUILD_TYPE=Release --build-arg PCH_ENABLE=ON --build-arg REPO_URL=https://github.com/Blizz127/Banshee-Realm-11 --build-arg COMMIT_SHA=$(git rev-parse HEAD) .",
+  "runCommand": "docker compose up -d",
+  "documentationPaths": [
+    "README.md",
+    "docs/ai_context/ACTIVE_HANDOFF.md"
+  ],
+  "aiContextPaths": [
+    "AGENTS.md",
+    "docs/ai_context/ACTIVE_HANDOFF.md"
+  ],
+  "tags": [
+    "FFXI",
+    "Game Server",
+    "Docker",
+    "LandSandBoat"
+  ],
+  "launchProfile": {
+    "startupGraceSeconds": 20,
+    "statusCommand": "docker compose ps --format '{{.Service}} {{.State}} {{.Health}}'",
+    "requiredServices": ["database", "connect", "search", "world", "map"],
+    "failedPatterns": ["restarting", "dead", "unhealthy"],
+    "serviceLogCommand": "docker compose logs --no-color --tail=200 {service}",
+    "healthCheckRetries": 6,
+    "healthCheckIntervalSeconds": 10,
+    "stopCommand": "docker compose down",
+    "logsCommand": "docker compose logs --no-color --tail=120",
+    "updateCommand": "git pull --ff-only && docker compose up -d --remove-orphans && docker compose restart connect search world map",
+    "metricsCommand": "players=$(docker compose exec -T database sh -lc 'mariadb -N -u xiadmin -p\"$MARIADB_PASSWORD\" xidb -e \"SELECT COUNT(*) FROM accounts_sessions\"' 2>/dev/null || echo '?'); echo \"Players: $players\"; docker stats --no-stream --format '{{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}' | awk -F'\\t' '$1 ~ /^banshee-realm-11/ {gsub(/%/,\"\",$2); cpu+=$2; split($3,m,\" / \"); v=m[1]; if (v ~ /GiB/) {gsub(/GiB/,\"\",v); mem+=v*1024} else if (v ~ /MiB/) {gsub(/MiB/,\"\",v); mem+=v} else if (v ~ /KiB/) {gsub(/KiB/,\"\",v); mem+=v/1024}} END {printf \"CPU: %.0f%%\\nRAM: %.1f GB\\n\", cpu, mem/1024}'"
+  }
+}

@@ -203,6 +203,28 @@ public sealed class HealthCheckServiceTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public void Service_states_parse_per_service_with_health_matching_rules()
+    {
+        var profile = new LaunchProfile
+        {
+            RequiredServices = ["database", "map", "world"],
+            OptionalServices = ["metrics"],
+        };
+
+        var states = HealthCheckService.GetServiceStates(
+            profile, "database running healthy\nmap running\nworld Exited (1)");
+
+        Assert.Equal(
+            [
+                new ServiceState("database", IsUp: true, IsRequired: true),
+                new ServiceState("map", IsUp: true, IsRequired: true),
+                new ServiceState("world", IsUp: false, IsRequired: true),
+                new ServiceState("metrics", IsUp: false, IsRequired: false),
+            ],
+            states);
+    }
+
+    [Fact]
     public void Failed_service_log_command_expands_the_service_placeholder()
     {
         var profile = new LaunchProfile { ServiceLogCommand = "podman logs --tail=200 banshee_{service}_1" };

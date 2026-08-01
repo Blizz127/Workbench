@@ -16,7 +16,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp,
         launch_grace_seconds, launch_status_command, launch_required_services,
         launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
-        launch_service_log_command, launch_health_retries, launch_health_interval_seconds
+        launch_service_log_command, launch_health_retries, launch_health_interval_seconds,
+        launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command
         """;
 
     public IReadOnlyList<Project> GetAll()
@@ -79,7 +80,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 shared_last_imported_at, shared_last_exported_at, shared_last_synced_stamp,
                 launch_grace_seconds, launch_status_command, launch_required_services,
                 launch_optional_services, launch_healthy_patterns, launch_failed_patterns,
-                launch_service_log_command, launch_health_retries, launch_health_interval_seconds)
+                launch_service_log_command, launch_health_retries, launch_health_interval_seconds,
+                launch_stop_command, launch_logs_command, launch_update_command, launch_metrics_command)
             VALUES (
                 $name, $status, $description, $repository_path, $build_command, $run_command,
                 $test_command, $documentation_paths, $ai_context_paths, $preferred_ai_provider,
@@ -89,7 +91,8 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 $shared_last_imported_at, $shared_last_exported_at, $shared_last_synced_stamp,
                 $launch_grace_seconds, $launch_status_command, $launch_required_services,
                 $launch_optional_services, $launch_healthy_patterns, $launch_failed_patterns,
-                $launch_service_log_command, $launch_health_retries, $launch_health_interval_seconds);
+                $launch_service_log_command, $launch_health_retries, $launch_health_interval_seconds,
+                $launch_stop_command, $launch_logs_command, $launch_update_command, $launch_metrics_command);
             SELECT last_insert_rowid();
             """;
         BindParameters(command, project);
@@ -131,7 +134,11 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
                 launch_failed_patterns = $launch_failed_patterns,
                 launch_service_log_command = $launch_service_log_command,
                 launch_health_retries = $launch_health_retries,
-                launch_health_interval_seconds = $launch_health_interval_seconds
+                launch_health_interval_seconds = $launch_health_interval_seconds,
+                launch_stop_command = $launch_stop_command,
+                launch_logs_command = $launch_logs_command,
+                launch_update_command = $launch_update_command,
+                launch_metrics_command = $launch_metrics_command
             WHERE id = $id;
             """;
         BindParameters(command, project);
@@ -219,6 +226,10 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
         command.Parameters.AddWithValue("$launch_service_log_command", SqliteMapping.ToDbNullable(p.Launch.ServiceLogCommand));
         command.Parameters.AddWithValue("$launch_health_retries", SqliteMapping.ToDbNullable(p.Launch.HealthCheckRetries));
         command.Parameters.AddWithValue("$launch_health_interval_seconds", SqliteMapping.ToDbNullable(p.Launch.HealthCheckIntervalSeconds));
+        command.Parameters.AddWithValue("$launch_stop_command", SqliteMapping.ToDbNullable(p.Launch.StopCommand));
+        command.Parameters.AddWithValue("$launch_logs_command", SqliteMapping.ToDbNullable(p.Launch.LogsCommand));
+        command.Parameters.AddWithValue("$launch_update_command", SqliteMapping.ToDbNullable(p.Launch.UpdateCommand));
+        command.Parameters.AddWithValue("$launch_metrics_command", SqliteMapping.ToDbNullable(p.Launch.MetricsCommand));
     }
 
     private static Project Map(SqliteDataReader reader) => new()
@@ -261,6 +272,10 @@ public sealed class ProjectRepository(WorkbenchDatabase database) : IProjectRepo
             ServiceLogCommand = reader.GetNullableString(32),
             HealthCheckRetries = reader.GetNullableInt32(33) ?? 3,
             HealthCheckIntervalSeconds = reader.GetNullableInt32(34) ?? 5,
+            StopCommand = reader.GetNullableString(35),
+            LogsCommand = reader.GetNullableString(36),
+            UpdateCommand = reader.GetNullableString(37),
+            MetricsCommand = reader.GetNullableString(38),
         },
     };
 

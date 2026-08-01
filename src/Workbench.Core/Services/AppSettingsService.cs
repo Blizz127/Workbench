@@ -9,6 +9,12 @@ public sealed class AppSettings
     /// <summary>The user-selected Shared State Folder (a synced or plain directory), if configured.</summary>
     public string? SharedStateFolder { get; set; }
 
+    /// <summary>When true, the discovery folder is scanned for new projects at startup.</summary>
+    public bool DiscoveryEnabled { get; set; } = true;
+
+    /// <summary>The folder scanned for projects (null resolves to <c>~/dev</c>).</summary>
+    public string? DiscoveryFolder { get; set; }
+
     /// <summary>Overrides the detected machine name used for machine profiles.</summary>
     public string? MachineName { get; set; }
 
@@ -50,6 +56,9 @@ public interface IAppSettingsService
 
     /// <summary>The shared folder: the configured path, else <c>~/Dropbox/workbench</c>.</summary>
     string? SharedStateFolder { get; }
+
+    /// <summary>The discovery folder: the configured path, else <c>~/dev</c>.</summary>
+    string DiscoveryFolder { get; }
 
     void Save();
 }
@@ -104,6 +113,23 @@ public sealed class AppSettingsService : IAppSettingsService
     /// <summary>The Dropbox-synced shared folder used when none is configured.</summary>
     public static string GetDefaultSharedStateFolder() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Dropbox", "workbench");
+
+    public string DiscoveryFolder =>
+        ExpandHome(string.IsNullOrWhiteSpace(Settings.DiscoveryFolder)
+            ? GetDefaultDiscoveryFolder()
+            : Settings.DiscoveryFolder.Trim());
+
+    /// <summary>The folder scanned for projects when none is configured.</summary>
+    public static string GetDefaultDiscoveryFolder() =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "dev");
+
+    /// <summary>Expands a leading <c>~</c> to the user's home directory; other paths pass through.</summary>
+    private static string ExpandHome(string path) =>
+        path == "~"
+            ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            : path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path[2..])
+                : path;
 
     public void Save()
     {

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,7 +10,8 @@ namespace Workbench.App.ViewModels;
 
 /// <summary>
 /// Build, run, and test history — plus the buttons that create new entries by
-/// actually executing the project's configured commands.
+/// actually executing the project's configured commands, and the operations
+/// panel (per-service lights, live metrics, stop/logs/update/shell actions).
 /// </summary>
 public sealed partial class HistoryViewModel : ViewModelBase
 {
@@ -17,9 +19,23 @@ public sealed partial class HistoryViewModel : ViewModelBase
     private readonly Project _project;
     private CancellationTokenSource? _runCts;
     private Task? _activeRun;
+    private int _metricsInFlight;
 
     public ObservableCollection<BuildRecordViewModel> Builds { get; } = [];
     public ObservableCollection<TestRecordViewModel> Tests { get; } = [];
+
+    /// <summary>Per-service status lights, parsed from the latest health assessment's output.</summary>
+    public ObservableCollection<ServiceStateViewModel> Services { get; } = [];
+
+    /// <summary>Live metric tiles (players, CPU, RAM, ...) from the metrics command.</summary>
+    public ObservableCollection<MetricViewModel> Metrics { get; } = [];
+
+    [ObservableProperty] private bool _hasServices;
+    [ObservableProperty] private bool _hasMetrics;
+
+    /// <summary>Branch · short commit of the repository HEAD, refreshed with every reload.</summary>
+    [ObservableProperty] private string _gitInfoText = string.Empty;
+    public bool HasGitInfo => GitInfoText.Length > 0;
 
     [ObservableProperty] private BuildRecordViewModel? _selectedBuild;
     [ObservableProperty] private TestRecordViewModel? _selectedTest;
@@ -32,6 +48,8 @@ public sealed partial class HistoryViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     [NotifyCanExecuteChangedFor(nameof(RecheckHealthCommand))]
     [NotifyCanExecuteChangedFor(nameof(ViewFailedServiceLogsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenLogsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunUpdateCommand))]
     private bool _isRunning;
 
     [ObservableProperty] private string _runStatus = string.Empty;
@@ -58,11 +76,17 @@ public sealed partial class HistoryViewModel : ViewModelBase
     public bool CanRunBuild => !IsRunning && !string.IsNullOrWhiteSpace(_project.BuildCommand);
     public bool CanRunRun => !IsRunning && !string.IsNullOrWhiteSpace(_project.RunCommand);
     public bool CanRunTests => !IsRunning && !string.IsNullOrWhiteSpace(_project.TestCommand);
-    public bool CanStop => IsRunning || CurrentHealth is RuntimeHealth.Starting or RuntimeHealth.Healthy;
+    public bool CanStop => IsRunning || HasStopCommand
+        || CurrentHealth is RuntimeHealth.Starting or RuntimeHealth.Healthy;
     public bool CanRestartRun => !string.IsNullOrWhiteSpace(_project.RunCommand);
     public bool CanRecheckHealth => !IsRunning && !string.IsNullOrWhiteSpace(_project.Launch.StatusCommand);
     public bool CanViewFailedServiceLogs =>
         !IsRunning && HasFailedComponent && !string.IsNullOrWhiteSpace(_project.Launch.ServiceLogCommand);
+    public bool CanOpenLogs => !IsRunning && !string.IsNullOrWhiteSpace(_project.Launch.LogsCommand);
+    public bool CanRunUpdate => !IsRunning && !string.IsNullOrWhiteSpace(_project.Launch.UpdateCommand);
+    public bool CanViewServiceLogs => !string.IsNullOrWhiteSpace(_project.Launch.ServiceLogCommand);
+
+    private bool HasStopCommand => !string.IsNullOrWhiteSpace(_project.Launch.StopCommand);
 
     /// <summary>Running-state badge text for the Run section.</summary>
     public string RunStateText => IsRunning ? "running" : "idle";
@@ -101,6 +125,8 @@ public sealed partial class HistoryViewModel : ViewModelBase
             Tests.Add(new TestRecordViewModel(record));
 
         RefreshProfileSummaries();
+        RefreshGitInfo();
+        RefreshMetrics();
 
         // With nothing explicitly selected, the output panel shows the newest run's log.
         if (SelectedBuild is null && SelectedTest is null)
@@ -131,6 +157,7 @@ public sealed partial class HistoryViewModel : ViewModelBase
         var health = _services.Health.GetCurrent(_project.Id);
         CurrentHealth = health?.Health ?? RuntimeHealth.Unknown;
         FailedComponent = health?.FailedComponent;
+        RefreshServices(health);
 
         var lastTest = Tests.FirstOrDefault()?.Record;
         LastTestOutcome = lastTest is null ? null : lastTest.Result == TestResult.Passed;
@@ -173,8 +200,12 @@ public sealed partial class HistoryViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanRunRun));
         OnPropertyChanged(nameof(CanRunTests));
         OnPropertyChanged(nameof(CanStop));
+        OnPropertyChanged(nameof(CanOpenLogs));
+        OnPropertyChanged(nameof(CanRunUpdate));
         OnPropertyChanged(nameof(RunStateText));
     }
+
+    partial void OnGitInfoTextChanged(string value) => OnPropertyChanged(nameof(HasGitInfo));
 
     [RelayCommand(CanExecute = nameof(CanRunBuild))]
     private async Task RunBuild() => await (_activeRun = Execute(
@@ -230,18 +261,22 @@ public sealed partial class HistoryViewModel : ViewModelBase
         ct => _services.Execution.RunTestsAsync(_project, cancellationToken: ct), "Testing…"));
 
     [RelayCommand(CanExecute = nameof(CanStop))]
-    private void Stop()
-    {
-        _runCts?.Cancel();
-        // Not running means the launcher already exited (detached start):
-        // Stop then means "stop tracking this runtime as up".
-        if (!IsRunning && CurrentHealth is RuntimeHealth.Starting or RuntimeHealth.Healthy)
-            ApplyHealth(_services.Health.MarkStopped(_project.Id));
-    }
+    private Task Stop() => StopRuntimeAsync(showOutput: true);
 
-    /// <summary>Stop the in-flight run (if any), wait for it to wind down, then start Run again.</summary>
+    /// <summary>Stop the runtime (or in-flight run), wait for it to wind down, then start Run again.</summary>
     [RelayCommand(CanExecute = nameof(CanRestartRun))]
     private async Task RestartRun()
+    {
+        await StopRuntimeAsync(showOutput: false);
+        await RunRun();
+    }
+
+    /// <summary>
+    /// Cancels the in-flight run, then really tears the runtime down when a
+    /// stop command is configured — without one, Stop on a detached launcher
+    /// can only mean "stop tracking this runtime as up".
+    /// </summary>
+    private async Task StopRuntimeAsync(bool showOutput)
     {
         if (IsRunning)
         {
@@ -249,13 +284,143 @@ public sealed partial class HistoryViewModel : ViewModelBase
             if (_activeRun is not null)
                 await _activeRun;
         }
+
+        if (HasStopCommand)
+        {
+            string? output = null;
+            await (_activeRun = Execute(async ct =>
+            {
+                var command = _project.Launch.StopCommand!;
+                var result = await _services.Runner.RunAsync(
+                    command, _project.RepositoryPath, TimeSpan.FromMinutes(5), ct);
+                JournalOperation("Stop", result);
+                output = result.Output;
+                ApplyHealth(_services.Health.MarkStopped(_project.Id));
+                return (object?)null;
+            }, "Stopping…"));
+
+            if (showOutput && output is not null)
+                SelectedLog = output;
+        }
         else if (CurrentHealth is RuntimeHealth.Starting or RuntimeHealth.Healthy)
         {
-            // Detached runtime tracked as up; clear the duplicate-start guard first.
             ApplyHealth(_services.Health.MarkStopped(_project.Id));
         }
+    }
 
-        await RunRun();
+    /// <summary>Fetches recent logs across all services into the output panel.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenLogs))]
+    private async Task OpenLogs()
+    {
+        string? output = null;
+        await (_activeRun = Execute(async ct =>
+        {
+            var result = await _services.Runner.RunAsync(
+                _project.Launch.LogsCommand!, _project.RepositoryPath, TimeSpan.FromMinutes(2), ct);
+            output = result.Output;
+            return (object?)null;
+        }, "Fetching logs…"));
+
+        if (output is not null)
+            SelectedLog = output;
+    }
+
+    /// <summary>Fetches one service's logs into the output panel (service-light click).</summary>
+    [RelayCommand(CanExecute = nameof(CanViewServiceLogs))]
+    private async Task ViewServiceLogs(string service)
+    {
+        var command = HealthCheckService.BuildServiceLogCommand(_project.Launch, service);
+        if (command is null)
+            return;
+
+        string? output = null;
+        await (_activeRun = Execute(async ct =>
+        {
+            var result = await _services.Runner.RunAsync(
+                command, _project.RepositoryPath, TimeSpan.FromMinutes(1), ct);
+            output = result.Output;
+            return (object?)null;
+        }, $"Fetching {service} logs…"));
+
+        if (output is not null)
+            SelectedLog = output;
+    }
+
+    /// <summary>One-click update (pull + redeploy), then a health reassessment.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunUpdate))]
+    private async Task RunUpdate()
+    {
+        string? output = null;
+        await (_activeRun = Execute(async ct =>
+        {
+            var command = _project.Launch.UpdateCommand!;
+            var result = await _services.Runner.RunAsync(
+                command, _project.RepositoryPath, TimeSpan.FromMinutes(20), ct);
+            JournalOperation("Update", result);
+            output = result.Output;
+            return (object?)null;
+        }, "Updating…"));
+
+        if (output is not null)
+            SelectedLog = output;
+
+        if (CanRecheckHealth)
+            await RecheckHealth();
+    }
+
+    /// <summary>Opens an interactive terminal at the repository root.</summary>
+    [RelayCommand]
+    private void OpenShell()
+    {
+        if (_project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path))
+            return;
+
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    WorkingDirectory = path,
+                    UseShellExecute = true,
+                });
+                return;
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                Process.Start(new ProcessStartInfo { FileName = "open", ArgumentList = { "-a", "Terminal", path } });
+                return;
+            }
+
+            string?[] candidates =
+            [
+                Environment.GetEnvironmentVariable("TERMINAL"),
+                "x-terminal-emulator", "ptyxis", "gnome-terminal", "konsole",
+                "xfce4-terminal", "kitty", "alacritty", "foot",
+            ];
+            foreach (var terminal in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(terminal))
+                    continue;
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = terminal, WorkingDirectory = path });
+                    return;
+                }
+                catch (Exception)
+                {
+                    // Not installed; try the next candidate.
+                }
+            }
+
+            RunStatus = "No terminal emulator found (set the TERMINAL environment variable).";
+        }
+        catch (Exception)
+        {
+            // The OS refused to open a terminal — nothing sensible to surface here.
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanRecheckHealth))]
@@ -299,7 +464,100 @@ public sealed partial class HistoryViewModel : ViewModelBase
         {
             CurrentHealth = record.Health;
             FailedComponent = record.FailedComponent;
+            RefreshServices(record);
         });
+
+    /// <summary>Rebuilds the per-service lights from a health assessment's raw status output.</summary>
+    private void RefreshServices(RuntimeHealthRecord? health)
+    {
+        Services.Clear();
+        var profile = _project.Launch;
+        if (profile.RequiredServices.Count + profile.OptionalServices.Count > 0)
+        {
+            // Before the first real assessment the states are unknown, not down.
+            var assessed = health is not null && health.Health is not RuntimeHealth.Unknown;
+            foreach (var state in HealthCheckService.GetServiceStates(profile, health?.Output ?? string.Empty))
+                Services.Add(new ServiceStateViewModel(state.Name, assessed ? state.IsUp : null, ViewServiceLogsCommand));
+        }
+
+        HasServices = Services.Count > 0;
+    }
+
+    /// <summary>Reads branch and HEAD commit off the UI thread for the Run card.</summary>
+    private void RefreshGitInfo()
+    {
+        var path = _project.RepositoryPath;
+        _ = Task.Run(() =>
+        {
+            var snapshot = _services.Git.GetSnapshot(path, recentCommitCount: 0);
+            var text = snapshot.IsValid
+                ? $"{snapshot.BranchName ?? "?"} · {snapshot.LastCommit?.ShortSha ?? "?"}{(snapshot.IsDirty ? " · dirty" : "")}"
+                : string.Empty;
+            Dispatcher.UIThread.Post(() => GitInfoText = text);
+        });
+    }
+
+    /// <summary>
+    /// Refreshes the metric tiles from the metrics command in the background.
+    /// Best-effort and non-blocking: metrics never gate any other action.
+    /// </summary>
+    private void RefreshMetrics()
+    {
+        var command = _project.Launch.MetricsCommand;
+        if (string.IsNullOrWhiteSpace(command) || Interlocked.Exchange(ref _metricsInFlight, 1) == 1)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _services.Runner.RunAsync(
+                    command, _project.RepositoryPath, TimeSpan.FromMinutes(1), CancellationToken.None);
+                List<MetricViewModel> metrics = result.ExitCode == 0 ? ParseMetrics(result.Output) : [];
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Metrics.Clear();
+                    foreach (var metric in metrics)
+                        Metrics.Add(metric);
+                    HasMetrics = Metrics.Count > 0;
+                });
+            }
+            catch (Exception)
+            {
+                // Metrics are decorative; a failed read just keeps the last values.
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _metricsInFlight, 0);
+            }
+        });
+    }
+
+    /// <summary>Parses <c>Label: value</c> lines from metrics-command output.</summary>
+    internal static List<MetricViewModel> ParseMetrics(string output) =>
+        output.Split('\n')
+            .Select(line => line.Trim())
+            .Select(line => (Line: line, Index: line.IndexOf(':')))
+            .Where(x => x.Index > 0 && x.Index < x.Line.Length - 1)
+            .Select(x => new MetricViewModel(x.Line[..x.Index].Trim(), x.Line[(x.Index + 1)..].Trim()))
+            .Where(m => m.Label.Length > 0 && m.Value.Length > 0)
+            .ToList();
+
+    /// <summary>Journals a stop/update operation to the timeline (output tail on failure).</summary>
+    private void JournalOperation(string label, ProcessResult result)
+    {
+        _services.Timeline.Add(new TimelineEntry
+        {
+            ProjectId = _project.Id,
+            Timestamp = DateTimeOffset.Now,
+            Category = TimelineCategory.Run,
+            Message = $"{label} command: {(result.ExitCode == 0 ? "OK" : result.ExitCode is null ? "cancelled or timed out" : $"exit {result.ExitCode}")}",
+            Detail = result.ExitCode == 0 ? null : Tail(result.Output),
+        });
+    }
+
+    private static string Tail(string output, int maxChars = 2000) =>
+        output.Length <= maxChars ? output : "…" + output[^maxChars..];
 
     private async Task Execute<T>(Func<CancellationToken, Task<T?>> action, string status) where T : class
     {
@@ -368,6 +626,22 @@ public sealed class BuildRecordViewModel(BuildRecord record)
     public string Duration => $"{Record.Duration.TotalSeconds:0.#}s";
     public string Commit => Record.CommitSha is { Length: >= 7 } sha ? sha[..7] : "—";
 }
+
+/// <summary>
+/// One service light on the Run card. Null <paramref name="isUp"/> means no
+/// assessment yet. Carries the parent's per-service log command so XAML never
+/// needs ancestor bindings.
+/// </summary>
+public sealed class ServiceStateViewModel(string name, bool? isUp, IAsyncRelayCommand<string> viewLogs)
+{
+    public string Name { get; } = name;
+    public bool? IsUp { get; } = isUp;
+    public string StateText => IsUp switch { true => "up", false => "down", null => "—" };
+    public IAsyncRelayCommand<string> ViewLogsCommand { get; } = viewLogs;
+}
+
+/// <summary>One metric tile (e.g. Players / CPU / RAM) on the Run card.</summary>
+public sealed record MetricViewModel(string Label, string Value);
 
 public sealed class TestRecordViewModel(TestRecord record)
 {
