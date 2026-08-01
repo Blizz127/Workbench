@@ -68,6 +68,28 @@ public sealed class ProjectConfigServiceTests : IDisposable
     }
 
     [Fact]
+    public void Tmux_session_selection_roundtrips_through_workbench_json()
+    {
+        var service = new ProjectConfigService();
+        var project = new Project
+        {
+            Name = "Banshee",
+            RepositoryPath = _directory,
+            TmuxSession = "banshee-dev",
+        };
+
+        service.Save(project);
+
+        var loaded = service.Load(_directory);
+        Assert.NotNull(loaded);
+        Assert.Equal("banshee-dev", loaded.TmuxSession);
+
+        var target = new Project { Name = "placeholder" };
+        service.ApplyTo(loaded, target);
+        Assert.Equal("banshee-dev", target.TmuxSession);
+    }
+
+    [Fact]
     public void Missing_or_corrupt_config_returns_null()
     {
         var service = new ProjectConfigService();

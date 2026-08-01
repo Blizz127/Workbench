@@ -31,6 +31,12 @@ public sealed class Project
     /// </summary>
     public string? ComposeFile { get; set; }
 
+    /// <summary>
+    /// Explicit tmux session name for this project (from <c>workbench.json</c>).
+    /// Null means a safe slug is synthesized from the project name.
+    /// </summary>
+    public string? TmuxSession { get; set; }
+
     /// <summary>How to validate runtime health after the run command succeeds.</summary>
     public LaunchProfile Launch { get; set; } = new();
 

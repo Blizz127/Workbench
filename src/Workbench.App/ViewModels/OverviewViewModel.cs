@@ -392,60 +392,8 @@ public sealed partial class GitSyncViewModel : ViewModelBase
         if (_project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path))
             return;
 
-        try
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments = "/k git log",
-                    WorkingDirectory = path,
-                    UseShellExecute = true,
-                });
-                return;
-            }
-
-            if (OperatingSystem.IsMacOS())
-            {
-                // Terminal.app takes no command here; open it at the repo instead.
-                Process.Start(new ProcessStartInfo { FileName = "open", ArgumentList = { "-a", "Terminal", path } });
-                return;
-            }
-
-            (string Name, string Args)[] candidates =
-            [
-                (Environment.GetEnvironmentVariable("TERMINAL") ?? string.Empty, "-e git log"),
-                ("x-terminal-emulator", "-e git log"),
-                ("ptyxis", "-- git log"),
-                ("gnome-terminal", "-- git log"),
-                ("konsole", "-e git log"),
-                ("xfce4-terminal", "-e git log"),
-                ("kitty", "git log"),
-                ("alacritty", "-e git log"),
-                ("foot", "git log"),
-            ];
-            foreach (var (terminal, args) in candidates)
-            {
-                if (string.IsNullOrWhiteSpace(terminal))
-                    continue;
-                try
-                {
-                    Process.Start(new ProcessStartInfo { FileName = terminal, Arguments = args, WorkingDirectory = path });
-                    return;
-                }
-                catch (Exception)
-                {
-                    // Not installed; try the next candidate.
-                }
-            }
-
+        if (!_services.Terminal.Open(path, "git log"))
             RunStatus = "No terminal emulator found (set the TERMINAL environment variable).";
-        }
-        catch (Exception)
-        {
-            // The OS refused to open a terminal — nothing sensible to surface here.
-        }
     }
 
     [RelayCommand]

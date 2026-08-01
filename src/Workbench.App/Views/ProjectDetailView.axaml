@@ -54,6 +54,8 @@
                             Content="Run" Command="{Binding SelectSectionCommand}" CommandParameter="Run" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsDockerSelected}"
                             Content="Docker" Command="{Binding SelectSectionCommand}" CommandParameter="Docker" />
+                    <Button Classes="section-nav" Classes.selected="{Binding IsSessionsSelected}"
+                            Content="Sessions" Command="{Binding SelectSectionCommand}" CommandParameter="Sessions" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsProgressSelected}"
                             Content="Progress" Command="{Binding SelectSectionCommand}" CommandParameter="Progress" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsGitHubSelected}"
@@ -90,6 +92,11 @@
                       IsVisible="{Binding IsDockerSelected}"
                       Opacity="{Binding IsDockerSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
                     <views:DockerOperationsView DataContext="{Binding Docker}" />
+                </Grid>
+                <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
+                      IsVisible="{Binding IsSessionsSelected}"
+                      Opacity="{Binding IsSessionsSelected, Converter={x:Static conv:BoolToDoubleConverter.Instance}}">
+                    <views:SessionsView DataContext="{Binding Sessions}" />
                 </Grid>
                 <Grid Classes="section-host" Classes.no-motion="{Binding IsReducedMotion}"
                       IsVisible="{Binding IsProgressSelected}"

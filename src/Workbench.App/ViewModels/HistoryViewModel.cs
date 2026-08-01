@@ -375,52 +375,8 @@ public sealed partial class HistoryViewModel : ViewModelBase
         if (_project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path))
             return;
 
-        try
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    WorkingDirectory = path,
-                    UseShellExecute = true,
-                });
-                return;
-            }
-
-            if (OperatingSystem.IsMacOS())
-            {
-                Process.Start(new ProcessStartInfo { FileName = "open", ArgumentList = { "-a", "Terminal", path } });
-                return;
-            }
-
-            string?[] candidates =
-            [
-                Environment.GetEnvironmentVariable("TERMINAL"),
-                "x-terminal-emulator", "ptyxis", "gnome-terminal", "konsole",
-                "xfce4-terminal", "kitty", "alacritty", "foot",
-            ];
-            foreach (var terminal in candidates)
-            {
-                if (string.IsNullOrWhiteSpace(terminal))
-                    continue;
-                try
-                {
-                    Process.Start(new ProcessStartInfo { FileName = terminal, WorkingDirectory = path });
-                    return;
-                }
-                catch (Exception)
-                {
-                    // Not installed; try the next candidate.
-                }
-            }
-
+        if (!_services.Terminal.Open(path))
             RunStatus = "No terminal emulator found (set the TERMINAL environment variable).";
-        }
-        catch (Exception)
-        {
-            // The OS refused to open a terminal — nothing sensible to surface here.
-        }
     }
 
     [RelayCommand(CanExecute = nameof(CanRecheckHealth))]

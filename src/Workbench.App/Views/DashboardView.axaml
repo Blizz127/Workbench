@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:views="using:Workbench.App.Views"
              xmlns:conv="using:Workbench.App.Converters"
              x:Class="Workbench.App.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
@@ -76,6 +77,9 @@
                           Width="{StaticResource FilterComboWidth}" />
             </StackPanel>
         </StackPanel>
+
+        <!-- Development Sessions (tmux): read-only inspection plus explicit, confirmed actions -->
+        <views:TmuxSessionsView DockPanel.Dock="Top" DataContext="{Binding TmuxSessions}" />
 
         <!-- Add project panel -->
         <Border DockPanel.Dock="Top" Classes="card" Margin="{StaticResource Space3Top}"

@@ -38,6 +38,8 @@ public sealed class AppServices
     public IProjectDiscoveryService Discovery { get; }
     public ISystemHealthService SystemHealth { get; }
     public IDockerComposeService Docker { get; }
+    public ITmuxService Tmux { get; }
+    public ITerminalLauncher Terminal { get; }
 
     public AppServices(string? databasePath = null)
     {
@@ -66,6 +68,8 @@ public sealed class AppServices
         GitSync = new GitSyncService(Git, Timeline, Runner);
         SystemHealth = new SystemHealthService();
         Docker = new DockerComposeService(Runner);
+        Tmux = new TmuxService(Runner);
+        Terminal = new TerminalLauncher();
 
         // The sample seeders no longer run at startup — samples/ is inert demo
         // data (tests still reference it). Projects are discovered on disk instead.

@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.SessionsView"
+             x:DataType="vm:ProjectSessionsViewModel">
+
+    <ScrollViewer Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="980">
+
+            <Border Classes="card" IsVisible="{Binding !TmuxAvailable}">
+                <StackPanel Spacing="{StaticResource Space2}">
+                    <TextBlock Text="Development Session" Classes="h2" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="tmux is not available on this machine, so this project cannot have a persistent development session here." />
+                </StackPanel>
+            </Border>
+
+            <StackPanel IsVisible="{Binding TmuxAvailable}" Spacing="{StaticResource Space5}">
+
+                <!-- Project session state (read-only inspection) -->
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Refresh" Classes="command.ghost"
+                                    Command="{Binding RefreshCommand}"
+                                    AutomationProperties.Name="Refresh tmux session state" />
+                            <TextBlock Text="Development Session" Classes="h2" />
+                        </DockPanel>
+                        <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="session" Classes="muted" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding SessionName}" Classes="mono"
+                                       ToolTip.Tip="From tmuxSession in workbench.json, or derived from the project name" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="state" Classes="muted" />
+                            <Border Grid.Row="1" Grid.Column="2" Classes="badge" HorizontalAlignment="Left"
+                                    Classes.success="{Binding IsAttached}"
+                                    Classes.info="{Binding SessionExists}">
+                                <TextBlock Text="{Binding StateText}" />
+                            </Border>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="detail" Classes="muted"
+                                       IsVisible="{Binding DetailText.Length}" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding DetailText}" Classes="mono muted"
+                                       IsVisible="{Binding DetailText.Length}" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions: Create/Kill preview the exact command; Kill additionally requires Confirm -->
+                <Border Classes="card">
+                    <StackPanel Spacing="{StaticResource Space2}">
+                        <TextBlock Text="Actions" Classes="section-header" />
+                        <WrapPanel>
+                            <Button Content="Create Session" Classes="command.secondary"
+                                    Command="{Binding PrepareCreateCommand}" Margin="{StaticResource Space3Right}"
+                                    IsVisible="{Binding !SessionExists}"
+                                    ToolTip.Tip="Starts detached in the repository path — previews the exact command first" />
+                            <Button Content="Attach" Classes="command.ghost"
+                                    Command="{Binding AttachCommand}" Margin="{StaticResource Space3Right}"
+                                    IsVisible="{Binding SessionExists}"
+                                    ToolTip.Tip="Open a terminal attached to this session" />
+                            <Button Content="Kill Session" Classes="command.ghost"
+                                    Command="{Binding PrepareKillCommand}" Margin="{StaticResource Space3Right}"
+                                    IsVisible="{Binding SessionExists}"
+                                    ToolTip.Tip="Kills this project's session only — requires confirmation" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding BusyText}" Classes="muted" IsVisible="{Binding BusyText.Length}" />
+                        <TextBlock Text="{Binding LastResultText}" IsVisible="{Binding LastResultText.Length}"
+                                   Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+                        <!-- Preview/confirm: no mutating command runs before Confirm -->
+                        <Border Classes="warning-banner" Classes.danger="{Binding IsPreviewDanger}"
+                                IsVisible="{Binding IsPreviewOpen}" Margin="{StaticResource Space1Top}">
+                            <StackPanel Spacing="{StaticResource Space3}">
+                                <TextBlock Text="{Binding PreviewTitle}" Classes="section-header" />
+                                <TextBlock Text="{Binding PreviewDescription}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding PreviewCommand}" Classes="mono" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                                    <Button Content="Confirm" Classes="command"
+                                            Classes.danger="{Binding IsPreviewDanger}"
+                                            Command="{Binding ConfirmOperationCommand}"
+                                            AutomationProperties.Name="Confirm tmux operation" />
+                                    <Button Content="Cancel" Classes="command.ghost"
+                                            Command="{Binding CancelPreviewCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

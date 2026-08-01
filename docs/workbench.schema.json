@@ -19,6 +19,10 @@
       "type": ["string", "null"],
       "description": "Explicit compose file for Docker operations (relative to the repository root or absolute). Null/omitted means auto-detect conventional names."
     },
+    "tmuxSession": {
+      "type": ["string", "null"],
+      "description": "Explicit tmux session name for this project (letters, digits, '_' and '-'). Null/omitted means a slug is synthesized from the project name."
+    },
     "documentationPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
     "aiContextPaths": { "type": "array", "items": { "type": "string" }, "default": [] },
     "preferredAiProvider": { "type": ["string", "null"] },

@@ -23,6 +23,9 @@ public sealed partial class DashboardViewModel : ViewModelBase
 
     public ObservableCollection<ProjectCardViewModel> Cards { get; } = [];
 
+    /// <summary>Development Sessions panel: tmux sessions with explicit create/attach/rename/kill.</summary>
+    public TmuxSessionsViewModel TmuxSessions { get; }
+
     public string[] StatusFilters { get; } = ["All", "Active", "Waiting", "Broken", "Research", "Complete"];
 
     public ObservableCollection<string> TagFilters { get; } = [AllTagsLabel];
@@ -89,6 +92,7 @@ public sealed partial class DashboardViewModel : ViewModelBase
         _services = services;
         _openProject = openProject;
         IsCompact = services.AppSettings.Settings.DashboardDensity == "compact";
+        TmuxSessions = new TmuxSessionsViewModel(services.Tmux, services.Terminal);
         Reload();
         _ = LoadSystemHealthAsync();
     }

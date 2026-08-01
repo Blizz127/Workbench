@@ -213,6 +213,39 @@ names (`docker-compose.yml`, `docker-compose.yaml`,
 the file it found and synthesizes `-f`-qualified commands for nonstandard
 filenames.
 
+### tmux sessions (`Workbench.Core.TmuxService`)
+
+The dashboard's **Development Sessions** panel and the project detail view's
+**Sessions** section offer safe, explicit tmux session management behind
+`ITmuxService`. `TmuxCommandBuilder` is the only place tmux commands are
+constructed, and it deliberately has no fleet-wide primitives: no
+`kill-server`, no `kill-session -a`, no free-form shell text — every command
+targets exactly one session whose name passed the strict
+`[A-Za-z0-9_-]+` validation (tmux itself forbids `.` and `:`), which makes
+shell injection impossible by construction.
+
+- **Inspection** is read-only: `list-sessions` with a stable pipe-delimited
+  format string, parsed by `TmuxListParser` into typed rows (created time,
+  attached/detached, window count, active window). The status distinguishes
+  the three honest states — tmux not installed, installed but no server
+  running (a normal empty state, not an error), and a running server.
+- **Actions**: create (detached, optionally rooted at the project's
+  repository path), rename, kill — each scoped to one session. Attach is not a
+  mutation: it asks `ITerminalLauncher` to open a graphical terminal running
+  `tmux attach-session`. Nothing runs at startup beyond the read-only
+  inspection; every mutation previews the exact command, and kill/rename
+  require confirmation enforced in the service itself
+  (`ExecuteAsync(..., confirmed)` refuses otherwise).
+- **Project sessions** come from `Project.TmuxSession` (the `tmuxSession` key
+  in `workbench.json`); when unset or invalid, a safe lowercase slug is
+  synthesized from the project name (`Banshee Realm 11` → `banshee-realm-11`).
+
+`TerminalLauncher` owns all desktop-terminal knowledge: it detects installed
+emulators in preference order (xfce4-terminal, konsole, x-terminal-emulator,
+then the rest), honors a `$TERMINAL` override, and is also used by the older
+"open a shell here" / "open git log" actions so no view model shells out to a
+terminal directly.
+
 ### Handoff (`Workbench.Core.HandoffService`)
 
 A pure function `HandoffContext → markdown`. The context (project, frontiers,

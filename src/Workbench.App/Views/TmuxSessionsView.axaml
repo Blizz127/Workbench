@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:conv="using:Workbench.App.Converters"
+             x:Class="Workbench.App.Views.TmuxSessionsView"
+             x:DataType="vm:TmuxSessionsViewModel">
+
+    <Border Classes="card" Margin="{StaticResource Space3Top}">
+        <StackPanel Spacing="{StaticResource Space2}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Refresh" Classes="command.ghost"
+                        Command="{Binding RefreshCommand}"
+                        AutomationProperties.Name="Refresh tmux sessions" />
+                <TextBlock Text="Development Sessions" Classes="h2" />
+            </DockPanel>
+
+            <TextBlock Text="{Binding StatusText}" Classes="muted" />
+
+            <!-- Create: previews the exact command before anything runs -->
+            <Grid ColumnDefinitions="*,12,Auto" IsVisible="{Binding TmuxUsable}">
+                <TextBox Grid.Column="0" Watermark="new session name (letters, digits, _ -)"
+                         Text="{Binding NewSessionName}" />
+                <Button Grid.Column="2" Content="Create Session" Classes="command.secondary"
+                        Command="{Binding PrepareCreateCommand}"
+                        AutomationProperties.Name="Create tmux session" />
+            </Grid>
+
+            <TextBlock Text="{Binding BusyText}" Classes="muted" IsVisible="{Binding BusyText.Length}" />
+            <TextBlock Text="{Binding LastResultText}" IsVisible="{Binding LastResultText.Length}"
+                       Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+            <!-- Preview/confirm: no mutating command runs before Confirm -->
+            <Border Classes="warning-banner" Classes.danger="{Binding IsPreviewDanger}"
+                    IsVisible="{Binding IsPreviewOpen}" Margin="{StaticResource Space1Top}">
+                <StackPanel Spacing="{StaticResource Space3}">
+                    <TextBlock Text="{Binding PreviewTitle}" Classes="section-header" />
+                    <TextBlock Text="{Binding PreviewDescription}" TextWrapping="Wrap" />
+                    <TextBox Watermark="new name" Text="{Binding PreviewNewName}"
+                             IsVisible="{Binding PreviewShowsNewName}" />
+                    <TextBlock Text="Letters, digits, '_' and '-' only." Foreground="{DynamicResource DangerBrush}"
+                               IsVisible="{Binding IsNewNameInvalid}" />
+                    <TextBlock Text="{Binding PreviewCommand}" Classes="mono" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                        <Button Content="Confirm" Classes="command"
+                                Classes.danger="{Binding IsPreviewDanger}"
+                                Command="{Binding ConfirmOperationCommand}"
+                                AutomationProperties.Name="Confirm tmux operation" />
+                        <Button Content="Cancel" Classes="command.ghost"
+                                Command="{Binding CancelPreviewCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Sessions -->
+            <ItemsControl ItemsSource="{Binding Sessions}" IsVisible="{Binding HasSessions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TmuxSessionViewModel">
+                        <Grid ColumnDefinitions="*,8,Auto,8,Auto,12,Auto"
+                              Margin="{StaticResource Space0Vertical}">
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" Classes="mono"
+                                       VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center"
+                                    Classes.success="{Binding IsAttached}">
+                                <TextBlock Text="{Binding StateText}" />
+                            </Border>
+                            <TextBlock Grid.Column="4" Text="{Binding DetailText}" Classes="muted"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="6" Orientation="Horizontal"
+                                        Spacing="{StaticResource Space2}">
+                                <Button Content="Attach" Classes="command.ghost"
+                                        Command="{Binding AttachCommand}"
+                                        CommandParameter="{Binding Name}"
+                                        ToolTip.Tip="Open a terminal attached to this session" />
+                                <Button Content="Rename" Classes="command.ghost"
+                                        Command="{Binding RenameCommand}"
+                                        CommandParameter="{Binding Name}" />
+                                <Button Content="Kill" Classes="command.ghost"
+                                        Command="{Binding KillCommand}"
+                                        CommandParameter="{Binding Name}"
+                                        ToolTip.Tip="Kill this session only — requires confirmation" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

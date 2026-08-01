@@ -234,6 +234,9 @@ public sealed class WorkbenchDatabase
 
         // Explicit compose file selection for Docker operations (Phase 1B).
         new Migration(7, AddComposeFile),
+
+        // Explicit tmux session name for project sessions (Phase 1D).
+        new Migration(8, AddTmuxSession),
     ];
 
     private static void AddComposeFile(SqliteConnection connection, SqliteTransaction transaction)
@@ -245,6 +248,18 @@ public sealed class WorkbenchDatabase
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = "ALTER TABLE projects ADD COLUMN compose_file TEXT;";
+        command.ExecuteNonQuery();
+    }
+
+    private static void AddTmuxSession(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var existing = GetColumnNames(connection, transaction, "projects");
+        if (existing.Contains("tmux_session"))
+            return;
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "ALTER TABLE projects ADD COLUMN tmux_session TEXT;";
         command.ExecuteNonQuery();
     }
 

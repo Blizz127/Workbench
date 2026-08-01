@@ -32,6 +32,12 @@ public sealed class ProjectConfig
     /// </summary>
     public string? ComposeFile { get; set; }
 
+    /// <summary>
+    /// Explicit tmux session name for this project. Null means a slug is
+    /// synthesized from the project name.
+    /// </summary>
+    public string? TmuxSession { get; set; }
+
     public List<string> DocumentationPaths { get; set; } = [];
     public List<string> AiContextPaths { get; set; } = [];
     public string? PreferredAiProvider { get; set; }
@@ -134,6 +140,7 @@ public sealed class ProjectConfigService : IProjectConfigService
         project.RunCommand = config.RunCommand;
         project.TestCommand = config.TestCommand;
         project.ComposeFile = config.ComposeFile ?? project.ComposeFile;
+        project.TmuxSession = config.TmuxSession ?? project.TmuxSession;
         project.DocumentationPaths = [.. config.DocumentationPaths];
         project.AiContextPaths = [.. config.AiContextPaths];
         project.PreferredAiProvider = config.PreferredAiProvider;
@@ -191,6 +198,7 @@ public sealed class ProjectConfigService : IProjectConfigService
         RunCommand = project.RunCommand,
         TestCommand = project.TestCommand,
         ComposeFile = project.ComposeFile,
+        TmuxSession = project.TmuxSession,
         DocumentationPaths = [.. project.DocumentationPaths],
         AiContextPaths = [.. project.AiContextPaths],
         PreferredAiProvider = project.PreferredAiProvider,

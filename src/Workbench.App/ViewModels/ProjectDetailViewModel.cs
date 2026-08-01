@@ -25,6 +25,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     public NotesViewModel Notes { get; }
     public HistoryViewModel History { get; }
     public DockerOperationsViewModel Docker { get; }
+    public ProjectSessionsViewModel Sessions { get; }
     public HandoffViewModel Handoff { get; }
     public ProjectSettingsViewModel Settings { get; }
 
@@ -59,6 +60,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     public bool IsOverviewSelected => SelectedSection == "Overview";
     public bool IsRunSelected => SelectedSection == "Run";
     public bool IsDockerSelected => SelectedSection == "Docker";
+    public bool IsSessionsSelected => SelectedSection == "Sessions";
     public bool IsProgressSelected => SelectedSection == "Progress";
     public bool IsGitHubSelected => SelectedSection == "GitHub";
     public bool IsSharedStateSelected => SelectedSection == "Shared State";
@@ -88,6 +90,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         Notes = new NotesViewModel(services, project);
         History = new HistoryViewModel(services, project);
         Docker = new DockerOperationsViewModel(services.Docker, project, services.Timeline);
+        Sessions = new ProjectSessionsViewModel(services.Tmux, services.Terminal, project, services.Timeline);
         Handoff = new HandoffViewModel(services, project);
         Settings = new ProjectSettingsViewModel(services, project, goBack, RefreshHeader);
 
@@ -175,6 +178,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsOverviewSelected));
         OnPropertyChanged(nameof(IsRunSelected));
         OnPropertyChanged(nameof(IsDockerSelected));
+        OnPropertyChanged(nameof(IsSessionsSelected));
         OnPropertyChanged(nameof(IsProgressSelected));
         OnPropertyChanged(nameof(IsGitHubSelected));
         OnPropertyChanged(nameof(IsSharedStateSelected));
