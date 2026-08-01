@@ -30,6 +30,12 @@ public sealed class WebDashboardOptions
     /// <summary>SQLite database override; empty uses the standard Workbench path.</summary>
     public string DatabasePath { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Lifetime of a browser session issued by the token exchange. After
+    /// expiry the phone re-authenticates via its bookmarked token URL.
+    /// </summary>
+    public int SessionLifetimeMinutes { get; set; } = 480;
+
     public static WebDashboardOptions Load(IConfiguration configuration)
     {
         var options = new WebDashboardOptions();

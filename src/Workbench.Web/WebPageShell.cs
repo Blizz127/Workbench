@@ -1,0 +1,234 @@
+using System.Net;
+using System.Text;
+
+namespace Workbench.Web;
+
+/// <summary>
+/// Shared page furniture for both web pages: the HTML head, the phone-first
+/// dark stylesheet, and the client-side live-refresh script. The script polls
+/// the page's JSON endpoint every 10s (server-side TTL caches cap the actual
+/// subsystem refresh rates at 10/15/30s), pauses while the tab is hidden,
+/// never overlaps requests, updates the DOM in place (scroll position is
+/// preserved), and marks the page stale on errors without blanking data.
+/// </summary>
+internal static class WebPageShell
+{
+    public static void WriteHead(StringBuilder html, string title, string pageKind, string endpoint)
+    {
+        html.Append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
+            .Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n")
+            .Append("<meta name=\"color-scheme\" content=\"dark\">\n<title>")
+            .Append(Encode(title))
+            .Append("</title>\n<style>")
+            .Append(Css)
+            .Append("</style>\n</head>\n<body data-page=\"")
+            .Append(pageKind)
+            .Append("\" data-endpoint=\"")
+            .Append(endpoint)
+            .Append("\">\n");
+    }
+
+    public static void WriteScript(StringBuilder html) =>
+        html.Append("<script>").Append(ClientScript).Append("</script>\n</body>\n</html>");
+
+    public static string Encode(string? text) => WebUtility.HtmlEncode(text ?? string.Empty);
+
+    private const string Css = """
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; margin: 0; }
+        [hidden] { display: none !important; }
+        body { background: #0f1115; color: #e6e8ee; font-family: system-ui, -apple-system, sans-serif;
+               font-size: 16px; line-height: 1.45; padding: 12px; max-width: 640px; margin: 0 auto; }
+        h1 { font-size: 1.25rem; margin: 8px 0 2px; }
+        h2 { font-size: 1.0rem; color: #9aa3b2; margin-bottom: 8px; text-transform: uppercase;
+             letter-spacing: .05em; font-weight: 600; }
+        .muted { color: #9aa3b2; font-size: .85rem; }
+        .card { background: #1a1d24; border: 1px solid #2a2e38; border-radius: 12px;
+                padding: 14px; margin: 12px 0; }
+        a.project-card { display: block; text-decoration: none; color: inherit; min-height: 44px; }
+        a.project-card:active, a.project-card:hover { border-color: #4f8ff7; }
+        .view-link { display: inline-flex; align-items: center; min-height: 44px; color: #4f8ff7;
+                     font-weight: 600; font-size: .95rem; }
+        .back-link { display: inline-flex; align-items: center; min-height: 44px; color: #4f8ff7;
+                     text-decoration: none; font-weight: 600; }
+        .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .metric { background: #12141a; border-radius: 8px; padding: 10px 12px; }
+        .metric .value { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .bar { height: 4px; background: #2a2e38; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+        .bar > div { height: 100%; background: #4f8ff7; border-radius: 2px; }
+        .row { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+        .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .75rem;
+                 background: #2a2e38; color: #9aa3b2; white-space: nowrap; }
+        .badge.ok { background: #14361f; color: #5fd68a; }
+        .badge.warn { background: #3a2c12; color: #f0b45c; }
+        .badge.bad { background: #3d1a1a; color: #f47c7c; }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+        .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem;
+                color: #9aa3b2; overflow-wrap: anywhere; }
+        ul.lined { padding: 0; margin: 4px 0 0; }
+        ul.lined li { list-style: none; padding: 6px 0; border-bottom: 1px solid #22262f; }
+        ul.lined li:last-child { border-bottom: 0; }
+        """;
+
+    private const string ClientScript = """
+        (function () {
+          "use strict";
+          var endpoint = document.body.getAttribute("data-endpoint");
+          var page = document.body.getAttribute("data-page");
+          var timer = null, inflight = false, lastOk = new Date();
+
+          function $(id) { return document.getElementById(id); }
+          function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+          function badge(text, cls) { return el("span", "badge" + (cls ? " " + cls : ""), text); }
+          function row() { return el("div", "row"); }
+          function muted(text) { return el("span", "muted", text); }
+          function monoGrow(text) { return el("span", "mono grow", text); }
+          function setText(id, text) { var e = $(id); if (e) e.textContent = text; }
+          function show(id, visible) { var e = $(id); if (e) e.hidden = !visible; }
+          function clear(e) { while (e && e.firstChild) e.removeChild(e.firstChild); }
+          function setBar(id, pct) { var e = $(id); if (e) e.style.width = Math.max(0, Math.min(100, pct)) + "%"; }
+
+          function serviceRow(s) {
+            var cls = s.stateText === "running" || s.stateText === "paused" ? "ok"
+              : s.stateText === "completed" ? ""
+              : s.stateText === "failed" || s.stateText === "restarting" ? "bad" : "warn";
+            var r = row();
+            r.appendChild(monoGrow(s.name));
+            r.appendChild(badge(s.stateText || "unknown", cls));
+            if (s.healthText) r.appendChild(badge(s.healthText,
+              s.healthText === "healthy" ? "ok" : s.healthText === "unhealthy" ? "bad" : "warn"));
+            return r;
+          }
+
+          function renderSystem(s) {
+            setText("sys-cpu-v", s.cpuText); setBar("sys-cpu-b", s.cpuPercent);
+            setText("sys-ram-v", s.memoryText); setBar("sys-ram-b", s.memoryPercent);
+            setText("sys-disk-v", s.diskText); setBar("sys-disk-b", s.diskPercent);
+            setText("sys-uptime-v", s.uptimeText);
+          }
+
+          function renderTmux(t) {
+            var body = $("tmux-body"); if (!body) return;
+            clear(body);
+            if (!t.tmuxAvailable) { body.appendChild(muted(t.error || "tmux is not available.")); return; }
+            if (!t.serverRunning) { body.appendChild(muted(t.error || "No tmux server running — no sessions.")); return; }
+            if (!t.sessions.length) { body.appendChild(muted("tmux server running, no sessions.")); return; }
+            t.sessions.forEach(function (s) {
+              var r = row();
+              r.appendChild(monoGrow(s.name));
+              r.appendChild(badge(s.isAttached ? "attached" : "detached", s.isAttached ? "ok" : "warn"));
+              r.appendChild(muted(s.windowCount + (s.windowCount === 1 ? " window" : " windows")
+                + (s.activeWindowName ? " · " + s.activeWindowName : "")));
+              body.appendChild(r);
+            });
+          }
+
+          function renderProjects(projects) {
+            var body = $("projects-body"); if (!body) return;
+            clear(body);
+            if (!projects.length) { body.appendChild(el("div", "card muted", "No projects registered.")); return; }
+            projects.forEach(function (p) {
+              var card = el("a", "card project-card");
+              card.href = "/projects/" + p.id;
+              var head = row();
+              head.appendChild(el("strong", "grow", p.name));
+              head.appendChild(badge(p.status));
+              card.appendChild(head);
+              var git = row();
+              git.appendChild(muted("git"));
+              git.appendChild(monoGrow(p.gitText));
+              if (p.gitDirty) git.appendChild(badge("dirty", "warn"));
+              if (p.gitUnavailable) git.appendChild(badge("repo missing", "bad"));
+              card.appendChild(git);
+              if (p.dockerSummary) {
+                var d = row(); d.appendChild(muted("docker")); d.appendChild(monoGrow(p.dockerSummary)); card.appendChild(d);
+              }
+              if (p.tmuxText) {
+                var s = row(); s.appendChild(muted("tmux")); s.appendChild(monoGrow(p.tmuxText)); card.appendChild(s);
+              }
+              var view = row();
+              view.appendChild(el("span", "view-link", "View project →"));
+              card.appendChild(view);
+              body.appendChild(card);
+            });
+          }
+
+          function renderDetail(d) {
+            setText("ov-status", d.status);
+            setText("ov-path", d.repositoryPath || "no repository path");
+
+            show("git-error", !d.git.available);
+            if (!d.git.available) setText("git-error", d.git.error || "repository unavailable");
+            show("git-body", d.git.available);
+            if (d.git.available) {
+              setText("git-branch", d.git.branch || "?");
+              show("git-dirty", d.git.dirty);
+              var counts = [d.git.dirtyCount + " dirty file" + (d.git.dirtyCount === 1 ? "" : "s")];
+              if (d.git.aheadBy) counts.push("↑" + d.git.aheadBy);
+              if (d.git.behindBy) counts.push("↓" + d.git.behindBy);
+              setText("git-counts", counts.join(" · "));
+              setText("git-last", d.git.lastCommitText || "no commits");
+              var cl = $("git-commits"); clear(cl);
+              d.git.recentCommits.forEach(function (c) {
+                var li = el("li");
+                li.appendChild(el("span", "mono", c.shortSha + " " + c.subject + " "));
+                li.appendChild(muted(c.when));
+                cl.appendChild(li);
+              });
+            }
+
+            show("docker-none", !d.docker.hasComposeFile);
+            show("docker-body", d.docker.hasComposeFile);
+            if (d.docker.hasComposeFile) {
+              show("docker-error", !!d.docker.error);
+              if (d.docker.error) setText("docker-error", d.docker.error);
+              setText("docker-summary", d.docker.summary || "");
+              show("docker-services", d.docker.services.length > 0);
+              var ds = $("docker-services"); clear(ds);
+              d.docker.services.forEach(function (s) { ds.appendChild(serviceRow(s)); });
+            }
+
+            var sess = d.session;
+            var stateText = !sess.tmuxAvailable ? "tmux unavailable"
+              : !sess.serverRunning ? "no tmux server"
+              : sess.exists ? (sess.isAttached ? "attached" : "detached") : "no session";
+            setText("session-name", sess.sessionName);
+            setText("session-state", stateText +
+              (sess.exists && sess.activeWindowName ? " · " + sess.activeWindowName : ""));
+            show("session-windows", sess.exists);
+            if (sess.exists) setText("session-windows-v", sess.windowCount + (sess.windowCount === 1 ? " window" : " windows")
+              + (sess.activeWindowName ? " · " + sess.activeWindowName : ""));
+
+            show("activity-none", d.recentActivity.length === 0);
+            var al = $("activity-list"); clear(al);
+            d.recentActivity.forEach(function (a) {
+              var li = el("li");
+              li.appendChild(muted(a.when + " · " + a.category));
+              li.appendChild(document.createElement("br"));
+              li.appendChild(el("span", null, a.message));
+              if (a.detail) { li.appendChild(document.createElement("br")); li.appendChild(el("span", "muted mono", a.detail)); }
+              al.appendChild(li);
+            });
+          }
+
+          function render(data) {
+            if (page === "dashboard") { renderSystem(data.system); renderTmux(data.tmux); renderProjects(data.projects); }
+            else if (page === "detail") { renderDetail(data); }
+          }
+
+          function schedule() { if (timer) clearTimeout(timer); timer = setTimeout(poll, 10000); }
+          function poll() {
+            if (document.hidden || inflight) { schedule(); return; }
+            inflight = true;
+            fetch(endpoint, { headers: { "Accept": "application/json" }, credentials: "same-origin" })
+              .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+              .then(function (data) { render(data); lastOk = new Date(); show("stale", false); })
+              .catch(function () { show("stale", true); })
+              .then(function () { setText("last-refresh", lastOk.toLocaleTimeString()); inflight = false; schedule(); });
+          }
+          document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
+          schedule();
+        })();
+        """;
+}

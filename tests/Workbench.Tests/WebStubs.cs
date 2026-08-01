@@ -41,23 +41,41 @@ internal static class WebStubs
         public long Add(TimelineEntry entry) => throw new NotSupportedException();
     }
 
-    public sealed class Git(RepositorySnapshot snapshot) : IGitService
+    public sealed class Git(Func<string?, RepositorySnapshot> snapshotFor) : IGitService
     {
-        public RepositorySnapshot GetSnapshot(string? repositoryPath, int recentCommitCount = 10) => snapshot;
-        public string? GetHeadSha(string? repositoryPath) => snapshot.LastCommit?.Sha;
+        public Git(RepositorySnapshot snapshot) : this(_ => snapshot)
+        {
+        }
+
+        public int CallCount { get; private set; }
+
+        public RepositorySnapshot GetSnapshot(string? repositoryPath, int recentCommitCount = 10)
+        {
+            CallCount++;
+            return snapshotFor(repositoryPath);
+        }
+
+        public string? GetHeadSha(string? repositoryPath) => snapshotFor(repositoryPath).LastCommit?.Sha;
         public string? GetWorkingTreeDiff(string? repositoryPath) => null;
     }
 
-    public sealed class Docker(string? composeFile, ComposeProjectStatus? status) : IDockerComposeService
+    public sealed class Docker(
+        Func<Project, string?> resolve,
+        Func<Project, ComposeProjectStatus?> inspect) : IDockerComposeService
     {
+        public Docker(string? composeFile, ComposeProjectStatus? status)
+            : this(_ => composeFile, _ => status)
+        {
+        }
+
         public int InspectCount { get; private set; }
 
-        public string? ResolveComposeFile(Project project) => composeFile;
+        public string? ResolveComposeFile(Project project) => resolve(project);
 
         public Task<ComposeProjectStatus?> InspectAsync(Project project, CancellationToken cancellationToken = default)
         {
             InspectCount++;
-            return Task.FromResult(status);
+            return Task.FromResult(inspect(project));
         }
 
         public Task<ComposeOperationResult> ExecuteAsync(

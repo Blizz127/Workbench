@@ -123,6 +123,11 @@ On the VPS:
 ```
 
 prints `http://100.104.53.1:8471/?token=<token>`. Open it on the phone while
-Tailscale is connected, then add it to the home screen. The URL carries the
-full token — treat it like a password (it will be stored in the phone's
-browser history and home-screen shortcut).
+Tailscale is connected, then add it to the home screen. On first load the
+token is exchanged for an HttpOnly session cookie and the address bar is
+redirected to a clean URL — the bookmark still holds the token (that is what
+re-authenticates you after the session expires or the service restarts), so
+treat it like a password and keep it out of screenshots and shared notes. If
+it ever leaks, rotate it by editing `WORKBENCH_WEB_AuthToken` in
+`~/.config/workbench-web/environment` and running
+`systemctl --user restart workbench-web`.

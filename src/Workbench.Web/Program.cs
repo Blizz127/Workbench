@@ -14,6 +14,7 @@ var bind = WebDashboardOptions.Load(builder.Configuration);
 builder.WebHost.UseUrls($"http://{bind.BindAddress}:{bind.Port}");
 
 builder.Services.AddSingleton(_ => WebDashboardOptions.Load(builder.Configuration));
+builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddSingleton<DashboardSnapshotService>();
 
 // Shared typed services — the same implementations the desktop app uses.
@@ -45,15 +46,27 @@ if (!options.BindAddressIsPrivate)
 
 app.UseMiddleware<TokenAuthMiddleware>();
 
-// Read-only by construction: these are the only two routes, both GET.
-// Mutation verbs get 405; there is nothing to POST to.
+// Read-only by construction: four routes, all GET. Mutation verbs get 405;
+// there is nothing to POST to. Project routes take the database id via a long
+// route constraint — never a filesystem path.
 app.MapGet("/", async (DashboardSnapshotService snapshots, CancellationToken cancellationToken) =>
     Results.Content(
         DashboardPageRenderer.Render(await snapshots.BuildAsync(cancellationToken)),
         "text/html; charset=utf-8"));
 
+app.MapGet("/projects/{id:long}", async (long id, DashboardSnapshotService snapshots, CancellationToken cancellationToken) =>
+    await snapshots.BuildProjectAsync(id, cancellationToken) is { } detail
+        ? Results.Content(ProjectDetailPageRenderer.Render(detail), "text/html; charset=utf-8")
+        : Results.Content(
+            ProjectDetailPageRenderer.RenderNotFound(id), "text/html; charset=utf-8", statusCode: 404));
+
 app.MapGet("/api/snapshot", async (DashboardSnapshotService snapshots, CancellationToken cancellationToken) =>
     Results.Json(await snapshots.BuildAsync(cancellationToken)));
+
+app.MapGet("/api/projects/{id:long}", async (long id, DashboardSnapshotService snapshots, CancellationToken cancellationToken) =>
+    await snapshots.BuildProjectAsync(id, cancellationToken) is { } detail
+        ? Results.Json(detail)
+        : Results.NotFound());
 
 app.Run();
 

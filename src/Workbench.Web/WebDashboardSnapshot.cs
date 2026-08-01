@@ -1,10 +1,10 @@
 namespace Workbench.Web;
 
 /// <summary>
-/// Everything the mobile dashboard renders, assembled by
+/// Everything the main dashboard renders, assembled by
 /// <see cref="DashboardSnapshotService"/> from the shared typed services.
-/// Display strings are precomputed here — the renderer and JSON endpoint stay
-/// free of parsing or formatting logic.
+/// Display strings are precomputed here — the renderer, JSON endpoint, and
+/// client-side refresher stay free of parsing or formatting logic.
 /// </summary>
 public sealed record WebDashboardSnapshot(
     DateTimeOffset GeneratedAt,
@@ -33,17 +33,25 @@ public sealed record WebTmuxSession(
     int WindowCount,
     string? ActiveWindowName);
 
-/// <summary>One project card: git, docker, and recent journal — all read-only.</summary>
+/// <summary>
+/// One compact project card on the main dashboard — summaries only; the full
+/// service/commit/activity lists live on the detail page it links to.
+/// </summary>
 public sealed record WebProjectCard(
+    long Id,
     string Name,
     string Status,
     string GitText,
     bool GitDirty,
-    string? GitError,
+
+    /// <summary>The repository path does not exist on this machine — the card
+    /// is shown as unavailable, never silently dropped or deleted.</summary>
+    bool GitUnavailable,
     string? DockerSummary,
-    IReadOnlyList<WebComposeService> Services,
-    string? DockerError,
-    IReadOnlyList<WebActivityEntry> RecentActivity);
+
+    /// <summary>The project's tmux session summary ("attached", "detached",
+    /// "no session"), or null when tmux can't say.</summary>
+    string? TmuxText);
 
 public sealed record WebComposeService(
     string Name,
@@ -52,7 +60,7 @@ public sealed record WebComposeService(
 
 /// <summary>One recent journal line. Message and Detail are secret-redacted.</summary>
 public sealed record WebActivityEntry(
-    DateTimeOffset Timestamp,
+    string When,
     string Category,
     string Message,
     string? Detail);

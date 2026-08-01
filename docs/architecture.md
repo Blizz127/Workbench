@@ -252,19 +252,37 @@ A small ASP.NET Core host serves the Development Lab to a phone over
 Tailscale. It reuses the same typed Core/Data/Git services as the desktop
 app — system health, project repository, git snapshots, compose inspection,
 tmux inspection, timeline journal — and adds no process execution or command
-parsing of its own: `DashboardSnapshotService` composes the typed
-`WebDashboardSnapshot`, `DashboardPageRenderer` turns it into a single
-self-contained HTML page (phone-first, dark, no JavaScript, services behind
-`<details>` tap targets).
+parsing of its own: `DashboardSnapshotService` composes typed snapshots,
+`DashboardPageRenderer` / `ProjectDetailPageRenderer` turn them into
+self-contained HTML pages (phone-first, dark, branded "Development Lab").
 
-- **Read-only by construction**: exactly two routes, both GET (`/` HTML,
-  `/api/snapshot` JSON). Any other verb gets 405; there is nothing to POST
-  to. The web project never references `ExecuteAsync`-style APIs.
-- **Authentication**: every request carries a shared-secret token
-  (`X-Workbench-Token` header or `?token=` query for phone bookmarks),
-  compared in constant time by `TokenAuthMiddleware`. An empty configured
-  token means "not set up" and every route answers 503 — a fresh install can
-  never serve the lab unauthenticated.
+- **Read-only by construction**: four routes, all GET — `/` (dashboard),
+  `/projects/{id:long}` (project detail), and their two JSON twins
+  (`/api/snapshot`, `/api/projects/{id}`). Any other verb gets 405. Project
+  routes take the database id through a long constraint — never a filesystem
+  path — and unknown ids get a styled 404 page.
+- **Pages**: the dashboard shows system metrics, tmux sessions, and compact
+  project cards that are themselves tap targets ("View project"). The detail
+  page has Overview / Git / Docker / Sessions / Recent Activity sections with
+  explicit service rows (state AND health as text badges; a one-shot service
+  that exited 0 reads "completed", never failed). Projects whose repository
+  path no longer exists are marked "repo missing", never silently dropped or
+  deleted (cleanup is a deliberate action in the desktop app).
+- **Live refresh**: each page's embedded script polls its JSON endpoint every
+  10s and updates the DOM in place — no full reloads, scroll position
+  survives. Polling pauses while the tab is hidden, never overlaps requests,
+  shows the last successful refresh time, and marks data "stale" on errors
+  without blanking it. Server-side TTL caches cap the actual subsystem
+  refresh rates regardless of how many browsers poll: health 10s, Docker and
+  tmux 15s, git 30s — so process-spawning and repository-walking load stays
+  bounded.
+- **Authentication**: `X-Workbench-Token` header (API clients, tests) or the
+  `?token=` phone bookmark. A valid query token on a GET page load is
+  exchanged once for a random in-memory session id (`SessionStore`) in an
+  HttpOnly, SameSite=Strict cookie (Secure only under HTTPS, configurable
+  lifetime via `SessionLifetimeMinutes`), then redirected to a clean URL — the
+  token does not linger in browser history or screenshots. An empty configured
+  token answers 503 on every route. All comparisons are constant-time.
 - **Configuration** comes from the `Web` section of `appsettings.json`
   (committed, safe defaults, no secrets) overridden by
   `WORKBENCH_WEB_BindAddress` / `WORKBENCH_WEB_Port` /
@@ -277,7 +295,9 @@ self-contained HTML page (phone-first, dark, no JavaScript, services behind
   redacted. No environment values are ever rendered.
 - The database is opened lazily (WAL mode already allows the desktop app and
   the web host to read concurrently), and the web host never runs discovery
-  scans or migrations beyond the existing idempotent ones.
+  scans or migrations beyond the existing idempotent ones. Deployment as a
+  systemd user service is documented in
+  `docs/mobile-dashboard-deployment.md`.
 
 ### Handoff (`Workbench.Core.HandoffService`)
 
