@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Read-only mobile web dashboard. Shares the typed Core/Data/Git services
+       with the desktop app; contains no process execution of its own. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Workbench.Core\Workbench.Core.csproj" />
+    <ProjectReference Include="..\Workbench.Data\Workbench.Data.csproj" />
+    <ProjectReference Include="..\Workbench.Git\Workbench.Git.csproj" />
+  </ItemGroup>
+</Project>

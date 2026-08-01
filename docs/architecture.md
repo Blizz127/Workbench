@@ -246,6 +246,39 @@ then the rest), honors a `$TERMINAL` override, and is also used by the older
 "open a shell here" / "open git log" actions so no view model shells out to a
 terminal directly.
 
+### Mobile web dashboard (`Workbench.Web`)
+
+A small ASP.NET Core host serves the Development Lab to a phone over
+Tailscale. It reuses the same typed Core/Data/Git services as the desktop
+app — system health, project repository, git snapshots, compose inspection,
+tmux inspection, timeline journal — and adds no process execution or command
+parsing of its own: `DashboardSnapshotService` composes the typed
+`WebDashboardSnapshot`, `DashboardPageRenderer` turns it into a single
+self-contained HTML page (phone-first, dark, no JavaScript, services behind
+`<details>` tap targets).
+
+- **Read-only by construction**: exactly two routes, both GET (`/` HTML,
+  `/api/snapshot` JSON). Any other verb gets 405; there is nothing to POST
+  to. The web project never references `ExecuteAsync`-style APIs.
+- **Authentication**: every request carries a shared-secret token
+  (`X-Workbench-Token` header or `?token=` query for phone bookmarks),
+  compared in constant time by `TokenAuthMiddleware`. An empty configured
+  token means "not set up" and every route answers 503 — a fresh install can
+  never serve the lab unauthenticated.
+- **Configuration** comes from the `Web` section of `appsettings.json`
+  (committed, safe defaults, no secrets) overridden by
+  `WORKBENCH_WEB_BindAddress` / `WORKBENCH_WEB_Port` /
+  `WORKBENCH_WEB_AuthToken` / `WORKBENCH_WEB_DatabasePath` environment
+  variables. The default bind is `127.0.0.1:8471`; binding a public address
+  logs a loud warning (loopback, RFC 1918, link-local, and the Tailscale
+  CGNAT range 100.64.0.0/10 count as private). No firewall port is opened.
+- **Redaction**: journal messages/details pass through `SecretRedactor`
+  before leaving the snapshot service; compose errors arrive already
+  redacted. No environment values are ever rendered.
+- The database is opened lazily (WAL mode already allows the desktop app and
+  the web host to read concurrently), and the web host never runs discovery
+  scans or migrations beyond the existing idempotent ones.
+
 ### Handoff (`Workbench.Core.HandoffService`)
 
 A pure function `HandoffContext → markdown`. The context (project, frontiers,
