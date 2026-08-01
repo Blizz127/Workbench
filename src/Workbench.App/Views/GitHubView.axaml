@@ -34,6 +34,8 @@
                     <StackPanel Spacing="{StaticResource Space2}">
                         <TextBlock Text="GitHub" Classes="h2" />
                         <TextBlock Text="{Binding SyncStateText}" Classes="muted" />
+                        <TextBlock Text="{Binding SyncTimesText}" Classes="muted"
+                                   IsVisible="{Binding SyncTimesText.Length}" />
 
                         <WrapPanel>
                             <Button Content="⇅ Fetch/Update from GitHub" Classes="command.secondary"
@@ -47,9 +49,36 @@
                             <Button Content="■ Cancel" Classes="command danger"
                                     Command="{Binding CancelRunCommand}" IsVisible="{Binding IsBusy}" />
                         </WrapPanel>
+                        <WrapPanel>
+                            <Button Content="View Diff" Classes="command.ghost"
+                                    Command="{Binding ViewDiffCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="HEAD vs index + working tree (read-only)" />
+                            <Button Content="Commit History" Classes="command.ghost"
+                                    Command="{Binding ViewHistoryCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="Last 50 commits (read-only)" />
+                            <Button Content="Open Git Log" Classes="command.ghost"
+                                    Command="{Binding OpenGitLogCommand}" Margin="{StaticResource Space3Right}"
+                                    ToolTip.Tip="Open a terminal running git log" />
+                        </WrapPanel>
                         <TextBlock Text="{Binding RunStatus}" Classes="muted" IsVisible="{Binding RunStatus.Length}" />
                         <TextBlock Text="{Binding LastResultMessage}" IsVisible="{Binding LastResultMessage.Length}"
                                    Foreground="{Binding !LastResultWasError, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+
+                        <!-- Console output (diff / commit history) -->
+                        <Border Classes="output-panel" IsVisible="{Binding IsOutputOpen}"
+                                Margin="{StaticResource Space1Top}">
+                            <DockPanel>
+                                <DockPanel DockPanel.Dock="Top">
+                                    <Button DockPanel.Dock="Right" Content="Close" Classes="command.ghost"
+                                            Command="{Binding CloseOutputCommand}" />
+                                    <TextBlock Text="{Binding OutputTitle}" Classes="section-header"
+                                               VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBox Text="{Binding OutputText}" IsReadOnly="True"
+                                         AcceptsReturn="True" TextWrapping="NoWrap" MaxHeight="420"
+                                         Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
+                            </DockPanel>
+                        </Border>
 
                         <!-- Pull preview/confirm: nothing runs until Confirm -->
                         <Border Classes="warning-banner" IsVisible="{Binding IsPullPreviewOpen}"

@@ -186,6 +186,26 @@ public sealed class RepositoryTests : IClassFixture<DatabaseFixture>
     }
 
     [Fact]
+    public void Timeline_GetLatestByCategory_filters_and_orders_newest_first()
+    {
+        var timeline = new TimelineRepository(_fixture.Database);
+        var id = AddProject();
+        var now = DateTimeOffset.Now;
+
+        timeline.Add(new TimelineEntry { ProjectId = id, Category = TimelineCategory.GitSync, Message = "older", Timestamp = now.AddHours(-2) });
+        timeline.Add(new TimelineEntry { ProjectId = id, Category = TimelineCategory.Run, Message = "other category", Timestamp = now.AddHours(-1) });
+        timeline.Add(new TimelineEntry { ProjectId = id, Category = TimelineCategory.GitSync, Message = "newer", Timestamp = now });
+
+        var entries = timeline.GetLatestByCategory(id, TimelineCategory.GitSync);
+        Assert.Equal(2, entries.Count);
+        Assert.Equal("newer", entries[0].Message);
+        Assert.Equal("older", entries[1].Message);
+        Assert.All(entries, e => Assert.Equal(TimelineCategory.GitSync, e.Category));
+
+        Assert.Single(timeline.GetLatestByCategory(id, TimelineCategory.GitSync, 1));
+    }
+
+    [Fact]
     public void Build_history_is_append_only_and_latest_is_by_time()
     {
         var builds = new BuildHistoryRepository(_fixture.Database);

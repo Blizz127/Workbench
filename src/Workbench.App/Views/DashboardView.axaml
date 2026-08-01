@@ -173,6 +173,13 @@
                                                TextTrimming="CharacterEllipsis" />
                                 </Grid>
 
+                                <!-- Git sync times (comfortable only, once enriched) -->
+                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowGitSync}">
+                                    <TextBlock Grid.Column="0" Text="sync" Classes="muted" />
+                                    <TextBlock Grid.Column="2" Text="{Binding GitSyncText}" Classes="mono muted"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Grid>
+
                                 <!-- Docker (comfortable only, once probed) -->
                                 <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowDocker}">
                                     <TextBlock Grid.Column="0" Text="docker" Classes="muted" />

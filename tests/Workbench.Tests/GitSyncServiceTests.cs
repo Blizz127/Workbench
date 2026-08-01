@@ -289,6 +289,58 @@ public sealed class GitSyncServiceTests : IClassFixture<DatabaseFixture>, IDispo
         Assert.Contains("0/1 -> 0/0", entry.Detail); // ahead/behind before -> after
     }
 
+    [Fact]
+    public async Task GetSyncTimes_reflects_each_successful_operation_separately()
+    {
+        var (originPath, clonePath) = CreateOriginAndClone();
+        var project = CreateProject(clonePath);
+        var service = CreateService();
+
+        // Nothing journaled yet.
+        Assert.Equal(new GitSyncTimes(null, null, null), service.GetSyncTimes(project));
+
+        await service.FetchAsync(project);
+        var afterFetch = service.GetSyncTimes(project);
+        Assert.NotNull(afterFetch.LastFetch);
+        Assert.Null(afterFetch.LastPull);
+        Assert.Null(afterFetch.LastPush);
+
+        CommitFile(originPath, "new.txt", "new\n", "origin-only commit");
+        await service.FetchAsync(project);
+        await service.PullFastForwardAsync(project);
+        var afterPull = service.GetSyncTimes(project);
+        Assert.NotNull(afterPull.LastPull);
+        Assert.True(afterPull.LastPull >= afterPull.LastFetch);
+        Assert.Null(afterPull.LastPush);
+
+        CommitFile(clonePath, "local.txt", "local\n", "local commit to push");
+        await service.PushAsync(project);
+        var afterPush = service.GetSyncTimes(project);
+        Assert.NotNull(afterPush.LastPush);
+        Assert.True(afterPush.LastPush >= afterPush.LastPull);
+    }
+
+    [Fact]
+    public async Task Blocked_or_failed_attempts_do_not_count_as_last_sync_times()
+    {
+        var (originPath, clonePath) = CreateOriginAndClone();
+        var project = CreateProject(clonePath);
+        var service = CreateService();
+
+        CommitFile(originPath, "new.txt", "new\n", "origin-only commit");
+        await service.FetchAsync(project);
+
+        // Dirty tree -> the pull is blocked, no git command runs.
+        File.WriteAllText(Path.Combine(clonePath, "shared.txt"), "dirty\n");
+        var blocked = await service.PullFastForwardAsync(project);
+        Assert.Equal(GitSyncStatus.Blocked, blocked.Status);
+
+        var times = service.GetSyncTimes(project);
+        Assert.NotNull(times.LastFetch);
+        Assert.Null(times.LastPull);
+        Assert.Null(times.LastPush);
+    }
+
     /// <summary>
     /// Locks in the safety invariant as an executable check, not just a code
     /// reading: whatever exact command string GitSyncService hands to the

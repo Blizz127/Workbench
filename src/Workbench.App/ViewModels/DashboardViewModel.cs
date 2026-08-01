@@ -158,10 +158,12 @@ public sealed partial class DashboardViewModel : ViewModelBase
                 var milestones = _services.Milestones.GetForProject(card.Project.Id);
                 var openBlockers = _services.Blockers.GetOpen(card.Project.Id).Count;
                 var lastRun = _services.Builds.GetLatest(card.Project.Id, ExecutionKind.Run);
+                var syncTimes = _services.GitSync.GetSyncTimes(card.Project);
                 var (dockerText, dockerOutcome) = await ProbeDocker(card.Project);
                 Dispatcher.UIThread.Post(() =>
                 {
                     card.ApplyGitSnapshot(snapshot);
+                    card.ApplyGitSyncTimes(syncTimes);
                     card.SharedBadge = badge;
                     card.DockerText = dockerText;
                     card.DockerOutcome = dockerOutcome;

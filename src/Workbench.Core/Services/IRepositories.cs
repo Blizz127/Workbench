@@ -49,6 +49,10 @@ public interface ITimelineRepository
 {
     /// <summary>Newest first.</summary>
     IReadOnlyList<TimelineEntry> GetForProject(long projectId, int limit = 200);
+
+    /// <summary>Newest first, one category only.</summary>
+    IReadOnlyList<TimelineEntry> GetLatestByCategory(long projectId, TimelineCategory category, int limit = 50);
+
     long Add(TimelineEntry entry);
 }
 

@@ -18,6 +18,8 @@ public sealed class ExecutionServiceTests : IClassFixture<DatabaseFixture>
             RepositorySnapshot.Invalid("test");
 
         public string? GetHeadSha(string? repositoryPath) => null;
+
+        public string? GetWorkingTreeDiff(string? repositoryPath) => null;
     }
 
     private (ExecutionService Service, long ProjectId, BuildHistoryRepository Builds,

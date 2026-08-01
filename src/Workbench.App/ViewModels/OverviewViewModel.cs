@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -231,6 +232,10 @@ public sealed partial class BlockerItemViewModel(Blocker blocker, Action<Blocker
 /// Project action last read — <see cref="UpdateFromSnapshot"/> is that tab's
 /// single source of truth for git state, so this view model never reads git
 /// state on its own.
+///
+/// Also the project's git console: last-sync times (derived from the timeline
+/// journal), a working-tree diff viewer, a commit-history viewer, and Open
+/// Git Log in a terminal. The viewers are read-only and share one output panel.
 /// </summary>
 public sealed partial class GitSyncViewModel : ViewModelBase
 {
@@ -260,6 +265,13 @@ public sealed partial class GitSyncViewModel : ViewModelBase
     [ObservableProperty] private string _lastResultMessage = string.Empty;
     [ObservableProperty] private bool _lastResultWasError;
 
+    [ObservableProperty] private string _syncTimesText = string.Empty;
+
+    // Console output panel (diff / commit history viewers).
+    [ObservableProperty] private bool _isOutputOpen;
+    [ObservableProperty] private string _outputTitle = string.Empty;
+    [ObservableProperty] private string _outputText = string.Empty;
+
     public GitSyncViewModel(AppServices services, Project project, Action onSyncCompleted)
     {
         _services = services;
@@ -271,6 +283,7 @@ public sealed partial class GitSyncViewModel : ViewModelBase
     public void UpdateFromSnapshot(RepositorySnapshot snapshot)
     {
         _lastSnapshot = snapshot;
+        SyncTimesText = FormatSyncTimes(_services.GitSync.GetSyncTimes(_project));
 
         if (!snapshot.IsValid)
         {
@@ -345,6 +358,136 @@ public sealed partial class GitSyncViewModel : ViewModelBase
         RunStatus = "Cancelling…";
         _runCts?.Cancel();
     }
+
+    /// <summary>Shows the working-tree diff (HEAD vs index + working tree) in the output panel. Read-only.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunSync))]
+    private async Task ViewDiff() => await ShowInOutput(() =>
+    {
+        var diff = _services.Git.GetWorkingTreeDiff(_project.RepositoryPath);
+        return diff switch
+        {
+            null => ("Working tree diff", "Repository unavailable."),
+            { Length: 0 } => ("Working tree diff", "Working tree clean — no tracked changes."),
+            _ => ("Working tree diff (HEAD vs index + working tree)", diff),
+        };
+    }, "Reading diff…");
+
+    /// <summary>Shows the last 50 commits as log lines in the output panel. Read-only.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunSync))]
+    private async Task ViewHistory() => await ShowInOutput(() =>
+    {
+        var snapshot = _services.Git.GetSnapshot(_project.RepositoryPath, recentCommitCount: 50);
+        if (!snapshot.IsValid)
+            return ("Commit history", $"Repository unavailable: {snapshot.Error}");
+
+        var lines = snapshot.RecentCommits.Select(c =>
+            $"{c.ShortSha}  {c.When.LocalDateTime:yyyy-MM-dd HH:mm}  {c.Author}  {c.MessageSummary}");
+        return ("Commit history (last 50)", string.Join('\n', lines));
+    }, "Reading history…");
+
+    /// <summary>Opens a terminal running <c>git log</c> at the repository root.</summary>
+    [RelayCommand]
+    private void OpenGitLog()
+    {
+        if (_project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path))
+            return;
+
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/k git log",
+                    WorkingDirectory = path,
+                    UseShellExecute = true,
+                });
+                return;
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                // Terminal.app takes no command here; open it at the repo instead.
+                Process.Start(new ProcessStartInfo { FileName = "open", ArgumentList = { "-a", "Terminal", path } });
+                return;
+            }
+
+            (string Name, string Args)[] candidates =
+            [
+                (Environment.GetEnvironmentVariable("TERMINAL") ?? string.Empty, "-e git log"),
+                ("x-terminal-emulator", "-e git log"),
+                ("ptyxis", "-- git log"),
+                ("gnome-terminal", "-- git log"),
+                ("konsole", "-e git log"),
+                ("xfce4-terminal", "-e git log"),
+                ("kitty", "git log"),
+                ("alacritty", "-e git log"),
+                ("foot", "git log"),
+            ];
+            foreach (var (terminal, args) in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(terminal))
+                    continue;
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = terminal, Arguments = args, WorkingDirectory = path });
+                    return;
+                }
+                catch (Exception)
+                {
+                    // Not installed; try the next candidate.
+                }
+            }
+
+            RunStatus = "No terminal emulator found (set the TERMINAL environment variable).";
+        }
+        catch (Exception)
+        {
+            // The OS refused to open a terminal — nothing sensible to surface here.
+        }
+    }
+
+    [RelayCommand]
+    private void CloseOutput() => IsOutputOpen = false;
+
+    /// <summary>Runs a read-only console producer off the UI thread and shows its result in the output panel.</summary>
+    private async Task ShowInOutput(Func<(string Title, string Text)> produce, string status)
+    {
+        IsBusy = true;
+        RunStatus = status;
+        try
+        {
+            var (title, text) = await Task.Run(produce);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                OutputTitle = title;
+                OutputText = text;
+                IsOutputOpen = true;
+            });
+        }
+        finally
+        {
+            try
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    IsBusy = false;
+                    RunStatus = string.Empty;
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // Dispatcher shut down while finishing; app is exiting.
+            }
+        }
+    }
+
+    private static string FormatSyncTimes(GitSyncTimes times) =>
+        $"last fetch {FormatTime(times.LastFetch)} · last pull {FormatTime(times.LastPull)} · last push {FormatTime(times.LastPush)}";
+
+    private static string FormatTime(DateTimeOffset? time) =>
+        time?.LocalDateTime.ToString("MM-dd HH:mm") ?? "—";
 
     private async Task Run(Func<CancellationToken, Task<GitSyncResult>> action, string status)
     {

@@ -37,3 +37,13 @@ public sealed record GitSyncResult(
     int? BehindByAfter,
     DateTimeOffset StartedAt,
     TimeSpan Duration);
+
+/// <summary>
+/// When each sync operation last succeeded for a project, derived from the
+/// append-only timeline journal (<see cref="TimelineCategory.GitSync"/>).
+/// Null means "never succeeded" (or not within the journaled window).
+/// </summary>
+public sealed record GitSyncTimes(
+    DateTimeOffset? LastFetch,
+    DateTimeOffset? LastPull,
+    DateTimeOffset? LastPush);

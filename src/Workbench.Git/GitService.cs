@@ -89,6 +89,31 @@ public sealed class GitService : IGitService
         }
     }
 
+    public string? GetWorkingTreeDiff(string? repositoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryPath) || !Directory.Exists(repositoryPath))
+            return null;
+
+        try
+        {
+            var discovered = Repository.Discover(repositoryPath);
+            if (discovered is null)
+                return null;
+
+            using var repo = new Repository(discovered);
+            if (repo.Head.Tip is not { } tip)
+                return null; // unborn HEAD — nothing to diff against
+
+            var patch = repo.Diff.Compare<Patch>(
+                tip.Tree, DiffTargets.Index | DiffTargets.WorkingDirectory);
+            return patch.Content;
+        }
+        catch (Exception ex) when (ex is LibGit2SharpException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     private static CommitInfo ToCommitInfo(Commit commit) => new(
         Sha: commit.Sha,
         ShortSha: commit.Sha[..7],

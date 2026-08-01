@@ -110,6 +110,23 @@ stack — so whatever credential helper, SSH agent, or cached token the user
 already has configured is reused as-is, instead of Workbench reimplementing
 git authentication.
 
+The GitHub section also serves as the read-only **git console**:
+
+- `GitSyncService.GetSyncTimes(project)` derives last-successful
+  fetch/pull/push times from the append-only timeline journal (newest
+  `GitSync` entry whose message reports the command succeeded, via
+  `ITimelineRepository.GetLatestByCategory`); blocked/failed attempts never
+  count. The section shows them under the sync buttons, and dashboard cards
+  render a `sync` row (`pull … · push …`, comfortable density only).
+- **View Diff** shows `IGitService.GetWorkingTreeDiff` (a LibGit2Sharp patch
+  of HEAD vs index + working directory) in an output panel; **Commit History**
+  formats the last 50 commits as log lines into the same panel; **Open Git
+  Log** spawns a terminal running `git log`. The viewers are read-only and
+  share the panel; diffs are not secret-redacted (it's the user's own source,
+  and redaction would corrupt the patch).
+- Dashboard cards also extend the `git` row with a dirty-file count
+  (`branch* ↑2 ↓1 · 3 dirty`).
+
 **Freshness note:** the safety checks read `IGitService.GetSnapshot`, which
 reflects local `refs/remotes/origin/*` state — only updated by an actual
 fetch. Pull's ahead/behind read is therefore only as current as the last

@@ -35,6 +35,12 @@ public interface IGitSyncService
     /// what didn't go along for the ride.
     /// </summary>
     Task<GitSyncResult> PushAsync(Project project, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// When fetch/pull/push last succeeded, read back from the timeline
+    /// journal every attempt is recorded in. Read-only; never runs git.
+    /// </summary>
+    GitSyncTimes GetSyncTimes(Project project);
 }
 
 public sealed class GitSyncService(IGitService git, ITimelineRepository timeline, IProcessRunner runner)
@@ -124,6 +130,22 @@ public sealed class GitSyncService(IGitService git, ITimelineRepository timeline
     }
 
     private RepositorySnapshot Snapshot(Project project) => git.GetSnapshot(project.RepositoryPath, recentCommitCount: 0);
+
+    public GitSyncTimes GetSyncTimes(Project project)
+    {
+        var entries = timeline.GetLatestByCategory(project.Id, TimelineCategory.GitSync);
+        return new GitSyncTimes(
+            LastFetch: LastSucceeded(entries, "git fetch"),
+            LastPull: LastSucceeded(entries, "git pull"),
+            LastPush: LastSucceeded(entries, "git push"));
+    }
+
+    /// <summary>Newest successful attempt of one command, or null. Blocked/failed attempts don't count.</summary>
+    private static DateTimeOffset? LastSucceeded(IReadOnlyList<TimelineEntry> entries, string commandPrefix) =>
+        entries.FirstOrDefault(e =>
+            e.Message.StartsWith(commandPrefix, StringComparison.Ordinal) &&
+            e.Message.Contains(" succeeded", StringComparison.Ordinal))
+            ?.Timestamp;
 
     private static GitSyncResult Blocked(string command, RepositorySnapshot state, string reason) => new(
         command, GitSyncStatus.Blocked, reason, Warning: null, ErrorMessage: null, Output: string.Empty,

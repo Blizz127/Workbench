@@ -74,6 +74,10 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
     [ObservableProperty]
     private string _gitText = "…";
 
+    /// <summary>Last successful pull/push times (from the timeline journal); empty until enriched.</summary>
+    [ObservableProperty]
+    private string _gitSyncText = string.Empty;
+
     /// <summary>One-line compose state (e.g. "5/5 containers up", "stopped"); empty until probed.</summary>
     [ObservableProperty]
     private string _dockerText = string.Empty;
@@ -126,6 +130,9 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
 
     /// <summary>Docker status row: comfortable density only, and only once a probe produced text.</summary>
     public bool ShowDocker => DockerText.Length > 0 && !IsCompact;
+
+    /// <summary>Git sync-times row: comfortable density only, for valid repos once enriched.</summary>
+    public bool ShowGitSync => HasGit && GitSyncText.Length > 0 && !IsCompact;
 
     public bool HasSharedSync =>
         Project.SharedLastExportedAt is not null || Project.SharedLastImportedAt is not null;
@@ -203,8 +210,17 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
             gitText += $" ↑{ahead}";
         if (snapshot.BehindBy is int behind and > 0)
             gitText += $" ↓{behind}";
+        if (snapshot.IsDirty)
+            gitText += $" · {snapshot.ModifiedFiles.Count} dirty";
         GitText = gitText;
     }
+
+    /// <summary>Applied on the UI thread from the background enrichment pass.</summary>
+    public void ApplyGitSyncTimes(GitSyncTimes times) =>
+        GitSyncText = $"pull {FormatTime(times.LastPull)} · push {FormatTime(times.LastPush)}";
+
+    private static string FormatTime(DateTimeOffset? time) =>
+        time?.LocalDateTime.ToString("MM-dd HH:mm") ?? "—";
 
     [RelayCommand]
     private void Open() => _openProject(Project.Id);
@@ -226,8 +242,11 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(ShowSharedSync));
         OnPropertyChanged(nameof(ShowDocker));
+        OnPropertyChanged(nameof(ShowGitSync));
     }
 
+    partial void OnHasGitChanged(bool value) => OnPropertyChanged(nameof(ShowGitSync));
+    partial void OnGitSyncTextChanged(string value) => OnPropertyChanged(nameof(ShowGitSync));
     partial void OnDockerTextChanged(string value) => OnPropertyChanged(nameof(ShowDocker));
 
     partial void OnHasRunChanged(bool value) => OnPropertyChanged(nameof(RunOutcome));
