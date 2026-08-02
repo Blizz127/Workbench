@@ -131,6 +131,62 @@ public sealed class MobileActionServiceTests
         Assert.Empty(harness.Docker.Executed);
     }
 
+    // ---------- bulk restart (dockerRestartAllowed) ----------
+
+    [Fact]
+    public async Task Bulk_restart_restarts_only_services_with_their_own_restart_entries()
+    {
+        // database and db-update run in the stack but have no restart entries,
+        // so they can never enter the bulk set.
+        var harness = Harness.Create(h => h.Configs = new WebStubs.ProjectConfigs(_ => new ProjectConfig
+        {
+            MobileActions =
+            [
+                new() { Id = "restart-map", Label = "m", Type = "dockerRestartService", Service = "map" },
+                new() { Id = "restart-search", Label = "s", Type = "dockerRestartService", Service = "search" },
+                new() { Id = "restart-world", Label = "w", Type = "dockerRestartService", Service = "world" },
+                new() { Id = "restart-connect", Label = "c", Type = "dockerRestartService", Service = "connect" },
+                new() { Id = "logs-database", Label = "l", Type = "dockerLogsService", Service = "database" },
+                new() { Id = "restart-game", Label = "all", Type = "dockerRestartAllowed" },
+            ],
+        }));
+
+        var result = (await harness.Service.ExecuteAsync(7, "restart-game", confirmed: true))!;
+
+        Assert.True(result.Succeeded);
+        var restarted = harness.Docker.Executed.Select(e => e.Operation.ServiceName).ToList();
+        Assert.Equal(["map", "search", "world", "connect"], restarted);
+        Assert.All(harness.Docker.Executed, e =>
+        {
+            Assert.Equal(ComposeOperationKind.RestartService, e.Operation.Kind);
+            Assert.True(e.Confirmed);
+        });
+    }
+
+    [Fact]
+    public async Task Bulk_restart_skips_database_like_entries_even_when_explicitly_configured()
+    {
+        // Defense in depth: even if someone adds database/db-update restart
+        // entries without allowDatabase, the bulk path must skip them.
+        var harness = Harness.Create(h => h.Configs = new WebStubs.ProjectConfigs(_ => new ProjectConfig
+        {
+            MobileActions =
+            [
+                new() { Id = "restart-map", Label = "m", Type = "dockerRestartService", Service = "map" },
+                new() { Id = "restart-database", Label = "d", Type = "dockerRestartService", Service = "database" },
+                new() { Id = "restart-db-update", Label = "u", Type = "dockerRestartService", Service = "db-update" },
+                new() { Id = "restart-game", Label = "all", Type = "dockerRestartAllowed" },
+            ],
+        }));
+
+        var result = (await harness.Service.ExecuteAsync(7, "restart-game", confirmed: true))!;
+
+        var operation = Assert.Single(harness.Docker.Executed).Operation;
+        Assert.Equal("map", operation.ServiceName);
+        Assert.Contains("== database == skipped", result.Output);
+        Assert.Contains("== db-update == skipped", result.Output);
+    }
+
     [Fact]
     public async Task Allow_database_true_permits_the_database_restart()
     {
