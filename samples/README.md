@@ -16,6 +16,8 @@ and frontiers look like:
 | [`crimson-sands/`](crimson-sands/) | TEN-exclusive MMO preservation (depends on TEN) | first packet capture / game-service adapter |
 | [`draenor/`](draenor/) | WoW WoD 6.2.3 server build + runtime baseline | world playability / content batch |
 | [`banshee-realm/`](banshee-realm/) | FFXI private server operations (docker compose stack with stop/logs/update/metrics commands) | a content batch / runtime stability fix |
+| [`earth-and-beyond-dit/`](earth-and-beyond-dit/) | Net-7 Linux preservation (isolated MariaDB + native binary) | E2 content data / idle runtime / ABI audit |
+| [`ragnarok-online-dit/`](ragnarok-online-dit/) | Hercules private server (login/char/map + optional HPM DIT) | R2 MariaDB schema / client compatibility |
 | [`ffxi-events-dump/`](ffxi-events-dump/) | FFXI event bytecode parser | multi-event CALL chain / opcode coverage |
 | [`generic-software/`](generic-software/) | Any ordinary software project | a feature or subsystem |
 

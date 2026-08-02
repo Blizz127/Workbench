@@ -66,6 +66,12 @@ public static class SampleDataSeeder
 
             [BansheeRealmSeeder.ProjectName] = () =>
                 BansheeRealmSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
+
+            [EarthAndBeyondSeeder.ProjectName] = () =>
+                EarthAndBeyondSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
+
+            [RagnarokOnlineSeeder.ProjectName] = () =>
+                RagnarokOnlineSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
         };
 
         foreach (var (projectName, seedAction) in seeders)
