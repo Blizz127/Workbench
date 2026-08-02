@@ -85,11 +85,11 @@
     <Thickness x:Key="ChipMargin">0,0,4,2</Thickness>
 
     <!-- Type scale -->
-    <sys:Double x:Key="FontSizeMicro">10</sys:Double>
-    <sys:Double x:Key="FontSizeCaption">11</sys:Double>
-    <sys:Double x:Key="FontSizeSmall">12</sys:Double>
-    <sys:Double x:Key="FontSizeBody">13</sys:Double>
-    <sys:Double x:Key="FontSizeSubtitle">15</sys:Double>
+    <sys:Double x:Key="FontSizeMicro">11</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <sys:Double x:Key="FontSizeSmall">13</sys:Double>
+    <sys:Double x:Key="FontSizeBody">14</sys:Double>
+    <sys:Double x:Key="FontSizeSubtitle">16</sys:Double>
     <sys:Double x:Key="FontSizeTitle">22</sys:Double>
 
     <!-- Monospace stack (system fonts only; nothing bundled). -->

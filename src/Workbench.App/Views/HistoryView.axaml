@@ -60,7 +60,7 @@
             <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Classes="card">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Output log" Classes="h2" />
-                    <TextBox Text="{Binding SelectedLog}" IsReadOnly="True"
+                    <TextBox Text="{Binding SelectedLogText}" IsReadOnly="True"
                              AcceptsReturn="True" TextWrapping="NoWrap"
                              Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
                 </DockPanel>

@@ -8,13 +8,11 @@
 
     <DockPanel Margin="{StaticResource Space6All}">
 
-        <!-- Workspace header -->
+        <!-- Workspace header: the single project identity strip
+             (name, status, machine, repo availability, git state, shared sync) -->
         <DockPanel DockPanel.Dock="Top" Margin="{StaticResource Space5Bottom}">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                         Spacing="{StaticResource Space3}" VerticalAlignment="Center">
-                <Button Content="▶ Start" Classes="command" Command="{Binding StartCommand}"
-                        IsVisible="{Binding HasRunCommand}" ToolTip.Tip="Open the Run section"
-                        AutomationProperties.Name="Open Run section" />
                 <Button Content="Open folder" Classes="command.ghost" Command="{Binding OpenFolderCommand}"
                         ToolTip.Tip="{Binding Project.RepositoryPath}"
                         AutomationProperties.Name="Open repository folder" />
@@ -29,6 +27,17 @@
                         Classes.danger="{Binding StatusIsDanger}"
                         Classes.info="{Binding StatusIsInfo}">
                     <TextBlock Text="{Binding HeaderStatus}" />
+                </Border>
+                <Border Classes="badge" VerticalAlignment="Center"
+                        ToolTip.Tip="Machine" AutomationProperties.Name="Machine">
+                    <TextBlock Text="{Binding HeaderMachineName}" />
+                </Border>
+                <Border Classes="badge" VerticalAlignment="Center"
+                        Classes.success="{Binding IsHeaderRepoAvailable}"
+                        Classes.danger="{Binding IsHeaderRepoMissing}"
+                        ToolTip.Tip="Repository availability"
+                        AutomationProperties.Name="Repository availability">
+                    <TextBlock Text="{Binding HeaderRepoText}" />
                 </Border>
                 <TextBlock Classes="mono muted" Text="{Binding HeaderGitText}"
                            IsVisible="{Binding HasHeaderGit}" VerticalAlignment="Center"

@@ -31,6 +31,9 @@ public sealed partial class OverviewViewModel : ViewModelBase
     [ObservableProperty] private string _nextFrontier = "—";
     [ObservableProperty] private string _currentMilestone = "—";
     [ObservableProperty] private string _newFrontierTitle = string.Empty;
+
+    /// <summary>The advance form stays collapsed behind "Set frontier" until explicitly opened.</summary>
+    [ObservableProperty] private bool _isEditingFrontier;
     public GitSyncViewModel GitSync { get; }
 
     // Blockers
@@ -131,6 +134,16 @@ public sealed partial class OverviewViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void BeginEditFrontier() => IsEditingFrontier = true;
+
+    [RelayCommand]
+    private void CancelEditFrontier()
+    {
+        NewFrontierTitle = string.Empty;
+        IsEditingFrontier = false;
+    }
+
+    [RelayCommand]
     private void AdvanceFrontier()
     {
         var title = NewFrontierTitle.Trim();
@@ -160,6 +173,7 @@ public sealed partial class OverviewViewModel : ViewModelBase
         });
 
         NewFrontierTitle = string.Empty;
+        IsEditingFrontier = false;
         LoadProgress();
     }
 

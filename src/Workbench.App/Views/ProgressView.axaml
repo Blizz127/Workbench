@@ -30,11 +30,13 @@
         </DataTemplate>
     </UserControl.Resources>
 
+    <!-- Responsive grid: two columns (Milestones | Frontier, Blockers spanning)
+         at wide widths, one column at narrow widths. See ProgressView.axaml.cs. -->
     <ScrollViewer Margin="{StaticResource Space3Top}">
-        <StackPanel Spacing="{StaticResource Space5}" MaxWidth="760" HorizontalAlignment="Left">
+        <Grid x:Name="ProgressGrid" MaxWidth="1200" HorizontalAlignment="Center">
 
             <!-- Milestones: weighted progress + status-grouped checklist -->
-            <Border Classes="card">
+            <Border x:Name="MilestonesCard" Classes="card" Margin="{StaticResource CardMargin}">
                 <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Milestones" Classes="h2" />
                     <DockPanel>
@@ -82,9 +84,16 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Content="Add milestone" Classes="command.secondary"
+                    <!-- Add: collapsed behind a ghost action until explicitly opened -->
+                    <Button Content="+ Add milestone" Classes="command.ghost" HorizontalAlignment="Left"
+                            Command="{Binding Milestones.BeginAddMilestoneCommand}"
+                            IsVisible="{Binding !Milestones.IsAddingMilestone}"
+                            AutomationProperties.Name="Open add-milestone form" />
+                    <DockPanel IsVisible="{Binding Milestones.IsAddingMilestone}">
+                        <Button DockPanel.Dock="Right" Content="Add" Classes="command.secondary"
                                 Command="{Binding Milestones.AddMilestoneCommand}" Margin="{StaticResource Space3Left}" />
+                        <Button DockPanel.Dock="Right" Content="Cancel" Classes="command.ghost"
+                                Command="{Binding Milestones.CancelAddMilestoneCommand}" />
                         <TextBox Text="{Binding Milestones.NewMilestoneTitle}" Watermark="New milestone title">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding Milestones.AddMilestoneCommand}" />
@@ -95,7 +104,7 @@
             </Border>
 
             <!-- Frontier: read-only checklist + the existing current/next/advance controls -->
-            <Border Classes="card">
+            <Border x:Name="FrontierCard" Classes="card" Margin="{StaticResource CardMargin}">
                 <StackPanel Spacing="{StaticResource Space2}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Text="{Binding Milestones.FrontierProgressText}"
@@ -133,9 +142,17 @@
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="milestone" Classes="muted" />
                         <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Overview.CurrentMilestone}" TextWrapping="Wrap" />
                     </Grid>
-                    <DockPanel>
+
+                    <!-- Advance: collapsed behind a ghost action until explicitly opened -->
+                    <Button Content="Set frontier" Classes="command.ghost" HorizontalAlignment="Left"
+                            Command="{Binding Overview.BeginEditFrontierCommand}"
+                            IsVisible="{Binding !Overview.IsEditingFrontier}"
+                            AutomationProperties.Name="Open set-frontier form" />
+                    <DockPanel IsVisible="{Binding Overview.IsEditingFrontier}">
                         <Button DockPanel.Dock="Right" Content="Advance" Classes="command.secondary"
                                 Command="{Binding Overview.AdvanceFrontierCommand}" Margin="{StaticResource Space3Left}" />
+                        <Button DockPanel.Dock="Right" Content="Cancel" Classes="command.ghost"
+                                Command="{Binding Overview.CancelEditFrontierCommand}" />
                         <TextBox Text="{Binding Overview.NewFrontierTitle}"
                                  Watermark="New frontier (completes the current one)" />
                     </DockPanel>
@@ -143,7 +160,8 @@
             </Border>
 
             <!-- Shared blockers: full lifecycle list + CRUD -->
-            <views:BlockerListView DataContext="{Binding Blockers}" />
-        </StackPanel>
+            <views:BlockerListView x:Name="BlockersCard" Margin="{StaticResource CardMargin}"
+                                   DataContext="{Binding Blockers}" />
+        </Grid>
     </ScrollViewer>
 </UserControl>

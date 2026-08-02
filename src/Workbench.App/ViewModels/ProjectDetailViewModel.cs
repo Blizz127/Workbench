@@ -51,6 +51,19 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     [ObservableProperty]
     private string? _headerSharedBadge;
 
+    /// <summary>Machine this workspace is running on, shown in the header.</summary>
+    [ObservableProperty]
+    private string _headerMachineName;
+
+    [ObservableProperty]
+    private string _headerRepoText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isHeaderRepoAvailable;
+
+    [ObservableProperty]
+    private bool _isHeaderRepoMissing;
+
     public bool HasHeaderSharedBadge => HeaderSharedBadge is not null;
     public bool IsHeaderSharedBadgeWarning => SharedStatusBadge.IsWarning(HeaderSharedBadge);
 
@@ -59,9 +72,6 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
 
     /// <summary>Reduced-motion switch for the section fade (re-read whenever a workspace is created).</summary>
     public bool IsReducedMotion => _services.AppSettings.Settings.ReducedMotion;
-
-    /// <summary>Header Start button: a launch command exists on this project.</summary>
-    public bool HasRunCommand => !string.IsNullOrWhiteSpace(Project.RunCommand);
 
     // Section selection booleans drive the nav buttons and section visibility.
     public bool IsOverviewSelected => SelectedSection == "Overview";
@@ -83,19 +93,20 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     public bool StatusIsDanger => Project.Status == ProjectStatus.Broken;
     public bool StatusIsInfo => Project.Status == ProjectStatus.Research;
 
-    private ProjectDetailViewModel(AppServices services, Project project, Action goBack, Action? afterGitSync)
+    private ProjectDetailViewModel(AppServices services, Project project, Action goBack)
     {
         _services = services;
         Project = project;
         _goBack = goBack;
         _headerName = project.Name;
         _headerStatus = project.Status.ToString();
+        _headerMachineName = services.AppSettings.MachineName;
 
-        Overview = new OverviewViewModel(services, project, afterGitSync);
+        Overview = new OverviewViewModel(services, project, EnrichHeader);
         Timeline = new TimelineViewModel(services, project);
         Milestones = new MilestonesViewModel(services, project);
         Notes = new NotesViewModel(services, project);
-        History = new HistoryViewModel(services, project);
+        History = new HistoryViewModel(services, project, () => SelectedSection = "Settings");
         Docker = new DockerOperationsViewModel(services.Docker, project, services.Timeline);
         Sessions = new ProjectSessionsViewModel(services.Tmux, services.Terminal, project, services.Timeline);
         Handoff = new HandoffViewModel(services, project);
@@ -106,13 +117,13 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     }
 
     public static ProjectDetailViewModel? TryCreate(
-        AppServices services, long projectId, Action goBack, Action? afterGitSync = null)
+        AppServices services, long projectId, Action goBack)
     {
         var project = services.Projects.GetById(projectId);
-        return project is null ? null : new ProjectDetailViewModel(services, project, goBack, afterGitSync);
+        return project is null ? null : new ProjectDetailViewModel(services, project, goBack);
     }
 
-    /// <summary>Reads git + shared state off the UI thread for the header strip.</summary>
+    /// <summary>Reads repo availability, git, and shared state off the UI thread for the header strip.</summary>
     private void EnrichHeader()
     {
         var project = Project;
@@ -121,6 +132,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         var sharedMode = _services.AppSettings.Mode;
         _ = Task.Run(() =>
         {
+            var repoAvailable = project.RepositoryPath is { Length: > 0 } path && Directory.Exists(path);
             var snapshot = _services.Git.GetSnapshot(project.RepositoryPath, recentCommitCount: 0);
             // Badges exist only in Enabled mode; other modes never read the folder here.
             var badge = !SharedStateModeRules.Badges(sharedMode) || sharedFolder is null
@@ -129,6 +141,11 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
                     _services.SharedState, project, _services.SharedState.LoadAll(sharedFolder), machineName);
             Dispatcher.UIThread.Post(() =>
             {
+                HeaderRepoText = project.RepositoryPath is null
+                    ? "no repository"
+                    : repoAvailable ? "repo available" : "repo missing";
+                IsHeaderRepoAvailable = repoAvailable;
+                IsHeaderRepoMissing = project.RepositoryPath is not null && !repoAvailable;
                 HasHeaderGit = snapshot.IsValid;
                 HeaderGitText = snapshot.IsValid ? FormatGit(snapshot) : string.Empty;
                 HeaderSharedBadge = badge;
@@ -154,7 +171,6 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         OnPropertyChanged(nameof(StatusIsWarning));
         OnPropertyChanged(nameof(StatusIsDanger));
         OnPropertyChanged(nameof(StatusIsInfo));
-        OnPropertyChanged(nameof(HasRunCommand));
     }
 
     [RelayCommand]
@@ -170,10 +186,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         SelectedSection = section;
     }
 
-    /// <summary>Header Start: opens the Run section — execution stays explicit, nothing starts.</summary>
-    [RelayCommand]
-    private void Start() => SelectedSection = "Run";
-
+    /// <summary>Run execution lives only on the Run card (the hero Start) — no duplicate header action.</summary>
     [RelayCommand]
     private void OpenFolder()
     {

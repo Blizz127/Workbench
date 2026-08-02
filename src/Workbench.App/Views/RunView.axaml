@@ -10,18 +10,26 @@
         <!-- Launch profiles -->
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,12,*,12,*" Margin="{StaticResource Space5Bottom}">
 
-            <!-- Build profile -->
+            <!-- Build profile: full card when configured, compact tile otherwise -->
             <Border Grid.Column="0" Classes="card">
                 <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Build" Classes="h2" />
-                    <Border Classes="output-panel">
-                        <TextBlock Classes="mono" Text="{Binding BuildCommandText}"
-                                   FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
-                    </Border>
-                    <TextBlock Text="{Binding LastBuildSummary}"
-                               Foreground="{Binding LastBuildOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                    <Button Content="Build" Classes="command.secondary" Command="{Binding RunBuildCommand}"
-                            HorizontalAlignment="Left" />
+                    <StackPanel Spacing="{StaticResource Space3}" IsVisible="{Binding HasBuildCommand}">
+                        <Border Classes="output-panel">
+                            <TextBlock Classes="mono" Text="{Binding BuildCommandText}"
+                                       FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
+                        </Border>
+                        <TextBlock Text="{Binding LastBuildSummary}"
+                                   Foreground="{Binding LastBuildOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                        <Button Content="Build" Classes="command.secondary" Command="{Binding RunBuildCommand}"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel Spacing="{StaticResource Space2}" IsVisible="{Binding !HasBuildCommand}">
+                        <TextBlock Text="No build command configured." Classes="muted" TextWrapping="Wrap" />
+                        <Button Content="Configure" Classes="command.ghost" HorizontalAlignment="Left"
+                                Command="{Binding ConfigureCommandsCommand}"
+                                AutomationProperties.Name="Configure build command" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -35,7 +43,7 @@
                         </Border>
                         <TextBlock Text="Run" Classes="h2" />
                     </DockPanel>
-                    <Border Classes="output-panel">
+                    <Border Classes="output-panel" IsVisible="{Binding HasRunCommand}">
                         <TextBlock Classes="mono" Text="{Binding RunCommandText}"
                                    FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
                     </Border>
@@ -93,7 +101,9 @@
                                IsVisible="{Binding HasFailedComponent}" />
                     <TextBlock Text="{Binding RunStatus}" Classes="muted"
                                IsVisible="{Binding RunStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <WrapPanel>
+
+                    <!-- The one primary execution action -->
+                    <WrapPanel IsVisible="{Binding HasRunCommand}">
                         <Button Content="▶ Start" Classes="command hero" Command="{Binding RunRunCommand}"
                                 Margin="{StaticResource Space3Right}" AutomationProperties.Name="Start run" />
                         <Button Content="■ Stop" Classes="command danger" Command="{Binding StopCommand}"
@@ -101,6 +111,12 @@
                         <Button Content="↻ Restart" Classes="command secondary" Command="{Binding RestartRunCommand}"
                                 AutomationProperties.Name="Restart run" />
                     </WrapPanel>
+                    <StackPanel Spacing="{StaticResource Space2}" IsVisible="{Binding !HasRunCommand}">
+                        <TextBlock Text="No run command configured." Classes="muted" TextWrapping="Wrap" />
+                        <Button Content="Configure" Classes="command.ghost" HorizontalAlignment="Left"
+                                Command="{Binding ConfigureCommandsCommand}"
+                                AutomationProperties.Name="Configure run command" />
+                    </StackPanel>
                     <WrapPanel>
                         <Button Content="🧾 Logs" Classes="command secondary" Command="{Binding OpenLogsCommand}"
                                 Margin="{StaticResource Space3Right}" AutomationProperties.Name="Open logs" />
@@ -118,28 +134,49 @@
                 </StackPanel>
             </Border>
 
-            <!-- Test profile -->
+            <!-- Test profile: full card when configured, compact tile otherwise -->
             <Border Grid.Column="4" Classes="card">
                 <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Test" Classes="h2" />
-                    <Border Classes="output-panel">
-                        <TextBlock Classes="mono" Text="{Binding TestCommandText}"
-                                   FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
-                    </Border>
-                    <TextBlock Text="{Binding LastTestSummary}"
-                               Foreground="{Binding LastTestOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                    <Button Content="Smoke test" Classes="command.secondary" Command="{Binding RunTestsCommand}"
-                            HorizontalAlignment="Left" />
+                    <StackPanel Spacing="{StaticResource Space3}" IsVisible="{Binding HasTestCommand}">
+                        <Border Classes="output-panel">
+                            <TextBlock Classes="mono" Text="{Binding TestCommandText}"
+                                       FontSize="{StaticResource FontSizeSmall}" TextWrapping="Wrap" />
+                        </Border>
+                        <TextBlock Text="{Binding LastTestSummary}"
+                                   Foreground="{Binding LastTestOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                        <Button Content="Smoke test" Classes="command.secondary" Command="{Binding RunTestsCommand}"
+                                HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel Spacing="{StaticResource Space2}" IsVisible="{Binding !HasTestCommand}">
+                        <TextBlock Text="No test command configured." Classes="muted" TextWrapping="Wrap" />
+                        <Button Content="Configure" Classes="command.ghost" HorizontalAlignment="Left"
+                                Command="{Binding ConfigureCommandsCommand}"
+                                AutomationProperties.Name="Configure test command" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <!-- Latest output -->
+        <!-- Latest output: sanitized terminal-style panel with follow/copy/full-log actions -->
         <Border Classes="output-panel">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Latest output" Classes="section-header" />
-                <TextBox Text="{Binding SelectedLog}" IsReadOnly="True"
-                         AcceptsReturn="True" TextWrapping="NoWrap"
+                <DockPanel DockPanel.Dock="Top" Margin="{StaticResource Space3Bottom}">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                Spacing="{StaticResource Space3}" VerticalAlignment="Center">
+                        <Button Content="Follow" Classes="command.ghost" Classes.selected="{Binding FollowOutput}"
+                                Command="{Binding ToggleFollowOutputCommand}"
+                                ToolTip.Tip="Scroll to the end when output changes"
+                                AutomationProperties.Name="Toggle output autoscroll" />
+                        <Button Content="Copy" Classes="command.ghost" Click="OnCopyLog"
+                                AutomationProperties.Name="Copy output" />
+                        <Button Content="Open full log" Classes="command.ghost" Click="OnOpenFullLog"
+                                AutomationProperties.Name="Open full log" />
+                    </StackPanel>
+                    <TextBlock Text="Latest output" Classes="section-header" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBox x:Name="OutputBox" Text="{Binding SelectedLogText}" IsReadOnly="True"
+                         AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="160"
                          Classes="mono" FontSize="{StaticResource FontSizeSmall}" />
             </DockPanel>
         </Border>

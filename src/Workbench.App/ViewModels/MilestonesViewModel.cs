@@ -30,6 +30,10 @@ public sealed partial class MilestonesViewModel : ViewModelBase
     [ObservableProperty]
     private string _newMilestoneTitle = string.Empty;
 
+    /// <summary>The add form stays collapsed behind "+ Add milestone" until explicitly opened.</summary>
+    [ObservableProperty]
+    private bool _isAddingMilestone;
+
     [ObservableProperty]
     private double _progress;
 
@@ -130,6 +134,16 @@ public sealed partial class MilestonesViewModel : ViewModelBase
     private void ToggleDismissed() => ShowDismissed = !ShowDismissed;
 
     [RelayCommand]
+    private void BeginAddMilestone() => IsAddingMilestone = true;
+
+    [RelayCommand]
+    private void CancelAddMilestone()
+    {
+        NewMilestoneTitle = string.Empty;
+        IsAddingMilestone = false;
+    }
+
+    [RelayCommand]
     private void AddMilestone()
     {
         var title = NewMilestoneTitle.Trim();
@@ -144,6 +158,7 @@ public sealed partial class MilestonesViewModel : ViewModelBase
         });
 
         NewMilestoneTitle = string.Empty;
+        IsAddingMilestone = false;
         Reload();
     }
 

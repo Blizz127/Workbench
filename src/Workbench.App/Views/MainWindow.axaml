@@ -43,58 +43,28 @@
         <!-- Top bar + main content + activity panel -->
         <Grid Grid.Column="1" RowDefinitions="Auto,*">
 
+            <!-- Top bar: global search chrome only. Project identity/state lives
+                 in the workspace header (ProjectDetailView), not duplicated here. -->
             <Border Grid.Row="0" Classes="top-bar">
-                <DockPanel>
-                    <!-- Search + panel toggle -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                                Spacing="{StaticResource Space2}" VerticalAlignment="Center">
-                        <TextBox Width="{StaticResource SearchBoxWidth}"
-                                 Watermark="Search projects, notes, timeline, frontiers…"
-                                 Text="{Binding SearchText}"
-                                 AutomationProperties.Name="Global search">
-                            <TextBox.KeyBindings>
-                                <KeyBinding Gesture="Enter" Command="{Binding RunSearchCommand}" />
-                            </TextBox.KeyBindings>
-                        </TextBox>
-                        <Button Content="Search" Classes="command.ghost" Command="{Binding RunSearchCommand}" />
-                        <Button Classes="command.ghost" Classes.selected="{Binding IsRightPanelVisible}"
-                                Command="{Binding ToggleRightPanelCommand}"
-                                ToolTip.Tip="Toggle activity panel"
-                                AutomationProperties.Name="Toggle activity panel">
-                            <PathIcon Data="{StaticResource IconPanel}"
-                                      Width="{StaticResource IconSizeSmall}" Height="{StaticResource IconSizeSmall}" />
-                        </Button>
-                    </StackPanel>
-
-                    <!-- Context: project, machine, repo, git, shared sync -->
-                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}"
-                                VerticalAlignment="Center"
-                                DataContext="{Binding TopBar}" x:DataType="vm:TopBarViewModel">
-                        <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold" MaxWidth="280"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip.Tip="{Binding ProjectName}"
-                                   AutomationProperties.Name="Current project" />
-                        <Border Classes="badge" ToolTip.Tip="Machine" AutomationProperties.Name="Machine">
-                            <TextBlock Text="{Binding MachineName}" />
-                        </Border>
-                        <Border Classes="badge" Classes.success="{Binding IsRepoAvailable}"
-                                IsVisible="{Binding HasProjectContext}"
-                                ToolTip.Tip="Repository availability"
-                                AutomationProperties.Name="Repository availability">
-                            <TextBlock Text="{Binding RepoStatusText}" />
-                        </Border>
-                        <TextBlock Classes="mono muted" Text="{Binding GitText}"
-                                   IsVisible="{Binding HasGit}"
-                                   ToolTip.Tip="Git branch (* = uncommitted changes, ↑ ahead, ↓ behind)"
-                                   AutomationProperties.Name="Git status" />
-                        <Border Classes="badge" Classes.warning="{Binding IsSyncBadgeWarning}"
-                                IsVisible="{Binding HasSyncBadge}"
-                                ToolTip.Tip="Shared-state sync status"
-                                AutomationProperties.Name="Shared sync status">
-                            <TextBlock Text="{Binding SyncBadge}" />
-                        </Border>
-                    </StackPanel>
-                </DockPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            Spacing="{StaticResource Space2}" VerticalAlignment="Center">
+                    <TextBox Width="{StaticResource SearchBoxWidth}"
+                             Watermark="Search projects, notes, timeline, frontiers…"
+                             Text="{Binding SearchText}"
+                             AutomationProperties.Name="Global search">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding RunSearchCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Content="Search" Classes="command.ghost" Command="{Binding RunSearchCommand}" />
+                    <Button Classes="command.ghost" Classes.selected="{Binding IsRightPanelVisible}"
+                            Command="{Binding ToggleRightPanelCommand}"
+                            ToolTip.Tip="Toggle activity panel"
+                            AutomationProperties.Name="Toggle activity panel">
+                        <PathIcon Data="{StaticResource IconPanel}"
+                                  Width="{StaticResource IconSizeSmall}" Height="{StaticResource IconSizeSmall}" />
+                    </Button>
+                </StackPanel>
             </Border>
 
             <Grid Grid.Row="1" ColumnDefinitions="*,Auto">

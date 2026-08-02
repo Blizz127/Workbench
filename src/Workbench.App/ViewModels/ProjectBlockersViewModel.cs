@@ -29,6 +29,9 @@ public sealed partial class ProjectBlockersViewModel : ViewModelBase
     [ObservableProperty] private string _newSeverity = string.Empty;
     [ObservableProperty] private string _newDescription = string.Empty;
 
+    /// <summary>The add form stays collapsed behind "+ Add blocker" until explicitly opened.</summary>
+    [ObservableProperty] private bool _isAddingBlocker;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowResolvedSection))]
     [NotifyPropertyChangedFor(nameof(ResolvedToggleText))]
@@ -106,6 +109,18 @@ public sealed partial class ProjectBlockersViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void BeginAddBlocker() => IsAddingBlocker = true;
+
+    [RelayCommand]
+    private void CancelAddBlocker()
+    {
+        NewTitle = string.Empty;
+        NewSeverity = string.Empty;
+        NewDescription = string.Empty;
+        IsAddingBlocker = false;
+    }
+
+    [RelayCommand]
     private void AddBlocker()
     {
         var title = NewTitle.Trim();
@@ -130,6 +145,7 @@ public sealed partial class ProjectBlockersViewModel : ViewModelBase
         NewTitle = string.Empty;
         NewSeverity = string.Empty;
         NewDescription = string.Empty;
+        IsAddingBlocker = false;
         Refresh();
     }
 

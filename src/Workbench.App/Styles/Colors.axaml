@@ -28,8 +28,8 @@
 
             <!-- Text -->
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#E4E7EB" />
-            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#AAB1BA" />
-            <SolidColorBrush x:Key="TextMutedBrush" Color="#8B929C" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B9C0C9" />
+            <SolidColorBrush x:Key="TextMutedBrush" Color="#9AA2AC" />
 
             <!-- Accent (restrained technical blue) -->
             <SolidColorBrush x:Key="AccentBrush" Color="#4C82C7" />

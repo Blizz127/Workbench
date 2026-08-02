@@ -35,9 +35,9 @@
         <Setter Property="Margin" Value="{StaticResource Space2Bottom}" />
     </Style>
     <Style Selector="TextBlock.section-header">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSmall}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
         <Setter Property="Margin" Value="{StaticResource Space1Bottom}" />
     </Style>
     <Style Selector="TextBlock.muted">
@@ -190,9 +190,11 @@
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
 
-    <!-- Keyboard-navigation focus indicator -->
+    <!-- Keyboard-navigation focus indicator: explicit 2px ring so it reads on
+         every button variant (several set no border of their own). -->
     <Style Selector="Button:focus-visible">
         <Setter Property="BorderBrush" Value="{DynamicResource FocusBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource BorderThick}" />
     </Style>
 
     <!-- Slim progress indicator -->
@@ -236,9 +238,9 @@
         <Setter Property="Padding" Value="{StaticResource TopBarPadding}" />
     </Style>
 
-    <!-- Shell: right-side activity/details panel -->
+    <!-- Shell: right-side activity/details panel (chrome surface, distinct from the page) -->
     <Style Selector="Border.activity-panel">
-        <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ChromeBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SubtleBorderBrush}" />
         <Setter Property="BorderThickness" Value="{StaticResource BorderThinLeft}" />
         <Setter Property="Padding" Value="{StaticResource Space5All}" />

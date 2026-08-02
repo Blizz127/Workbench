@@ -8,11 +8,13 @@ using Workbench.Core.Services;
 namespace Workbench.App.ViewModels;
 
 /// <summary>
-/// Application shell: left navigation rail, top context bar (<see cref="TopBar"/>),
-/// the current page (dashboard or project detail), the collapsible activity
-/// panel, and the global search that spans projects, notes, milestones,
-/// timeline, and frontiers. Restores the persisted page/project/panel state
-/// on startup and saves it on every navigation.
+/// Application shell: left navigation rail, the top search bar, the current
+/// page (dashboard or project detail), the collapsible activity panel, and
+/// the global search that spans projects, notes, milestones, timeline, and
+/// frontiers. Project identity/state is shown once, in the workspace header
+/// (<see cref="ProjectDetailViewModel"/>), not duplicated in the shell.
+/// Restores the persisted page/project/panel state on startup and saves it
+/// on every navigation.
 /// </summary>
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
@@ -36,11 +38,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isSettingsSelected;
 
-    /// <summary>True while a project detail page is open; drives the activity panel and top bar.</summary>
+    /// <summary>True while a project detail page is open; drives the activity panel.</summary>
     [ObservableProperty]
     private bool _hasProjectContext;
-
-    public TopBarViewModel TopBar { get; }
 
     public ObservableCollection<SearchHitViewModel> SearchResults { get; } = [];
 
@@ -62,7 +62,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(AppServices services)
     {
         _services = services;
-        TopBar = new TopBarViewModel(services);
 
         var settings = services.AppSettings.Settings;
         _isRightPanelVisible = settings.RightPanelVisible;
@@ -79,7 +78,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         if (settings.LastPage == "project" && settings.LastSelectedProjectId is { } projectId
-            && ProjectDetailViewModel.TryCreate(_services, projectId, NavigateHome, TopBar.RefreshStatus) is { } detail)
+            && ProjectDetailViewModel.TryCreate(_services, projectId, NavigateHome) is { } detail)
         {
             SetProjectContext(detail);
             return detail;
@@ -134,7 +133,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private void OpenProject(long projectId, string? section)
     {
         IsSearchOpen = false;
-        var detail = ProjectDetailViewModel.TryCreate(_services, projectId, NavigateHome, TopBar.RefreshStatus);
+        var detail = ProjectDetailViewModel.TryCreate(_services, projectId, NavigateHome);
         if (detail is null)
             return;
 
@@ -159,14 +158,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private void SetProjectContext(ProjectDetailViewModel detail)
     {
         HasProjectContext = true;
-        TopBar.ShowProjectContext(detail.Project);
         LoadActivity(detail.Project.Id);
     }
 
     private void ClearProjectContext()
     {
         HasProjectContext = false;
-        TopBar.ClearContext();
         ActivityEntries.Clear();
     }
 

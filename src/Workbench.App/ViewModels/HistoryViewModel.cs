@@ -17,6 +17,7 @@ public sealed partial class HistoryViewModel : ViewModelBase
 {
     private readonly AppServices _services;
     private readonly Project _project;
+    private readonly Action? _openSettings;
     private CancellationTokenSource? _runCts;
     private Task? _activeRun;
     private int _metricsInFlight;
@@ -39,7 +40,21 @@ public sealed partial class HistoryViewModel : ViewModelBase
 
     [ObservableProperty] private BuildRecordViewModel? _selectedBuild;
     [ObservableProperty] private TestRecordViewModel? _selectedTest;
-    [ObservableProperty] private string _selectedLog = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedLogText))]
+    private string _selectedLog = string.Empty;
+
+    /// <summary>Display-ready log text: ANSI/control sequences stripped (see <see cref="TerminalOutputSanitizer"/>).</summary>
+    public string SelectedLogText => TerminalOutputSanitizer.Sanitize(SelectedLog);
+
+    /// <summary>Follow toggle for the output panel: on, the panel scrolls to the end on new output.</summary>
+    [ObservableProperty] private bool _followOutput = true;
+
+    /// <summary>Which launch profiles have a configured command (drives compact tiles vs full cards).</summary>
+    public bool HasBuildCommand => !string.IsNullOrWhiteSpace(_project.BuildCommand);
+    public bool HasRunCommand => !string.IsNullOrWhiteSpace(_project.RunCommand);
+    public bool HasTestCommand => !string.IsNullOrWhiteSpace(_project.TestCommand);
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunBuildCommand))]
@@ -107,12 +122,20 @@ public sealed partial class HistoryViewModel : ViewModelBase
     [ObservableProperty] private string _lastTestSummary = "no test runs yet";
     [ObservableProperty] private bool? _lastTestOutcome;
 
-    public HistoryViewModel(AppServices services, Project project)
+    public HistoryViewModel(AppServices services, Project project, Action? openSettings = null)
     {
         _services = services;
         _project = project;
+        _openSettings = openSettings;
         Reload();
     }
+
+    /// <summary>Compact-tile action: jumps to the project Settings section where the command is set.</summary>
+    [RelayCommand]
+    private void ConfigureCommands() => _openSettings?.Invoke();
+
+    [RelayCommand]
+    private void ToggleFollowOutput() => FollowOutput = !FollowOutput;
 
     private void Reload()
     {
