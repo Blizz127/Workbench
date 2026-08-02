@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.App.ViewModels;
 
@@ -86,7 +87,10 @@ public sealed partial class TopBarViewModel : ViewModelBase
     /// <summary>Same badge rules as the dashboard cards; null means in sync (or not shared).</summary>
     private string? SharedBadgeFor(Project project, string? sharedFolder, string machineName)
     {
-        if (project.SharedId is null || sharedFolder is null)
+        // Badges exist only in Enabled mode; other modes never read the folder here.
+        if (!SharedStateModeRules.Badges(_services.AppSettings.Mode)
+            || project.SharedId is null
+            || sharedFolder is null)
             return null;
 
         return SharedStatusBadge.For(

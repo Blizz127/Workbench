@@ -5,14 +5,17 @@ using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.App.ViewModels;
 
 /// <summary>
-/// Application settings page: the Shared State Folder (the user's Dropbox
-/// folder — Dropbox syncs it between machines externally; Workbench never runs
-/// sync commands), this machine's name, and the explicit shared-state actions.
-/// Sync is always manual; nothing here runs in the background.
+/// Application settings page: the Shared State mode (Shared State is optional —
+/// local data is authoritative in every mode), the Shared State Folder (the
+/// user's Dropbox folder — Dropbox syncs it between machines externally;
+/// Workbench never runs sync commands), this machine's name, and the explicit
+/// shared-state actions. Sync is always explicit; nothing here runs in the
+/// background. The portable-backup export stays available in every mode.
 /// </summary>
 public sealed partial class AppSettingsViewModel : ViewModelBase
 {
@@ -22,6 +25,16 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _sharedStateFolder;
+
+    /// <summary>Selected Shared State mode ("disabled"/"manual"/"enabled"); persisted on Save.</summary>
+    [ObservableProperty]
+    private string _sharedStateMode;
+
+    /// <summary>Mode options for the selector (persisted as-is in settings.json).</summary>
+    public string[] SharedStateModes { get; } = ["disabled", "manual", "enabled"];
+
+    /// <summary>Import All / Reload actions show in Manual and Enabled modes; the backup export shows in every mode.</summary>
+    public bool SharedActionsVisible => SharedStateMode != "disabled";
 
     [ObservableProperty]
     private string _discoveryFolder;
@@ -59,12 +72,16 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         _goBack = goBack;
         _onSaved = onSaved;
         _sharedStateFolder = services.AppSettings.SharedStateFolder ?? string.Empty;
+        _sharedStateMode = services.AppSettings.Mode.ToString().ToLowerInvariant();
         _discoveryFolder = services.AppSettings.DiscoveryFolder;
         _discoveryEnabled = services.AppSettings.Settings.DiscoveryEnabled;
         _machineName = services.AppSettings.MachineName;
         _theme = services.AppSettings.Settings.Theme;
         _reducedMotion = services.AppSettings.Settings.ReducedMotion;
-        RefreshSharedFolderStatus();
+        // Automatic folder status only outside Disabled mode; Disabled shows
+        // status solely after an explicit user action (e.g. the backup export).
+        if (SharedActionsVisible)
+            RefreshSharedFolderStatus();
     }
 
     [RelayCommand]
@@ -75,6 +92,10 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
     {
         _services.AppSettings.Settings.SharedStateFolder =
             string.IsNullOrWhiteSpace(SharedStateFolder) ? null : SharedStateFolder.Trim();
+        _services.AppSettings.Settings.SharedStateMode =
+            Enum.TryParse<SharedStateMode>(SharedStateMode, ignoreCase: true, out _)
+                ? SharedStateMode
+                : null;
         _services.AppSettings.Settings.MachineName =
             string.IsNullOrWhiteSpace(MachineName) || MachineName.Trim() == Environment.MachineName
                 ? null
@@ -89,7 +110,12 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         _onSaved?.Invoke();
         MachineName = _services.AppSettings.MachineName;
         StatusMessage = $"Saved at {DateTime.Now:HH:mm:ss}";
-        RefreshSharedFolderStatus();
+        // The resolved mode may have changed (migration default → explicit).
+        SharedStateMode = _services.AppSettings.Mode.ToString().ToLowerInvariant();
+        if (SharedActionsVisible)
+            RefreshSharedFolderStatus();
+        else
+            SharedFolderSummary = string.Empty;
     }
 
     /// <summary>Applies the selected theme immediately (still requires Save to persist).</summary>
@@ -177,7 +203,12 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         Report(summary.Applied, summary.Skipped, summary.Warnings);
     }
 
-    /// <summary>Exports every local project; skips (with a warning) any whose shared file is newer.</summary>
+    /// <summary>
+    /// Portable backup: exports every local project's shared file to the
+    /// configured folder. An explicit user action, so it is available in every
+    /// mode — including Disabled. Skips (with a warning) any project whose
+    /// shared file is newer; never deletes shared files.
+    /// </summary>
     [RelayCommand]
     private void ExportAllProjects()
     {
@@ -187,6 +218,8 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
         ActivityLog.Clear();
         var summary = _services.SharedState.ExportAll(folder, _services.AppSettings.MachineName);
         Report(summary.Applied, summary.Skipped, summary.Warnings);
+        // The export was explicit — the folder status may now be shown even in Disabled mode.
+        RefreshSharedFolderStatus();
     }
 
     private void Report(IEnumerable<string> applied, IEnumerable<string> skipped, IEnumerable<string> warnings)
@@ -247,4 +280,6 @@ public sealed partial class AppSettingsViewModel : ViewModelBase
             : $"Folder not available — Dropbox may not have synced it: {folder}";
         return status;
     }
+
+    partial void OnSharedStateModeChanged(string value) => OnPropertyChanged(nameof(SharedActionsVisible));
 }

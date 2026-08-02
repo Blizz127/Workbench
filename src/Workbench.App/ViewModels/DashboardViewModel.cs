@@ -145,20 +145,26 @@ public sealed partial class DashboardViewModel : ViewModelBase
         UpdateSummary(projects);
 
         // Enrich with git state off the UI thread, one repo at a time; shared
-        // state files are read (never written) in the same pass. Milestone,
-        // blocker, and run-history reads are cheap local queries batched in.
+        // state files are read (never written) in the same pass — but only in
+        // Enabled mode; Manual/Disabled never touch the shared folder here.
+        // Milestone, blocker, and run-history reads are cheap local queries
+        // batched in.
         var cards = _allCards.ToList();
         var sharedFolder = _services.AppSettings.SharedStateFolder;
         var machineName = _services.AppSettings.MachineName;
+        var sharedMode = _services.AppSettings.Mode;
         _ = Task.Run(async () =>
         {
             IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles =
-                sharedFolder is null ? [] : _services.SharedState.LoadAll(sharedFolder);
+                Workbench.Core.Services.SharedStateModeRules.LoadAllForBadges(
+                    _services.SharedState, sharedMode, sharedFolder);
 
             foreach (var card in cards)
             {
                 var snapshot = _services.Git.GetSnapshot(card.Project.RepositoryPath, recentCommitCount: 1);
-                var badge = SharedBadgeFor(card.Project, sharedFiles, machineName);
+                var badge = Workbench.Core.Services.SharedStateModeRules.Badges(sharedMode)
+                    ? SharedBadgeFor(card.Project, sharedFiles, machineName)
+                    : null;
                 var milestones = _services.Milestones.GetForProject(card.Project.Id);
                 var openBlockers = _services.Blockers.GetOpen(card.Project.Id).Count;
                 var lastRun = _services.Builds.GetLatest(card.Project.Id, ExecutionKind.Run);

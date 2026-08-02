@@ -44,7 +44,13 @@
                 <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Shared Workbench State" Classes="h2" />
                     <TextBlock Classes="muted" TextWrapping="Wrap"
-                               Text="Point this at your Dropbox folder (default: ~/Dropbox/workbench). Dropbox syncs it between your PCs externally — Workbench never runs sync commands. Project configuration is shared as projects/*.workbench.json files. Local history, logs, and the database never leave this machine. Sync is always explicit — nothing runs in the background." />
+                               Text="Shared State is optional — your local database and configs are always authoritative, and nothing here ever deletes shared files. Point the folder at your Dropbox folder (default: ~/Dropbox/workbench); Dropbox syncs it between your PCs externally — Workbench never runs sync commands. Project configuration is shared as projects/*.workbench.json files. Local history, logs, and the database never leave this machine." />
+
+                    <TextBlock Text="Shared State Mode" Classes="muted" />
+                    <ComboBox ItemsSource="{Binding SharedStateModes}" SelectedItem="{Binding SharedStateMode}"
+                              Width="200" HorizontalAlignment="Left" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="disabled: no checks, badges, or shared UI outside this page — the portable backup below still works. manual: import/export actions are available on demand, nothing automatic. enabled: full sync status — automatic folder checks and dashboard badges. The mode applies when you save settings." />
 
                     <TextBlock Text="Shared State Folder" Classes="muted" />
                     <TextBox Text="{Binding SharedStateFolder}" Watermark="~/Dropbox/workbench" />
@@ -57,9 +63,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
                         <Button Content="Save settings" Command="{Binding SaveSettingsCommand}" />
                         <Button Content="Open shared folder" Command="{Binding OpenSharedFolderCommand}" />
-                        <Button Content="Reload shared state" Command="{Binding ReloadSharedStateCommand}" />
-                        <Button Content="Import all projects" Command="{Binding ImportAllProjectsCommand}" />
-                        <Button Content="Export all projects" Command="{Binding ExportAllProjectsCommand}" />
+                        <Button Content="Reload shared state" Command="{Binding ReloadSharedStateCommand}"
+                                IsVisible="{Binding SharedActionsVisible}" />
+                        <Button Content="Import all projects" Command="{Binding ImportAllProjectsCommand}"
+                                IsVisible="{Binding SharedActionsVisible}" />
+                        <Button Content="Export portable backup" Command="{Binding ExportAllProjectsCommand}"
+                                ToolTip.Tip="Exports every project's shared file to the shared folder — available in every mode, including disabled." />
                     </StackPanel>
 
                     <TextBlock Text="{Binding StatusMessage}" Classes="muted"

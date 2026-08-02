@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Workbench.Core.Models;
 
 namespace Workbench.Core.Services;
 
@@ -8,6 +9,14 @@ public sealed class AppSettings
 {
     /// <summary>The user-selected Shared State Folder (a synced or plain directory), if configured.</summary>
     public string? SharedStateFolder { get; set; }
+
+    /// <summary>
+    /// Shared State mode ("disabled"/"manual"/"enabled"). Null means the field
+    /// is absent (a pre-mode install); the effective mode is then resolved at
+    /// read time by <see cref="SharedStateModeRules.Resolve"/> and is never
+    /// stamped back into this file.
+    /// </summary>
+    public string? SharedStateMode { get; set; }
 
     /// <summary>When true, the discovery folder is scanned for new projects at startup.</summary>
     public bool DiscoveryEnabled { get; set; } = true;
@@ -56,6 +65,13 @@ public interface IAppSettingsService
 
     /// <summary>The shared folder: the configured path, else <c>~/Dropbox/workbench</c>.</summary>
     string? SharedStateFolder { get; }
+
+    /// <summary>
+    /// The effective Shared State mode, resolved at read time (see
+    /// <see cref="SharedStateModeRules.Resolve"/>). Changing the mode never
+    /// touches the configured folder or any shared file.
+    /// </summary>
+    SharedStateMode Mode { get; }
 
     /// <summary>The discovery folder: the configured path, else <c>~/dev</c>.</summary>
     string DiscoveryFolder { get; }
@@ -109,6 +125,10 @@ public sealed class AppSettingsService : IAppSettingsService
         string.IsNullOrWhiteSpace(Settings.SharedStateFolder)
             ? GetDefaultSharedStateFolder()
             : Settings.SharedStateFolder.Trim();
+
+    /// <summary>Resolved from the raw persisted value and the raw configured folder — never from the defaulted path.</summary>
+    public SharedStateMode Mode =>
+        SharedStateModeRules.Resolve(Settings.SharedStateMode, Settings.SharedStateFolder);
 
     /// <summary>The Dropbox-synced shared folder used when none is configured.</summary>
     public static string GetDefaultSharedStateFolder() =>

@@ -1,3 +1,4 @@
+using Workbench.Core.Models;
 using Workbench.Core.Services;
 using Xunit;
 
@@ -143,5 +144,92 @@ public sealed class AppSettingsServiceTests : IDisposable
         }
         """);
         Assert.Equal("dark", new AppSettingsService(path).Settings.Theme);
+    }
+
+    [Fact]
+    public void Absent_mode_with_configured_folder_migrates_to_enabled()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared",
+          "machineName": "desktop"
+        }
+        """);
+
+        Assert.Equal(SharedStateMode.Enabled, new AppSettingsService(path).Mode);
+    }
+
+    [Fact]
+    public void Absent_mode_without_configured_folder_migrates_to_disabled()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+
+        // No file at all (new install).
+        Assert.Equal(SharedStateMode.Disabled, new AppSettingsService(path).Mode);
+
+        // A legacy file without a configured folder.
+        File.WriteAllText(path, """
+        {
+          "machineName": "desktop"
+        }
+        """);
+        Assert.Equal(SharedStateMode.Disabled, new AppSettingsService(path).Mode);
+    }
+
+    [Fact]
+    public void Explicit_mode_round_trips_through_settings_json()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+
+        var service = new AppSettingsService(path);
+        service.Settings.SharedStateMode = "manual";
+        service.Save();
+
+        var reloaded = new AppSettingsService(path);
+        Assert.Equal("manual", reloaded.Settings.SharedStateMode);
+        Assert.Equal(SharedStateMode.Manual, reloaded.Mode);
+
+        // An explicit mode wins over the migration default even with a configured folder.
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared",
+          "sharedStateMode": "disabled"
+        }
+        """);
+        Assert.Equal(SharedStateMode.Disabled, new AppSettingsService(path).Mode);
+    }
+
+    [Fact]
+    public void Unrecognized_mode_value_falls_back_to_migration_default()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared",
+          "sharedStateMode": "banana"
+        }
+        """);
+
+        Assert.Equal(SharedStateMode.Enabled, new AppSettingsService(path).Mode);
+    }
+
+    [Fact]
+    public void Resolved_mode_is_never_stamped_back_into_settings_json()
+    {
+        var path = Path.Combine(_directory, "settings.json");
+        File.WriteAllText(path, """
+        {
+          "sharedStateFolder": "/mnt/gdrive/WorkbenchShared"
+        }
+        """);
+
+        var service = new AppSettingsService(path);
+        Assert.Equal(SharedStateMode.Enabled, service.Mode);
+        service.Save();
+
+        var json = File.ReadAllText(path);
+        Assert.DoesNotContain("sharedStateMode", json);
+        Assert.Contains("/mnt/gdrive/WorkbenchShared", json);
     }
 }

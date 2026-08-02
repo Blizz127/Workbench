@@ -61,7 +61,8 @@
                     <Button Classes="section-nav" Classes.selected="{Binding IsGitHubSelected}"
                             Content="GitHub" Command="{Binding SelectSectionCommand}" CommandParameter="GitHub" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsSharedStateSelected}"
-                            Content="Shared State" Command="{Binding SelectSectionCommand}" CommandParameter="Shared State" />
+                            Content="Shared State" Command="{Binding SelectSectionCommand}" CommandParameter="Shared State"
+                            IsVisible="{Binding HasSharedStateSection}" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsHistorySelected}"
                             Content="History" Command="{Binding SelectSectionCommand}" CommandParameter="History" />
                     <Button Classes="section-nav" Classes.selected="{Binding IsTimelineSelected}"

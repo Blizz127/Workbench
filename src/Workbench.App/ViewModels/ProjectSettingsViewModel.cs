@@ -85,7 +85,10 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         _aiContextPaths = string.Join(Environment.NewLine, project.AiContextPaths);
         _tags = string.Join(", ", project.Tags);
         Blockers = new ProjectBlockersViewModel(services, project);
-        RefreshSharedFolderWarnings();
+        // Automatic folder probing happens only in Enabled mode; Manual probes
+        // on explicit action (Reload button), Disabled never probes here.
+        if (SharedStateModeRules.AutomaticChecks(services.AppSettings.Mode))
+            RefreshSharedFolderWarnings();
     }
 
     /// <summary>Re-probes the shared folder (existence, writability, conflicted copies) and refreshes the warnings banner.</summary>

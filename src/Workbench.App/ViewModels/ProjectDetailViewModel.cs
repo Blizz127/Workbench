@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.App.ViewModels;
 
@@ -52,6 +53,9 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
 
     public bool HasHeaderSharedBadge => HeaderSharedBadge is not null;
     public bool IsHeaderSharedBadgeWarning => SharedStatusBadge.IsWarning(HeaderSharedBadge);
+
+    /// <summary>The Shared State nav entry and section exist only when shared actions are visible (Manual/Enabled).</summary>
+    public bool HasSharedStateSection => SharedStateModeRules.ActionsVisible(_services.AppSettings.Mode);
 
     /// <summary>Reduced-motion switch for the section fade (re-read whenever a workspace is created).</summary>
     public bool IsReducedMotion => _services.AppSettings.Settings.ReducedMotion;
@@ -114,10 +118,12 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         var project = Project;
         var sharedFolder = _services.AppSettings.SharedStateFolder;
         var machineName = _services.AppSettings.MachineName;
+        var sharedMode = _services.AppSettings.Mode;
         _ = Task.Run(() =>
         {
             var snapshot = _services.Git.GetSnapshot(project.RepositoryPath, recentCommitCount: 0);
-            var badge = sharedFolder is null
+            // Badges exist only in Enabled mode; other modes never read the folder here.
+            var badge = !SharedStateModeRules.Badges(sharedMode) || sharedFolder is null
                 ? null
                 : SharedStatusBadge.For(
                     _services.SharedState, project, _services.SharedState.LoadAll(sharedFolder), machineName);
@@ -155,7 +161,14 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     private void GoBack() => _goBack();
 
     [RelayCommand]
-    private void SelectSection(string section) => SelectedSection = section;
+    private void SelectSection(string section)
+    {
+        // The Shared State section is hidden in Disabled mode — never navigate to it.
+        if (section == "Shared State" && !HasSharedStateSection)
+            return;
+
+        SelectedSection = section;
+    }
 
     /// <summary>Header Start: opens the Run section — execution stays explicit, nothing starts.</summary>
     [RelayCommand]
