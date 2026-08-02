@@ -15,16 +15,28 @@ public static class ActionPageRenderer
 
     /// <summary>Large tap-target buttons; read-only actions look different from mutating ones.</summary>
     public static void WriteActionsSection(
-        StringBuilder html, long projectId, IReadOnlyList<MobileActionDescriptor> actions)
+        StringBuilder html, long projectId, IReadOnlyList<MobileActionDescriptor> actions,
+        bool enabled = true)
     {
         // The named anchor lets dashboard cards deep-link here without an id
         // hook — the actions/journal sections stay outside the JS-polled DOM.
         html.Append("<a name=\"actions\"></a><h2>Actions</h2><div class=\"card\">");
+        if (!enabled)
+            html.Append("<p class=\"muted\">Mobile actions are disabled on this instance (staging read-only).</p>");
         if (actions.Count == 0)
             html.Append("<span class=\"muted\">No actions available for this project.</span>");
 
         foreach (var action in actions)
         {
+            // Staging read-only: every action is an inert row — no links, no forms.
+            if (!enabled)
+            {
+                html.Append("<div class=\"action-btn disabled\"><span class=\"grow\">")
+                    .Append(WebPageShell.Encode(action.Label))
+                    .Append("</span><span class=\"badge warn\">disabled</span></div>");
+                continue;
+            }
+
             var css = "action-btn"
                 + (action.IsMutating ? " mutating" : "")
                 + (action.DisabledReason is not null ? " disabled" : "");
@@ -164,6 +176,24 @@ public static class ActionPageRenderer
         html.Append("<div class=\"card\"><h1>Request rejected</h1>")
             .Append("<span class=\"badge bad\">rejected</span><p>")
             .Append(WebPageShell.Encode(reason)).Append("</p></div>");
+        return Finish(html);
+    }
+
+    /// <summary>
+    /// The staging read-only page: shown in place of every action endpoint
+    /// when <c>MobileActionsEnabled</c> is false. Explains the deployment is
+    /// read-only by configuration; nothing was executed or changed.
+    /// </summary>
+    public static string RenderStagingDisabled(long projectId)
+    {
+        var html = new StringBuilder(capacity: 4 * 1024);
+        WebPageShell.WriteHead(html, "Actions disabled — Development Lab", "none", "");
+        html.Append("<a class=\"back-link\" href=\"/projects/").Append(projectId).Append("\">← Back to project</a>");
+        html.Append("<div class=\"card\"><span class=\"badge warn\">staging read-only</span>")
+            .Append("<h1>Actions disabled on this instance</h1>")
+            .Append("<p>This is a staging, read-only deployment of the dashboard. Mobile actions — ")
+            .Append("the only mutations the web host can perform — are disabled by configuration. ")
+            .Append("Nothing was executed or changed.</p></div>");
         return Finish(html);
     }
 

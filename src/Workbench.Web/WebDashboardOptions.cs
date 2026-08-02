@@ -6,7 +6,8 @@ namespace Workbench.Web;
 /// Web dashboard configuration, bound from the <c>Web</c> section of
 /// appsettings.json and overridden by <c>WORKBENCH_WEB_*</c> environment
 /// variables (<c>WORKBENCH_WEB_BindAddress</c>, <c>WORKBENCH_WEB_Port</c>,
-/// <c>WORKBENCH_WEB_AuthToken</c>, <c>WORKBENCH_WEB_DatabasePath</c>).
+/// <c>WORKBENCH_WEB_AuthToken</c>, <c>WORKBENCH_WEB_DatabasePath</c>,
+/// <c>WORKBENCH_WEB_MobileActionsEnabled</c>).
 /// The defaults listen on loopback only; the token stays empty (dashboard
 /// refuses to serve) until the operator sets one — nothing secret is ever
 /// committed.
@@ -35,6 +36,15 @@ public sealed class WebDashboardOptions
 
     /// <summary>Mobile action audit retention: maximum age in days (enforced at startup).</summary>
     public int AuditRetentionDays { get; set; } = 90;
+
+    /// <summary>
+    /// Whether the mobile action layer (the host's only mutations) is armed.
+    /// Overridable via <c>WORKBENCH_WEB_MobileActionsEnabled</c>. Set to
+    /// <c>false</c> for a staging deployment: the host turns fully read-only —
+    /// the confirm pages render a staging explanation and both POST endpoints
+    /// answer 403 without ever touching the action service.
+    /// </summary>
+    public bool MobileActionsEnabled { get; set; } = true;
 
     /// <summary>
     /// Lifetime of a browser session issued by the token exchange. After

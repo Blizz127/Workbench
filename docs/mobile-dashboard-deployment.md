@@ -100,6 +100,45 @@ included and the `sg` wrapper is harmless.
 - The application additionally warns at startup if configured with a
   non-private bind address.
 
+## Staging instance
+
+A second, fully isolated instance runs the newest build for UI testing before
+it replaces production:
+
+| What | Production | Staging |
+| --- | --- | --- |
+| Service | `workbench-web.service` | `workbench-web-staging.service` |
+| Bind | `100.104.53.1:8471` | `100.104.53.1:8472` |
+| Binaries | `/home/blizz/apps/workbench-web/` | `/home/blizz/apps/workbench-web-staging/` |
+| Environment | `~/.config/workbench-web/environment` | `~/.config/workbench-web-staging/environment` (0600, own token) |
+| Database | `~/.config/Workbench/workbench.db` | `~/.local/share/Workbench/workbench-staging.db` (a copy, refreshed manually) |
+| Mobile actions | enabled | **disabled** (`WORKBENCH_WEB_MobileActionsEnabled=false`) |
+
+Staging differences in the environment file:
+
+```ini
+ASPNETCORE_URLS=http://100.104.53.1:8472
+WORKBENCH_WEB_BindAddress=100.104.53.1
+WORKBENCH_WEB_Port=8472
+WORKBENCH_WEB_AuthToken=<own 64-char hex token — NOT the production token>
+WORKBENCH_WEB_DatabasePath=/home/blizz/.local/share/Workbench/workbench-staging.db
+WORKBENCH_WEB_MobileActionsEnabled=false
+```
+
+With `MobileActionsEnabled=false` every POST action route answers 403 with a
+styled "staging read-only" page before any CSRF/nonce check runs, the GET
+confirm page renders the same notice, and the detail page shows the actions
+section with every action disabled. GET/read-only routes work normally.
+Staging shares no writable state with production: separate database file,
+separate token, separate publish directory.
+
+Refresh the staging database copy (stop nothing; the copy is a plain file):
+
+```bash
+cp ~/.config/Workbench/workbench.db ~/.local/share/Workbench/workbench-staging.db
+systemctl --user restart workbench-web-staging   # only to pick up new binaries/config
+```
+
 ## Validation checklist
 
 ```bash

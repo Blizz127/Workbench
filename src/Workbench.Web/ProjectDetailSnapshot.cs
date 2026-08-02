@@ -15,7 +15,13 @@ public sealed record ProjectDetailSnapshot(
     DockerDetailBlock Docker,
     ProjectSessionBlock Session,
     BlockerSummaryBlock Blockers,
-    IReadOnlyList<WebActivityEntry> RecentActivity);
+    IReadOnlyList<WebActivityEntry> RecentActivity,
+
+    /// <summary>Milestones, frontier, and resolved/dismissed blockers for the Progress card.</summary>
+    ProgressBlock Progress,
+
+    /// <summary>Latest runtime-health assessment, or null when no records exist.</summary>
+    RuntimeHealthBlock? RuntimeHealth);
 
 /// <summary>
 /// Read-only blocker summary for the detail page: counts by lifecycle status
@@ -36,6 +42,35 @@ public sealed record WebBlockerEntry(
     string? Evidence,
     string? NextSafestStep,
     string? Owner);
+
+/// <summary>
+/// The Progress card: weighted milestone progress (null text means "not
+/// configured" — never an implied 0%), the milestone checklist, the frontier
+/// line, and the resolved/dismissed blockers the card collapses away.
+/// </summary>
+public sealed record ProgressBlock(
+    string? ProgressText,
+    double ProgressPercent,
+    IReadOnlyList<WebMilestoneEntry> Milestones,
+    string FrontierText,
+    IReadOnlyList<WebBlockerEntry> ResolvedBlockers);
+
+/// <summary>One milestone row: title, lifecycle status as text, done flag.</summary>
+public sealed record WebMilestoneEntry(
+    string Title,
+    string StatusText,
+    bool Done);
+
+/// <summary>
+/// The newest runtime-health record, rendered for the Run section: the
+/// verdict word (badge text, never color alone), the failed component when
+/// known, and when it was checked, relative and absolute.
+/// </summary>
+public sealed record RuntimeHealthBlock(
+    string VerdictText,
+    string? ComponentText,
+    string VerdictBadgeClass,
+    string CheckedAtText);
 
 public sealed record GitDetailBlock(
     bool Available,

@@ -90,10 +90,11 @@ app.MapGet("/", async (DashboardSnapshotService snapshots, CancellationToken can
 
 app.MapGet("/projects/{id:long}", async (
     long id, DashboardSnapshotService snapshots, IMobileActionService actions,
-    ActionJournal journal, CancellationToken cancellationToken) =>
+    ActionJournal journal, WebDashboardOptions webOptions, CancellationToken cancellationToken) =>
     await snapshots.BuildProjectAsync(id, cancellationToken) is { } detail
         ? Results.Content(
-            ProjectDetailPageRenderer.Render(detail, actions.GetActions(id), journal.Recent(id, 20)),
+            ProjectDetailPageRenderer.Render(
+                detail, actions.GetActions(id), journal.Recent(id, 20), webOptions.MobileActionsEnabled),
             "text/html; charset=utf-8")
         : Results.Content(
             ProjectDetailPageRenderer.RenderNotFound(id), "text/html; charset=utf-8", statusCode: 404));
@@ -143,8 +144,12 @@ app.MapGet("/projects/{id:long}/commits/{sha}", (long id, string sha, ProjectCod
 // step-one nonce by purpose.
 app.MapGet("/projects/{id:long}/actions/{actionId}/confirm", (
     long id, string actionId, HttpContext context,
-    IMobileActionService actions, ConfirmationNonceService nonces) =>
+    IMobileActionService actions, ConfirmationNonceService nonces, WebDashboardOptions webOptions) =>
 {
+    // Staging read-only: the confirm page becomes an explanation, no nonce.
+    if (!webOptions.MobileActionsEnabled)
+        return Html(ActionPageRenderer.RenderStagingDisabled(id));
+
     if (actions.BuildPreview(id, actionId) is not { } preview)
         return ProjectNotFound(id);
 
@@ -161,8 +166,13 @@ app.MapGet("/projects/{id:long}/actions/{actionId}/confirm", (
 
 app.MapPost("/projects/{id:long}/actions/{actionId}/confirm2", async (
     long id, string actionId, HttpContext context,
-    IMobileActionService actions, ConfirmationNonceService nonces, SessionStore sessions) =>
+    IMobileActionService actions, ConfirmationNonceService nonces, SessionStore sessions,
+    WebDashboardOptions webOptions) =>
 {
+    // Staging read-only: refuse before the CSRF/nonce gates — nothing runs.
+    if (!webOptions.MobileActionsEnabled)
+        return StagingDisabled(id);
+
     // A non-form POST can never carry a valid CSRF token; reject it as such
     // instead of letting ReadFormAsync throw on the content type.
     var form = context.Request.HasFormContentType ? await context.Request.ReadFormAsync() : null;
@@ -184,8 +194,13 @@ app.MapPost("/projects/{id:long}/actions/{actionId}/confirm2", async (
 
 app.MapPost("/projects/{id:long}/actions/{actionId}/execute", async (
     long id, string actionId, HttpContext context,
-    IMobileActionService actions, ConfirmationNonceService nonces, SessionStore sessions) =>
+    IMobileActionService actions, ConfirmationNonceService nonces, SessionStore sessions,
+    WebDashboardOptions webOptions) =>
 {
+    // Staging read-only: refuse before the CSRF/nonce gates — nothing runs.
+    if (!webOptions.MobileActionsEnabled)
+        return StagingDisabled(id);
+
     var form = context.Request.HasFormContentType ? await context.Request.ReadFormAsync() : null;
     if (form is null || !CsrfValid(context, sessions, form))
         return Rejected(id, "The form's security token is missing or invalid — reload the page and try again.");
@@ -236,6 +251,9 @@ static IResult ProjectNotFound(long id) =>
 
 static IResult Rejected(long id, string reason) =>
     Results.Content(ActionPageRenderer.RenderRejection(id, reason), "text/html; charset=utf-8", statusCode: 403);
+
+static IResult StagingDisabled(long id) =>
+    Results.Content(ActionPageRenderer.RenderStagingDisabled(id), "text/html; charset=utf-8", statusCode: 403);
 
 static string CsrfToken(HttpContext context) =>
     context.Items[TokenAuthMiddleware.CsrfTokenItemKey] as string ?? string.Empty;

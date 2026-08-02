@@ -222,7 +222,9 @@ public sealed class WebDashboardHostTests
         Assert.Contains(">critical<", html);
         Assert.Contains("FFXI-3001 after character select", html);
         Assert.Contains("Packet capture on host network", html);
-        Assert.DoesNotContain("Old login queue stall", html); // resolved: count only
+        // Resolved entries collapse behind one details line instead of listing open.
+        Assert.Contains("<details class=\"resolved\">", html);
+        Assert.Contains("Old login queue stall", html);
 
         // Read-only: there is no POST surface for blockers.
         using var post = new HttpRequestMessage(HttpMethod.Post, "/projects/7");

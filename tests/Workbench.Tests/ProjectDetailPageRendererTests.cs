@@ -28,7 +28,9 @@ public sealed class ProjectDetailPageRendererTests
         RecentActivity:
         [
             new WebActivityEntry("08-01 21:00", "Run", "run failed", "MARIADB_PASSWORD=***"),
-        ]);
+        ],
+        Progress: new ProgressBlock(null, 0, [], "no frontier set", []),
+        RuntimeHealth: null);
 
     [Fact]
     public void Detail_page_has_all_sections_and_branding()
@@ -172,7 +174,7 @@ public sealed class ProjectDetailPageRendererTests
         Assert.DoesNotContain("<img src=x>", html);
         Assert.Contains("&lt;script&gt;", html);
         // The section stays outside the JS-polled containers: no id hooks at all.
-        var section = html.Split(">Blockers</h2>")[1].Split("<h2>")[0];
+        var section = html.Split(">Blockers</h2>")[1].Split("<h2")[0];
         Assert.DoesNotContain("id=\"", section);
     }
 
@@ -190,5 +192,135 @@ public sealed class ProjectDetailPageRendererTests
         Assert.Contains("2 resolved", closedOnly);
         Assert.Contains("1 dismissed", closedOnly);
         Assert.Contains("Nothing active right now.", closedOnly);
+    }
+
+    [Fact]
+    public void Header_tabs_and_sections_carry_the_anchor_structure()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail());
+
+        Assert.Contains("class=\"project-header\"", html);
+        Assert.Contains("id=\"ov-status\"", html); // the status badge lives in the sticky header
+        Assert.Contains("class=\"tabs\"", html);
+        Assert.Contains("href=\"#overview\"", html);
+        Assert.Contains("href=\"#run\"", html);
+        Assert.Contains("href=\"#progress\"", html);
+        Assert.Contains("href=\"/projects/7/files\"", html);
+        Assert.Contains("href=\"#history\"", html);
+        Assert.Contains("href=\"/audit?project=7\"", html);
+        Assert.Contains("id=\"overview\"", html);
+        Assert.Contains("id=\"run\"", html);
+        Assert.Contains("id=\"progress\"", html);
+        Assert.Contains("id=\"history\"", html);
+    }
+
+    [Fact]
+    public void Progress_card_renders_milestones_frontier_and_collapsed_resolved_blockers()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            Blockers = new BlockerSummaryBlock(1, 0, 1, 1,
+                [new WebBlockerEntry("Map server NAT drops zone traffic", "critical", "Active", null, null, null)]),
+            Progress = new ProgressBlock(
+                "1/2 milestones · 50%", 50,
+                [
+                    new WebMilestoneEntry("boot", "done", true),
+                    new WebMilestoneEntry("renderer", "active", false),
+                ],
+                "lobby protocol · next: world map",
+                [
+                    new WebBlockerEntry("Old login queue stall", null, "Resolved", null, null, null),
+                    new WebBlockerEntry("Outdated toolchain note", null, "Dismissed", null, null, null),
+                ]),
+        });
+
+        Assert.Contains("id=\"progress\"", html);
+        Assert.Contains("width:50%", html);
+        Assert.Contains("1/2 milestones", html);
+        Assert.Contains(">boot<", html);
+        // Done carries a text marker — the ok color is never the only signal.
+        Assert.Contains("badge ok\">done ✓</span>", html);
+        Assert.Contains(">renderer<", html);
+        Assert.Contains("badge\">active</span>", html);
+        Assert.Contains("lobby protocol", html);
+        Assert.Contains("next: world map", html);
+
+        // Resolved/dismissed blockers hide behind one collapsed details line.
+        Assert.Contains("<details class=\"resolved\"><summary>", html);
+        Assert.Contains("1 resolved", html);
+        Assert.Contains("1 dismissed", html);
+        Assert.Contains("Old login queue stall", html);
+        Assert.Contains("badge\">Resolved</span>", html);
+        Assert.Contains("Outdated toolchain note", html);
+        Assert.Contains("badge\">Dismissed</span>", html);
+    }
+
+    [Fact]
+    public void Progress_not_configured_is_an_honest_empty_state_never_zero()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail());
+
+        Assert.Contains("Progress not configured", html);
+        Assert.Contains("no frontier set", html);
+        Assert.DoesNotContain("<details class=\"resolved\">", html);
+    }
+
+    [Fact]
+    public void Runtime_health_card_renders_the_verdict_or_the_empty_state()
+    {
+        var empty = ProjectDetailPageRenderer.Render(BansheeDetail());
+        Assert.Contains("No runtime health records.", empty);
+
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            RuntimeHealth = new RuntimeHealthBlock("Failed", "map", "bad", "2h ago · 08-01 10:00"),
+        });
+
+        Assert.Contains("badge bad\">Failed</span>", html);
+        Assert.Contains(">map<", html);
+        Assert.Contains("2h ago", html);
+    }
+
+    [Fact]
+    public void Failing_docker_services_are_called_out_at_the_top_of_the_card()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            Docker = BansheeDetail().Docker with
+            {
+                Services =
+                [
+                    new WebComposeService("map", "failed", null),
+                    new WebComposeService("database", "running", "unhealthy"),
+                    new WebComposeService("world", "running", null),
+                ],
+            },
+        });
+
+        Assert.Contains("id=\"docker-failing\"", html);
+        Assert.Contains("badge bad\" id=\"docker-failing-n\">2 failing</span>", html);
+        Assert.Contains("map, database", html);
+    }
+
+    [Fact]
+    public void Staging_read_only_renders_every_action_disabled_without_links()
+    {
+        var html = ProjectDetailPageRenderer.Render(
+            BansheeDetail(),
+            [
+                new MobileActionDescriptor("logs-all", "View all logs", "dockerLogsAll",
+                    MobileActionSafety.ReadOnly, null, null),
+                new MobileActionDescriptor("restart-map", "Restart map", "dockerRestartService",
+                    MobileActionSafety.RequiresDoubleConfirmation, "map", null),
+            ],
+            [],
+            actionsEnabled: false);
+
+        Assert.Contains("Mobile actions are disabled on this instance (staging read-only).", html);
+        Assert.Contains("action-btn disabled", html);
+        Assert.Contains("badge warn\">disabled</span>", html);
+        Assert.Contains("View all logs", html);
+        Assert.DoesNotContain("/actions/logs-all/confirm", html);
+        Assert.DoesNotContain("/actions/restart-map/confirm", html);
     }
 }

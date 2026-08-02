@@ -46,7 +46,10 @@ public sealed class DashboardSnapshotServiceTests
             timelineRepo,
             blockerRepo,
             projection,
-            configs ?? new WebStubs.ProjectConfigs(_ => null));
+            configs ?? new WebStubs.ProjectConfigs(_ => null),
+            milestoneRepo,
+            frontierRepo,
+            runtimeRepo);
     }
 
     [Fact]
@@ -260,5 +263,93 @@ public sealed class DashboardSnapshotServiceTests
 
         var card = Assert.Single(snapshot.Projects);
         Assert.True(card.HasMobileActions);
+    }
+
+    [Fact]
+    public async Task Detail_carries_progress_runtime_health_and_resolved_blockers()
+    {
+        var detail = await Service(
+            [WebFixtures.Banshee()],
+            milestones: new WebStubs.Milestones(
+                new Milestone { ProjectId = 7, Title = "boot", Status = MilestoneStatus.Done, SortOrder = 1 },
+                new Milestone { ProjectId = 7, Title = "renderer", Status = MilestoneStatus.Active, SortOrder = 2 },
+                new Milestone { ProjectId = 7, Title = "abandoned", Status = MilestoneStatus.Dismissed, SortOrder = 3 }),
+            frontiers: new WebStubs.Frontiers(
+                new Frontier { ProjectId = 7, Title = "lobby protocol", Status = FrontierStatus.Current },
+                new Frontier { ProjectId = 7, Title = "world map", Status = FrontierStatus.Next }),
+            blockers: new WebStubs.Blockers(
+                new Blocker { ProjectId = 7, Description = "NAT drops", Status = BlockerStatus.Active },
+                new Blocker { ProjectId = 7, Description = "old queue stall", Status = BlockerStatus.Resolved, IsResolved = true }),
+            runtimeHealth: new WebStubs.RuntimeHealthRecords(
+                new RuntimeHealthRecord
+                {
+                    ProjectId = 7,
+                    CheckedAt = DateTimeOffset.Now.AddHours(-2),
+                    Health = RuntimeHealth.Failed,
+                    FailedComponent = "map",
+                }))
+            .BuildProjectAsync(7);
+
+        Assert.NotNull(detail);
+
+        // The dismissed milestone is excluded from progress: 1 of 2 done = 50%.
+        Assert.Equal("1/2 milestones · 50%", detail.Progress.ProgressText);
+        Assert.Equal(50.0, detail.Progress.ProgressPercent, precision: 6);
+
+        // The checklist keeps every milestone in sort order, status as text.
+        Assert.Equal(3, detail.Progress.Milestones.Count);
+        Assert.Equal("boot", detail.Progress.Milestones[0].Title);
+        Assert.Equal("done", detail.Progress.Milestones[0].StatusText);
+        Assert.True(detail.Progress.Milestones[0].Done);
+        Assert.Equal("active", detail.Progress.Milestones[1].StatusText);
+        Assert.False(detail.Progress.Milestones[1].Done);
+        Assert.Equal("dismissed", detail.Progress.Milestones[2].StatusText);
+
+        Assert.Equal("lobby protocol · next: world map", detail.Progress.FrontierText);
+
+        // Open blockers stay in the summary block; closed ones list here.
+        var resolved = Assert.Single(detail.Progress.ResolvedBlockers);
+        Assert.Equal("old queue stall", resolved.Title);
+        Assert.Equal("Resolved", resolved.Status);
+        var open = Assert.Single(detail.Blockers.Open);
+        Assert.Equal("NAT drops", open.Title);
+
+        Assert.NotNull(detail.RuntimeHealth);
+        Assert.Equal("Failed", detail.RuntimeHealth.VerdictText);
+        Assert.Equal("bad", detail.RuntimeHealth.VerdictBadgeClass);
+        Assert.Equal("map", detail.RuntimeHealth.ComponentText);
+        Assert.Contains("ago", detail.RuntimeHealth.CheckedAtText);
+    }
+
+    [Fact]
+    public async Task Unconfigured_progress_and_no_health_records_are_null_blocks()
+    {
+        var detail = await Service([WebFixtures.Banshee()]).BuildProjectAsync(7);
+
+        Assert.NotNull(detail);
+        Assert.Null(detail.Progress.ProgressText); // never an implied 0%
+        Assert.Equal(0, detail.Progress.ProgressPercent);
+        Assert.Empty(detail.Progress.Milestones);
+        Assert.Equal("no frontier set", detail.Progress.FrontierText);
+        Assert.Empty(detail.Progress.ResolvedBlockers);
+        Assert.Null(detail.RuntimeHealth);
+    }
+
+    [Fact]
+    public async Task Progress_fields_redact_secret_shaped_text()
+    {
+        var detail = await Service(
+            [WebFixtures.Banshee()],
+            milestones: new WebStubs.Milestones(
+                new Milestone { ProjectId = 7, Title = "deploy MARIADB_PASSWORD=sup3rsecret", Status = MilestoneStatus.Active }),
+            frontiers: new WebStubs.Frontiers(
+                new Frontier { ProjectId = 7, Title = "rotate token=sekrit now", Status = FrontierStatus.Current }))
+            .BuildProjectAsync(7);
+
+        Assert.NotNull(detail);
+        var milestone = Assert.Single(detail.Progress.Milestones);
+        Assert.DoesNotContain("sup3rsecret", milestone.Title);
+        Assert.Contains("MARIADB_PASSWORD=***", milestone.Title);
+        Assert.DoesNotContain("sekrit", detail.Progress.FrontierText);
     }
 }

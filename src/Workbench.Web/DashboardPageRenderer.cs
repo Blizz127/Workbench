@@ -37,8 +37,14 @@ public static class DashboardPageRenderer
         WriteTmuxRows(html, snapshot.Tmux);
         html.Append("</div>");
 
-        // Projects
-        html.Append("<h2>Projects</h2><div id=\"projects-body\">");
+        // Projects. The filter control is static markup OUTSIDE #projects-body
+        // so the polling re-render never wipes it; the script re-applies the
+        // chosen filter after every render.
+        html.Append("""
+            <h2>Projects</h2><details class="filters"><summary>Filters</summary>
+            <div class="filter-buttons"><button type="button" class="filter active" data-filter="all" aria-pressed="true">All</button><button type="button" class="filter" data-filter="attention" aria-pressed="false">Needs attention</button><button type="button" class="filter" data-filter="blocked" aria-pressed="false">Blocked</button><button type="button" class="filter" data-filter="dirty" aria-pressed="false">Dirty</button></div>
+            </details><div id="projects-body">
+            """);
         if (snapshot.Projects.Count == 0)
             html.Append("<div class=\"card muted\">No projects registered.</div>");
         foreach (var project in snapshot.Projects)
@@ -131,9 +137,11 @@ public static class DashboardPageRenderer
     private static void WriteProjectCard(StringBuilder html, WebProjectCard project)
     {
         // The card is a div so the footer can hold both the "View project"
-        // tap target and the allowlist-gated "Actions" link.
-        html.Append("<div class=\"card project-card\">")
-            .Append("<div class=\"row\"><strong class=\"grow\">").Append(WebPageShell.Encode(project.Name))
+        // tap target and the allowlist-gated "Actions" link. data-health /
+        // data-dirty feed the filter control (kept in sync with the JS).
+        html.Append("<div class=\"card project-card\" data-health=\"").Append(WebPageShell.Encode(project.HealthText))
+            .Append("\" data-dirty=\"").Append(project.GitDirty ? "true" : "false")
+            .Append("\"><div class=\"row card-head\"><strong class=\"grow\">").Append(WebPageShell.Encode(project.Name))
             .Append("</strong><span class=\"badge").Append(project.HealthBadgeClass.Length > 0 ? " " + project.HealthBadgeClass : string.Empty)
             .Append("\" title=\"").Append(WebPageShell.Encode(project.HealthReasonsText)).Append("\">")
             .Append(WebPageShell.Encode(project.HealthText)).Append("</span>")

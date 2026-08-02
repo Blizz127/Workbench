@@ -3,11 +3,15 @@ using System.Text;
 namespace Workbench.Web;
 
 /// <summary>
-/// Renders one project's detail page in five sections — Overview, Git,
-/// Docker, Sessions, Recent Activity — sized for an iPhone screen. Docker
-/// services are explicit rows with text badges (state AND health in words,
-/// never color alone); a one-shot service that exited 0 reads "completed",
-/// never failed. The markup carries the ids the refresh script updates.
+/// Renders one project's detail page: a sticky header (back link, name,
+/// live status badge), a wrapping tab nav, and four anchor sections —
+/// #overview (path + Git), #run (runtime health, Docker, sessions, actions),
+/// #progress (milestones, frontier, blockers), #history (recent activity).
+/// Docker services are explicit rows with text badges (state AND health in
+/// words, never color alone); a one-shot service that exited 0 reads
+/// "completed", never failed. The markup carries the ids the refresh script
+/// updates; the tab nav, actions, and blocker sections stay outside every
+/// id-tagged container so polling never wipes them.
 /// </summary>
 public static class ProjectDetailPageRenderer
 {
@@ -17,27 +21,33 @@ public static class ProjectDetailPageRenderer
     public static string Render(
         ProjectDetailSnapshot detail,
         IReadOnlyList<MobileActionDescriptor> actions,
-        IReadOnlyList<ActionJournalEntry> recentActions)
+        IReadOnlyList<ActionJournalEntry> recentActions,
+        bool actionsEnabled = true)
     {
         var html = new StringBuilder(capacity: 24 * 1024);
         WebPageShell.WriteHead(html, $"{detail.Name} — Development Lab", "detail", $"/api/projects/{detail.Id}");
 
-        html.Append("<a class=\"back-link\" href=\"/\">← All projects</a>");
-        html.Append("<h1>").Append(WebPageShell.Encode(detail.Name)).Append("</h1>");
+        // Sticky header: back link, name, and the live status badge (the
+        // refresh script updates ov-status here). Static — never polled away.
+        html.Append("<div class=\"project-header\">")
+            .Append("<a class=\"back-link\" href=\"/\">← All projects</a>")
+            .Append("<div class=\"row\"><h1 class=\"grow\">").Append(WebPageShell.Encode(detail.Name))
+            .Append("</h1><span class=\"badge\" id=\"ov-status\">")
+            .Append(WebPageShell.Encode(detail.Status)).Append("</span></div>");
         DashboardPageRenderer.WriteRefreshNote(html, detail.GeneratedAt);
+        html.Append("</div>");
 
-        // Static entry into the code browser — deliberately outside every
-        // id-tagged container, so the polling re-render never wipes it.
-        html.Append("<nav class=\"code-links\">")
+        html.Append("<nav class=\"tabs\">")
+            .Append("<a href=\"#overview\">Overview</a>")
+            .Append("<a href=\"#run\">Run</a>")
+            .Append("<a href=\"#progress\">Progress</a>")
             .Append("<a href=\"/projects/").Append(detail.Id).Append("/files\">Code</a>")
-            .Append("<a href=\"/projects/").Append(detail.Id).Append("/changes\">Changes</a>")
-            .Append("<a href=\"/projects/").Append(detail.Id).Append("/search\">Search</a>")
+            .Append("<a href=\"#history\">History</a>")
+            .Append("<a href=\"/audit?project=").Append(detail.Id).Append("\">Audit</a>")
             .Append("</nav>");
 
-        // Overview
-        html.Append("<h2>Overview</h2><div class=\"card\">")
-            .Append("<div class=\"row\"><span class=\"muted\">status</span><span class=\"badge\" id=\"ov-status\">")
-            .Append(WebPageShell.Encode(detail.Status)).Append("</span></div>")
+        // ---------- #overview: path + Git ----------
+        html.Append("<h2 id=\"overview\">Overview</h2><div class=\"card\">")
             .Append("<div class=\"row\"><span class=\"muted\">path</span><span class=\"path grow\" id=\"ov-path\">")
             .Append(WebPageShell.Encode(detail.RepositoryPath ?? "no repository path")).Append("</span></div>")
             .Append("</div>");
@@ -72,11 +82,22 @@ public static class ProjectDetailPageRenderer
 
         html.Append("</div></div>");
 
-        // Docker
+        // ---------- #run: runtime health, Docker, sessions, actions ----------
+        WriteRuntimeHealthCard(html, detail.RuntimeHealth);
+
+        // Docker: failing/unhealthy services are called out at the top of the
+        // card before the summary — a "N failing" badge with the names.
+        var failing = detail.Docker.Services
+            .Where(s => s.StateText is "failed" or "restarting" || s.HealthText == "unhealthy")
+            .ToList();
         html.Append("<h2>Docker</h2><div class=\"card\">");
         html.Append("<span class=\"muted\" id=\"docker-none\"").Append(detail.Docker.HasComposeFile ? " hidden" : "")
             .Append(">No compose file for this project.</span>");
         html.Append("<div id=\"docker-body\"").Append(detail.Docker.HasComposeFile ? "" : " hidden").Append(">")
+            .Append("<div class=\"row\" id=\"docker-failing\"").Append(failing.Count > 0 ? "" : " hidden")
+            .Append("><span class=\"badge bad\" id=\"docker-failing-n\">").Append(failing.Count)
+            .Append(" failing</span><span class=\"muted grow\" id=\"docker-failing-v\">")
+            .Append(WebPageShell.Encode(string.Join(", ", failing.Select(s => s.Name)))).Append("</span></div>")
             .Append("<div class=\"row\"><span class=\"muted\">summary</span><span class=\"mono grow\" id=\"docker-summary\">")
             .Append(WebPageShell.Encode(detail.Docker.Summary ?? string.Empty)).Append("</span></div>")
             .Append("<div class=\"muted\" id=\"docker-error\"").Append(detail.Docker.Error is null ? " hidden" : "")
@@ -100,8 +121,23 @@ public static class ProjectDetailPageRenderer
             .Append("</span></div>")
             .Append("</div>");
 
-        // Recent activity (already secret-redacted at the source)
-        html.Append("<h2>Recent Activity</h2><div class=\"card\">")
+        // Actions + their journal: static, server-rendered, and deliberately
+        // outside every id-tagged container so the polling re-render of the
+        // detail endpoint never wipes them.
+        ActionPageRenderer.WriteActionsSection(html, detail.Id, actions, actionsEnabled);
+        ActionPageRenderer.WriteRecentActionsSection(html, recentActions);
+        html.Append("<p><a class=\"view-link\" href=\"/audit?project=").Append(detail.Id)
+            .Append("\">Full action audit →</a></p>");
+
+        // ---------- #progress: milestones, frontier, blockers ----------
+        WriteProgressCard(html, detail.Progress);
+
+        // Blockers: read-only summary, server-rendered and deliberately outside
+        // every id-tagged container so the polling re-render never wipes it.
+        WriteBlockersSection(html, detail.Blockers, detail.Progress.ResolvedBlockers);
+
+        // ---------- #history: recent activity (already secret-redacted) ----------
+        html.Append("<h2 id=\"history\">Recent Activity</h2><div class=\"card\">")
             .Append("<span class=\"muted\" id=\"activity-none\"").Append(detail.RecentActivity.Count > 0 ? " hidden" : "")
             .Append(">No recent activity.</span>")
             .Append("<ul class=\"lined\" id=\"activity-list\">");
@@ -115,18 +151,6 @@ public static class ProjectDetailPageRenderer
         }
 
         html.Append("</ul></div>");
-
-        // Blockers: read-only summary, server-rendered and deliberately outside
-        // every id-tagged container so the polling re-render never wipes it.
-        WriteBlockersSection(html, detail.Blockers);
-
-        // Actions + their journal: static, server-rendered, and deliberately
-        // outside every id-tagged container so the polling re-render of the
-        // detail endpoint never wipes them.
-        ActionPageRenderer.WriteActionsSection(html, detail.Id, actions);
-        ActionPageRenderer.WriteRecentActionsSection(html, recentActions);
-        html.Append("<p><a class=\"view-link\" href=\"/audit?project=").Append(detail.Id)
-            .Append("\">Full action audit →</a></p>");
 
         WebPageShell.WriteScript(html);
         return html.ToString();
@@ -145,7 +169,66 @@ public static class ProjectDetailPageRenderer
         return html.ToString();
     }
 
-    internal static void WriteBlockersSection(StringBuilder html, BlockerSummaryBlock blockers)
+    /// <summary>The #run runtime-health card: static, never polled.</summary>
+    internal static void WriteRuntimeHealthCard(StringBuilder html, RuntimeHealthBlock? health)
+    {
+        html.Append("<h2 id=\"run\">Runtime Health</h2><div class=\"card\">");
+        if (health is null)
+        {
+            html.Append("<span class=\"muted\">No runtime health records.</span></div>");
+            return;
+        }
+
+        html.Append("<div class=\"row\"><span class=\"muted\">verdict</span><span class=\"badge")
+            .Append(health.VerdictBadgeClass.Length > 0 ? " " + health.VerdictBadgeClass : "")
+            .Append("\">").Append(WebPageShell.Encode(health.VerdictText)).Append("</span>");
+        if (health.ComponentText is { } component)
+            html.Append("<span class=\"mono grow\">").Append(WebPageShell.Encode(component)).Append("</span>");
+        html.Append("</div>")
+            .Append("<div class=\"row\"><span class=\"muted\">checked</span><span class=\"mono grow\">")
+            .Append(WebPageShell.Encode(health.CheckedAtText)).Append("</span></div></div>");
+    }
+
+    /// <summary>
+    /// The #progress card: weighted progress bar (or the honest "not
+    /// configured" line — never an implied 0%), the milestone checklist with
+    /// status badges (done carries a ✓ text marker), and the frontier line.
+    /// Static, server-rendered.
+    /// </summary>
+    internal static void WriteProgressCard(StringBuilder html, ProgressBlock progress)
+    {
+        html.Append("<h2 id=\"progress\">Progress</h2><div class=\"card\">");
+        if (progress.ProgressText is { } progressText)
+        {
+            html.Append("<div class=\"row\"><div class=\"grow\"><div class=\"bar\"><div style=\"width:")
+                .Append(Math.Clamp(progress.ProgressPercent, 0, 100)
+                    .ToString("0", System.Globalization.CultureInfo.InvariantCulture))
+                .Append("%\"></div></div></div><span class=\"muted\">")
+                .Append(WebPageShell.Encode(progressText)).Append("</span></div>");
+        }
+        else
+        {
+            html.Append("<span class=\"muted\">Progress not configured</span>");
+        }
+
+        foreach (var milestone in progress.Milestones)
+        {
+            html.Append("<div class=\"row\"><span class=\"grow\">").Append(WebPageShell.Encode(milestone.Title))
+                .Append("</span>");
+            if (milestone.Done)
+                html.Append("<span class=\"badge ok\">done ✓</span>");
+            else
+                html.Append("<span class=\"badge").Append(milestone.StatusText == "blocked" ? " warn" : "")
+                    .Append("\">").Append(WebPageShell.Encode(milestone.StatusText)).Append("</span>");
+            html.Append("</div>");
+        }
+
+        html.Append("<div class=\"row\"><span class=\"muted\">frontier</span><span class=\"mono grow\">")
+            .Append(WebPageShell.Encode(progress.FrontierText)).Append("</span></div></div>");
+    }
+
+    internal static void WriteBlockersSection(
+        StringBuilder html, BlockerSummaryBlock blockers, IReadOnlyList<WebBlockerEntry> resolved)
     {
         html.Append("<h2>Blockers</h2><div class=\"card\">");
         if (blockers.Open.Count == 0 && blockers is { Active: 0, Monitoring: 0, Resolved: 0, Dismissed: 0 })
@@ -175,6 +258,19 @@ public static class ProjectDetailPageRenderer
                 html.Append("<div class=\"muted\">next safest step: ").Append(WebPageShell.Encode(nextStep)).Append("</div>");
             if (blocker.Owner is { } owner)
                 html.Append("<div class=\"muted\">owner: ").Append(WebPageShell.Encode(owner)).Append("</div>");
+        }
+
+        // Resolved/dismissed blockers collapse away behind one compact line.
+        if (resolved.Count > 0)
+        {
+            html.Append("<details class=\"resolved\"><summary>")
+                .Append(WebPageShell.Encode($"{blockers.Resolved} resolved · {blockers.Dismissed} dismissed"))
+                .Append("</summary>");
+            foreach (var blocker in resolved)
+                html.Append("<div class=\"row\"><span class=\"grow\">").Append(WebPageShell.Encode(blocker.Title))
+                    .Append("</span><span class=\"badge\">").Append(WebPageShell.Encode(blocker.Status))
+                    .Append("</span></div>");
+            html.Append("</details>");
         }
 
         html.Append("</div>");

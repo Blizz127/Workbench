@@ -159,4 +159,41 @@ public sealed class DashboardPageRendererTests
         Assert.Contains("href=\"/projects/7\"", html); // the View project tap target survives
         Assert.Contains("href=\"/projects/9\"", html);
     }
+
+    [Fact]
+    public void Stylesheet_uses_custom_properties_a_light_theme_and_breakpoints()
+    {
+        var html = DashboardPageRenderer.Render(Snapshot());
+
+        Assert.Contains("content=\"dark light\"", html);
+        Assert.Contains("--bg:", html);
+        Assert.Contains("prefers-color-scheme: light", html);
+        Assert.Contains("min-width: 768px", html);
+        Assert.Contains("min-width: 1200px", html);
+        Assert.Contains(":focus-visible", html);
+    }
+
+    [Fact]
+    public void Filter_control_and_card_data_attributes_are_present()
+    {
+        var html = DashboardPageRenderer.Render(Snapshot());
+
+        // The filters block is static, outside the polled #projects-body.
+        Assert.Contains("<details class=\"filters\">", html);
+        Assert.Contains("data-filter=\"all\"", html);
+        Assert.Contains("data-filter=\"attention\"", html);
+        Assert.Contains("data-filter=\"blocked\"", html);
+        Assert.Contains("data-filter=\"dirty\"", html);
+        // All is the active filter by default.
+        Assert.Contains("class=\"filter active\" data-filter=\"all\" aria-pressed=\"true\"", html);
+
+        Assert.Contains("data-health=\"Blocked\"", html);
+        Assert.Contains("data-health=\"Unavailable\"", html);
+        Assert.Contains("data-dirty=\"true\"", html);
+        Assert.Contains("data-dirty=\"false\"", html);
+        // The script keeps server markup and JS markup in sync and re-applies
+        // the chosen filter after every 10s re-render.
+        Assert.Contains("card.setAttribute(\"data-health\"", html);
+        Assert.Contains("applyFilter(); // the chosen filter survives the re-render", html);
+    }
 }

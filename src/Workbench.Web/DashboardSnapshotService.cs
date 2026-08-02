@@ -24,7 +24,10 @@ public sealed class DashboardSnapshotService(
     ITimelineRepository timeline,
     IBlockerRepository blockers,
     DashboardProjectionBuilder projection,
-    IProjectConfigService configs)
+    IProjectConfigService configs,
+    IMilestoneRepository milestones,
+    IFrontierRepository frontiers,
+    IRuntimeHealthRepository runtimeHealth)
 {
     internal static readonly TimeSpan HealthTtl = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan DockerTtl = TimeSpan.FromSeconds(15);
@@ -105,6 +108,10 @@ public sealed class DashboardSnapshotService(
             var session = tmuxStatus.Sessions.FirstOrDefault(
                 s => string.Equals(s.Name, sessionName, StringComparison.Ordinal));
 
+            // The shared projection computes the weighted milestone progress
+            // with the same semantics as the dashboard card.
+            var milestoneProgress = projection.BuildCard(project, snapshot).MilestoneProgress;
+
             return new ProjectDetailSnapshot(
                 Id: project.Id,
                 Name: project.Name,
@@ -145,7 +152,9 @@ public sealed class DashboardSnapshotService(
                         e.Category.ToString(),
                         SecretRedactor.Redact(e.Message),
                         e.Detail is null ? null : SecretRedactor.Redact(e.Detail)))
-                    .ToList());
+                    .ToList(),
+                Progress: MapProgress(project.Id, milestoneProgress),
+                RuntimeHealth: MapRuntimeHealth(project.Id));
         }
         finally
         {
@@ -343,14 +352,93 @@ public sealed class DashboardSnapshotService(
             Dismissed: all.Count(b => b.Status == BlockerStatus.Dismissed),
             Open: all
                 .Where(b => b.Status is BlockerStatus.Active or BlockerStatus.Monitoring)
-                .Select(b => new WebBlockerEntry(
-                    b.TitleOrDescription,
-                    b.Severity,
-                    b.Status.ToString(),
-                    b.Evidence is null ? null : SecretRedactor.Redact(b.Evidence),
-                    b.NextSafestStep is null ? null : SecretRedactor.Redact(b.NextSafestStep),
-                    b.Owner))
+                .Select(MapBlockerEntry)
                 .ToList());
+    }
+
+    /// <summary>One blocker row; evidence and next-step text are secret-redacted.</summary>
+    private static WebBlockerEntry MapBlockerEntry(Blocker b) =>
+        new(
+            b.TitleOrDescription,
+            b.Severity,
+            b.Status.ToString(),
+            b.Evidence is null ? null : SecretRedactor.Redact(b.Evidence),
+            b.NextSafestStep is null ? null : SecretRedactor.Redact(b.NextSafestStep),
+            b.Owner);
+
+    /// <summary>
+    /// The Progress card: the shared projection's weighted milestone numbers
+    /// (null text = "not configured", never 0%), the milestone checklist, the
+    /// current/next frontier line, and the resolved/dismissed blockers.
+    /// Milestone and frontier titles are free text — redacted like the journal.
+    /// </summary>
+    private ProgressBlock MapProgress(long projectId, MilestoneProgress? milestone)
+    {
+        var current = frontiers.GetCurrent(projectId);
+        var next = frontiers.GetNext(projectId);
+        var frontierText = current is null
+            ? "no frontier set"
+            : SecretRedactor.Redact(current.Title);
+        if (next is not null)
+            frontierText += $" · next: {SecretRedactor.Redact(next.Title)}";
+
+        return new ProgressBlock(
+            ProgressText: milestone is null
+                ? null
+                : $"{milestone.CompletedCount}/{milestone.TotalCount} milestones · {milestone.Percent:0}%",
+            ProgressPercent: milestone?.Percent ?? 0,
+            Milestones: milestones.GetForProject(projectId)
+                .OrderBy(m => m.SortOrder)
+                .Select(m => new WebMilestoneEntry(
+                    SecretRedactor.Redact(m.Title),
+                    MilestoneStatusText(m.Status),
+                    m.Status == MilestoneStatus.Done))
+                .ToList(),
+            FrontierText: frontierText,
+            ResolvedBlockers: blockers.GetForProject(projectId)
+                .Where(b => b.Status is BlockerStatus.Resolved or BlockerStatus.Dismissed)
+                .Select(MapBlockerEntry)
+                .ToList());
+    }
+
+    private static string MilestoneStatusText(MilestoneStatus status) => status switch
+    {
+        MilestoneStatus.NotStarted => "not started",
+        MilestoneStatus.Active => "active",
+        MilestoneStatus.Blocked => "blocked",
+        MilestoneStatus.Done => "done",
+        _ => "dismissed",
+    };
+
+    /// <summary>The newest runtime-health record, or null when none exist.</summary>
+    private RuntimeHealthBlock? MapRuntimeHealth(long projectId)
+    {
+        var latest = runtimeHealth.GetLatest(projectId);
+        if (latest is null)
+            return null;
+
+        return new RuntimeHealthBlock(
+            VerdictText: latest.Health.ToString(),
+            ComponentText: latest.FailedComponent is { Length: > 0 } component
+                ? SecretRedactor.Redact(component)
+                : null,
+            VerdictBadgeClass: latest.Health switch
+            {
+                RuntimeHealth.Healthy => "ok",
+                RuntimeHealth.Starting or RuntimeHealth.Degraded => "warn",
+                RuntimeHealth.Failed => "bad",
+                _ => string.Empty,
+            },
+            CheckedAtText: $"{RelativeText(latest.CheckedAt)} · {latest.CheckedAt:MM-dd HH:mm}");
+    }
+
+    private static string RelativeText(DateTimeOffset at)
+    {
+        var age = DateTimeOffset.Now - at;
+        return age.TotalMinutes < 1 ? "just now"
+            : age.TotalHours < 1 ? $"{(int)age.TotalMinutes}m ago"
+            : age.TotalDays < 2 ? $"{(int)age.TotalHours}h ago"
+            : $"{(int)age.TotalDays}d ago";
     }
 
     private static bool IsFresh(DateTimeOffset at, TimeSpan ttl) =>
