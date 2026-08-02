@@ -19,15 +19,17 @@ public sealed class VisualTestService : IVisualTestService
     private readonly IGitService _git;
 
     // Tool paths — resolved at construction so tests can override.
-    private readonly string _scrot = "scrot";
     private readonly string _xdotool = "xdotool";
     private readonly string _xwininfo = "xwininfo";
+    private readonly string _xwd = "xwd";
+    private readonly string _xwd2png;  // built-in pure-Python XWD→PNG converter
 
     public VisualTestService(IVisualTestRepository repo, IProjectRepository projects, IGitService git)
     {
         _repo = repo;
         _projects = projects;
         _git = git;
+        _xwd2png = ResolveScriptPath("xwd2png");
     }
 
     public async Task<VisualTestRun> ExecuteAsync(
@@ -395,17 +397,23 @@ public sealed class VisualTestService : IVisualTestService
 
     private void CaptureWindow(string windowId, string path)
     {
-        // Focus the window first
         try { RunTool(_xdotool, ["windowactivate", "--sync", windowId]); }
         catch { /* best effort */ }
 
-        // Use scrot with --focused for window capture, or xdotool-based approach
-        RunTool(_scrot, ["--focused", "--overwrite", path]);
+        // xwd window capture → xwd2png converter (no external image lib deps)
+        var tmp = Path.GetTempFileName();
+        RunTool(_xwd, ["-id", windowId, "-out", tmp]);
+        RunTool("python3", [_xwd2png, tmp, "-o", path]);
+        File.Delete(tmp);
     }
 
     private void CaptureDesktop(string path)
     {
-        RunTool(_scrot, ["--overwrite", path]);
+        // xwd root-window capture → xwd2png
+        var tmp = Path.GetTempFileName();
+        RunTool(_xwd, ["-root", "-out", tmp]);
+        RunTool("python3", [_xwd2png, tmp, "-o", path]);
+        File.Delete(tmp);
     }
 
     private void SendInput(string windowId, string action)
@@ -452,6 +460,21 @@ public sealed class VisualTestService : IVisualTestService
     {
         return Environment.GetEnvironmentVariable("WORKBENCH_DATA")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Workbench");
+    }
+
+    private static string ResolveScriptPath(string scriptName)
+    {
+        // Look for scripts/ next to the entry assembly (Workbench repo layout)
+        var baseDir = AppContext.BaseDirectory;
+        for (var d = baseDir; d is not null; d = Path.GetDirectoryName(d))
+        {
+            var candidate = Path.Combine(d, "scripts", scriptName);
+            if (File.Exists(candidate))
+                return candidate;
+            // Don't walk past the filesystem root
+            if (Path.GetDirectoryName(d) == d) break;
+        }
+        return scriptName; // fallback: hope it's on PATH
     }
 
     private static string SanitizeFilename(string name)

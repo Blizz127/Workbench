@@ -58,12 +58,12 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         using var cmd = c.CreateCommand();
         cmd.Transaction = t;
         cmd.CommandText = @"INSERT INTO visual_test_profiles
-            (project_id, stable_id, name, description, build_command, launch_command,
+            (project_id, stable_id, name, description, launch_kind, build_command, launch_command,
              working_directory, environment, display, startup_timeout_seconds, process_name,
              window_title_pattern, window_class_pattern, expected_exit_codes,
              success_log_patterns, failure_log_patterns, screenshot_folder,
              retain_last_runs, stop_after_capture, leave_running, created_at, updated_at)
-            VALUES (@pid,@sid,@n,@d,@bc,@lc,@wd,@e,@disp,@to,@pn,@wt,@wc,@eec,@slp,@flp,@sf,@rlr,@sac,@lr,@ca,@ua);
+            VALUES (@pid,@sid,@n,@d,@lk,@bc,@lc,@wd,@e,@disp,@to,@pn,@wt,@wc,@eec,@slp,@flp,@sf,@rlr,@sac,@lr,@ca,@ua);
             SELECT last_insert_rowid();";
         BindProfile(cmd, profile);
         profile.Id = (long)cmd.ExecuteScalar()!;
@@ -77,8 +77,8 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         using var cmd = c.CreateCommand();
         cmd.Transaction = t;
         cmd.CommandText = @"UPDATE visual_test_profiles SET
-            name=@n, description=@d, build_command=@bc, launch_command=@lc,
-            working_directory=@wd, environment=@e, display=@disp,
+            name=@n, description=@d, launch_kind=@lk, build_command=@bc,
+            launch_command=@lc, working_directory=@wd, environment=@e, display=@disp,
             startup_timeout_seconds=@to, process_name=@pn,
             window_title_pattern=@wt, window_class_pattern=@wc,
             expected_exit_codes=@eec, success_log_patterns=@slp,
@@ -115,7 +115,6 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         BindRun(cmd, run);
         run.Id = (long)cmd.ExecuteScalar()!;
         t.Commit();
-
         foreach (var capture in run.Captures)
         {
             capture.RunId = run.Id;
@@ -229,29 +228,33 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         return (long)cmd.ExecuteScalar()! > 0;
     }
 
+    // --- reader / binder helpers ---
+
     private static VisualTestProfile ReadProfile(SqliteDataReader r) => new()
     {
         Id = r.GetInt64(0), ProjectId = r.GetInt64(1), StableId = r.GetString(2), Name = r.GetString(3),
         Description = r.IsDBNull(4) ? null : r.GetString(4),
-        BuildCommand = r.IsDBNull(5) ? null : r.GetString(5),
-        LaunchCommand = r.GetString(6),
-        WorkingDirectory = r.IsDBNull(7) ? null : r.GetString(7),
-        Environment = r.IsDBNull(8) ? null : r.GetString(8),
-        Display = r.GetString(9), StartupTimeoutSeconds = r.GetInt32(10), ProcessName = r.GetString(11),
-        WindowTitlePattern = r.IsDBNull(12) ? null : r.GetString(12),
-        WindowClassPattern = r.IsDBNull(13) ? null : r.GetString(13),
-        ExpectedExitCodes = r.IsDBNull(14) ? null : r.GetString(14),
-        SuccessLogPatterns = r.IsDBNull(15) ? null : r.GetString(15),
-        FailureLogPatterns = r.IsDBNull(16) ? null : r.GetString(16),
-        ScreenshotFolder = r.GetString(17), RetainLastRuns = r.GetInt32(18),
-        StopAfterCapture = r.GetInt32(19) != 0, LeaveRunning = r.GetInt32(20) != 0,
-        CreatedAt = DateTimeOffset.Parse(r.GetString(21)), UpdatedAt = DateTimeOffset.Parse(r.GetString(22)),
+        LaunchKind = r.IsDBNull(5) ? VisualTestLaunchKind.Native : Enum.Parse<VisualTestLaunchKind>(r.GetString(5)),
+        BuildCommand = r.IsDBNull(6) ? null : r.GetString(6),
+        LaunchCommand = r.GetString(7),
+        WorkingDirectory = r.IsDBNull(8) ? null : r.GetString(8),
+        Environment = r.IsDBNull(9) ? null : r.GetString(9),
+        Display = r.GetString(10), StartupTimeoutSeconds = r.GetInt32(11), ProcessName = r.GetString(12),
+        WindowTitlePattern = r.IsDBNull(13) ? null : r.GetString(13),
+        WindowClassPattern = r.IsDBNull(14) ? null : r.GetString(14),
+        ExpectedExitCodes = r.IsDBNull(15) ? null : r.GetString(15),
+        SuccessLogPatterns = r.IsDBNull(16) ? null : r.GetString(16),
+        FailureLogPatterns = r.IsDBNull(17) ? null : r.GetString(17),
+        ScreenshotFolder = r.GetString(18), RetainLastRuns = r.GetInt32(19),
+        StopAfterCapture = r.GetInt32(20) != 0, LeaveRunning = r.GetInt32(21) != 0,
+        CreatedAt = DateTimeOffset.Parse(r.GetString(22)), UpdatedAt = DateTimeOffset.Parse(r.GetString(23)),
     };
 
     private static void BindProfile(SqliteCommand cmd, VisualTestProfile p)
     {
         cmd.Parameters.AddWithValue("@pid", p.ProjectId); cmd.Parameters.AddWithValue("@sid", p.StableId);
         cmd.Parameters.AddWithValue("@n", p.Name); cmd.Parameters.AddWithValue("@d", (object?)p.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lk", p.LaunchKind.ToString());
         cmd.Parameters.AddWithValue("@bc", (object?)p.BuildCommand ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lc", p.LaunchCommand);
         cmd.Parameters.AddWithValue("@wd", (object?)p.WorkingDirectory ?? DBNull.Value);

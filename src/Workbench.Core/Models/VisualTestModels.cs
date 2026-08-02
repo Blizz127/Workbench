@@ -1,5 +1,16 @@
 namespace Workbench.Core.Models;
 
+/// <summary>How the visual test launches the target application.</summary>
+public enum VisualTestLaunchKind
+{
+    /// <summary>Native executable (e.g. a PC port or local dev build).</summary>
+    Native,
+    /// <summary>Emulator-wrapped (e.g. PCSX-Redux, DOSBox, RetroArch).</summary>
+    Emulator,
+    /// <summary>The project has no runnable target yet (matching decomp, research).</summary>
+    Unavailable,
+}
+
 /// <summary>
 /// A reusable visual-test profile: launches a GUI application, waits for
 /// defined checkpoints, captures screenshots, and associates them with a
@@ -16,6 +27,9 @@ public sealed class VisualTestProfile
 
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+
+    /// <summary>How the target is launched: Native, Emulator, or Unavailable.</summary>
+    public VisualTestLaunchKind LaunchKind { get; set; } = VisualTestLaunchKind.Native;
 
     /// <summary>Optional: run this build command before launching.</summary>
     public string? BuildCommand { get; set; }

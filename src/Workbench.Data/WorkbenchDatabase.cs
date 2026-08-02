@@ -269,6 +269,7 @@ public sealed class WorkbenchDatabase
                 stable_id               TEXT NOT NULL,
                 name                    TEXT NOT NULL,
                 description             TEXT,
+                launch_kind             TEXT NOT NULL DEFAULT 'Native',
                 build_command           TEXT,
                 launch_command          TEXT NOT NULL,
                 working_directory       TEXT,
