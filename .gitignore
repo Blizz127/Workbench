@@ -482,3 +482,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local UI validation artifacts (screenshot tooling and captures — never committed)
+.screenshot-tools/
+screenshots-validation/
