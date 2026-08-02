@@ -121,6 +121,8 @@ public static class ProjectDetailPageRenderer
         // detail endpoint never wipes them.
         ActionPageRenderer.WriteActionsSection(html, detail.Id, actions);
         ActionPageRenderer.WriteRecentActionsSection(html, recentActions);
+        html.Append("<p><a class=\"view-link\" href=\"/audit?project=").Append(detail.Id)
+            .Append("\">Full action audit →</a></p>");
 
         WebPageShell.WriteScript(html);
         return html.ToString();

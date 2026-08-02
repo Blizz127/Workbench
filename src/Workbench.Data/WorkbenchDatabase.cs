@@ -237,7 +237,47 @@ public sealed class WorkbenchDatabase
 
         // Explicit tmux session name for project sessions (Phase 1D).
         new Migration(8, AddTmuxSession),
+
+        // Persistent audit trail for the mobile action layer (Phase 2E).
+        // Append-only; deliberately NO foreign key to projects — audit records
+        // must survive project deletion.
+        new Migration(9, AddMobileActionAudit),
     ];
+
+    private static void AddMobileActionAudit(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            """
+            CREATE TABLE IF NOT EXISTS mobile_action_audit (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp_utc    TEXT NOT NULL,
+                project_id       INTEGER NOT NULL,
+                project_name     TEXT NOT NULL,
+                action_id        TEXT NOT NULL,
+                action_label     TEXT NOT NULL,
+                action_type      TEXT NOT NULL,
+                safety           TEXT NOT NULL,
+                state            TEXT NOT NULL,
+                session_hash     TEXT,
+                command_preview  TEXT,
+                output_summary   TEXT,
+                output_truncated INTEGER NOT NULL DEFAULT 0,
+                exit_code        INTEGER,
+                duration_ms      INTEGER,
+                failure_reason   TEXT,
+                services         TEXT NOT NULL DEFAULT '[]',
+                source           TEXT NOT NULL DEFAULT 'web',
+                correlation_id   TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_mobile_action_audit_project_time
+                ON mobile_action_audit(project_id, timestamp_utc DESC);
+            CREATE INDEX IF NOT EXISTS ix_mobile_action_audit_correlation
+                ON mobile_action_audit(correlation_id);
+            """;
+        command.ExecuteNonQuery();
+    }
 
     private static void AddComposeFile(SqliteConnection connection, SqliteTransaction transaction)
     {

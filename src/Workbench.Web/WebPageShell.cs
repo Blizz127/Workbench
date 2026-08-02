@@ -120,6 +120,11 @@ internal static class WebPageShell
         button.action-submit { width: 100%; min-height: 52px; background: #4f8ff7; color: #0f1115;
                                border: 0; border-radius: 10px; font-size: 1rem; font-weight: 700; margin-top: 8px; }
         button.action-submit.danger { background: #f47c7c; }
+        .audit-filters label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+                               margin-right: 14px; color: #9aa3b2; font-size: .85rem; }
+        .audit-filters input, .audit-filters select { background: #12141a; color: #e6e8ee;
+                               border: 1px solid #2a2e38; border-radius: 8px; padding: 8px 10px; font-size: .9rem; }
+        .audit-filters input[type="number"] { width: 6em; }
         """;
 
     private const string ClientScript = """

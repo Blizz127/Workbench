@@ -160,4 +160,43 @@ internal static class WebStubs
             return run(project, kind, command);
         }
     }
+
+    /// <summary>In-memory audit repository — captures every record the service writes.</summary>
+    public sealed class MobileActionAudits : IMobileActionAuditRepository
+    {
+        public List<MobileActionAuditRecord> Records { get; } = [];
+        private long _nextId;
+
+        public long Add(MobileActionAuditRecord record)
+        {
+            record.Id = ++_nextId;
+            Records.Add(record);
+            return record.Id;
+        }
+
+        public IReadOnlyList<MobileActionAuditRecord> Query(MobileActionAuditFilter filter) =>
+            Records.Where(r =>
+                    (filter.ProjectId is null || r.ProjectId == filter.ProjectId)
+                    && (filter.ActionId is null || r.ActionId == filter.ActionId)
+                    && (filter.State is null || r.State == filter.State)
+                    && (filter.FromUtc is null || r.TimestampUtc >= filter.FromUtc)
+                    && (filter.ToUtc is null || r.TimestampUtc <= filter.ToUtc))
+                .OrderByDescending(r => r.TimestampUtc).ThenByDescending(r => r.Id)
+                .Take(filter.Limit).ToList();
+
+        public MobileActionAuditRecord? GetById(long id) => Records.FirstOrDefault(r => r.Id == id);
+
+        public int EnforceRetention(int maxRecords, int maxAgeDays) => 0;
+    }
+
+    /// <summary>Audit repository whose every member throws — persistence-failure simulation.</summary>
+    public sealed class ThrowingAudits : IMobileActionAuditRepository
+    {
+        public long Add(MobileActionAuditRecord record) => throw new InvalidOperationException("db is down");
+        public IReadOnlyList<MobileActionAuditRecord> Query(MobileActionAuditFilter filter) =>
+            throw new InvalidOperationException("db is down");
+        public MobileActionAuditRecord? GetById(long id) => throw new InvalidOperationException("db is down");
+        public int EnforceRetention(int maxRecords, int maxAgeDays) =>
+            throw new InvalidOperationException("db is down");
+    }
 }

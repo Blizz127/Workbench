@@ -1,3 +1,4 @@
+using Workbench.Core.Models;
 using Workbench.Core.Services;
 using Workbench.Data;
 using Workbench.Data.Repositories;
@@ -45,11 +46,21 @@ builder.Services.AddSingleton<ExecutionService>();
 builder.Services.AddSingleton<IPredefinedCommandRunner, PredefinedCommandRunner>();
 builder.Services.AddSingleton<ConfirmationNonceService>();
 builder.Services.AddSingleton<ActionJournal>();
+
+// Phase 2E: the persistent audit trail for mobile actions. The repository is
+// the only place audit SQL lives; the service is the only consumer.
+builder.Services.AddSingleton<IMobileActionAuditRepository>(sp =>
+    new MobileActionAuditRepository(sp.GetRequiredService<WorkbenchDatabase>()));
+builder.Services.AddSingleton<MobileActionAuditService>();
 builder.Services.AddSingleton<IMobileActionService, MobileActionService>();
 
 var app = builder.Build();
 
 var options = app.Services.GetRequiredService<WebDashboardOptions>();
+
+// Audit retention runs once at startup — never per-write, never mid-action.
+app.Services.GetRequiredService<MobileActionAuditService>()
+    .EnforceRetention(options.AuditRetentionRecords, options.AuditRetentionDays);
 if (!options.BindAddressIsPrivate)
 {
     app.Logger.LogWarning(
@@ -149,14 +160,17 @@ app.MapPost("/projects/{id:long}/actions/{actionId}/confirm2", async (
     var form = context.Request.HasFormContentType ? await context.Request.ReadFormAsync() : null;
     if (form is null || !CsrfValid(context, sessions, form))
         return Rejected(id, "The form's security token is missing or invalid — reload the page and try again.");
-    if (!nonces.Validate(id, actionId, ConfirmationNonceService.PurposeConfirm2, form["nonce"].FirstOrDefault()))
+    if (!nonces.TryValidate(id, actionId, ConfirmationNonceService.PurposeConfirm2,
+            form["nonce"].FirstOrDefault(), out var correlationId))
         return Rejected(id, "This confirmation has expired or was already used — start again from the action list.");
     if (actions.BuildPreview(id, actionId) is not { } preview)
         return ProjectNotFound(id);
     if (preview.BlockReason is not null)
         return Html(ActionPageRenderer.RenderConfirmation(preview, string.Empty, string.Empty));
 
-    var nonce = nonces.Issue(id, actionId, ConfirmationNonceService.PurposeExecute);
+    // The execute nonce carries the step-one correlation id forward, so every
+    // audit record of this execution links together.
+    var nonce = nonces.Issue(id, actionId, ConfirmationNonceService.PurposeExecute, correlationId);
     return Html(ActionPageRenderer.RenderSecondConfirmation(preview, CsrfToken(context), nonce));
 });
 
@@ -167,13 +181,43 @@ app.MapPost("/projects/{id:long}/actions/{actionId}/execute", async (
     var form = context.Request.HasFormContentType ? await context.Request.ReadFormAsync() : null;
     if (form is null || !CsrfValid(context, sessions, form))
         return Rejected(id, "The form's security token is missing or invalid — reload the page and try again.");
-    if (!nonces.Validate(id, actionId, ConfirmationNonceService.PurposeExecute, form["nonce"].FirstOrDefault()))
+    if (!nonces.TryValidate(id, actionId, ConfirmationNonceService.PurposeExecute,
+            form["nonce"].FirstOrDefault(), out var correlationId))
         return Rejected(id, "This confirmation has expired or was already used — start again from the action list.");
 
-    return await actions.ExecuteAsync(id, actionId, confirmed: true, context.RequestAborted) is { } execution
+    var auditContext = new MobileActionAuditContext(
+        context.Items[TokenAuthMiddleware.SessionIdItemKey] as string, correlationId);
+    return await actions.ExecuteAsync(id, actionId, confirmed: true, auditContext, context.RequestAborted) is { } execution
         ? Html(ActionPageRenderer.RenderResult(execution, id))
         : ProjectNotFound(id);
 });
+
+// Phase 2E audit pages: GET-only reads over the persisted mobile action
+// history. Filters arrive as query params; all rendering escapes stored
+// (already redacted) values. No SQL in the handlers.
+app.MapGet("/audit", (
+    long? project, string? action, string? state, string? from, string? to,
+    MobileActionAuditService audit) =>
+{
+    var filter = new MobileActionAuditFilter
+    {
+        ProjectId = project is > 0 ? project : null,
+        ActionId = string.IsNullOrWhiteSpace(action) ? null : action.Trim(),
+        State = Enum.TryParse<MobileActionAuditState>(state, ignoreCase: true, out var parsed) ? parsed : null,
+        FromUtc = TryParseDate(from, out var fromDate) ? fromDate : null,
+        // A date-only "to" means "through the end of that day".
+        ToUtc = TryParseDate(to, out var toDate) ? toDate.AddDays(1) : null,
+        Limit = AuditPageRenderer.ListLimit,
+    };
+
+    var records = audit.Query(filter);
+    return Html(AuditPageRenderer.RenderList(records, filter, capped: records.Count >= AuditPageRenderer.ListLimit));
+});
+
+app.MapGet("/audit/{id:long}", (long id, MobileActionAuditService audit) =>
+    audit.GetById(id) is { } record
+        ? Html(AuditPageRenderer.RenderDetail(record))
+        : Results.Content(AuditPageRenderer.RenderNotFound(id), "text/html; charset=utf-8", statusCode: 404));
 
 app.Run();
 
@@ -192,6 +236,9 @@ static bool CsrfValid(HttpContext context, SessionStore sessions, IFormCollectio
     sessions.ValidateCsrf(
         context.Items[TokenAuthMiddleware.SessionIdItemKey] as string,
         form["csrf"].FirstOrDefault());
+
+static bool TryParseDate(string? value, out DateTimeOffset date) =>
+    DateTimeOffset.TryParse(value, out date);
 
 /// <summary>Entry point marker so WebApplicationFactory can host the app in tests.</summary>
 public partial class Program;

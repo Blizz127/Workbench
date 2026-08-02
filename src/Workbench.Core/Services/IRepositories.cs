@@ -88,3 +88,23 @@ public interface IRuntimeHealthRepository
     RuntimeHealthRecord? GetLatest(long projectId);
     long Add(RuntimeHealthRecord record);
 }
+
+public interface IMobileActionAuditRepository
+{
+    /// <summary>Appends one state-transition row; returns its id. Never updates.</summary>
+    long Add(MobileActionAuditRecord record);
+
+    /// <summary>Newest first; every set filter field narrows the result.</summary>
+    IReadOnlyList<MobileActionAuditRecord> Query(MobileActionAuditFilter filter);
+
+    MobileActionAuditRecord? GetById(long id);
+
+    /// <summary>
+    /// Retention: a record survives only while it is BOTH newer than
+    /// <paramref name="maxAgeDays"/> AND within the newest
+    /// <paramref name="maxRecords"/> rows — anything older than the age cap OR
+    /// beyond the count cap is deleted, so the rule that removes more wins.
+    /// Returns the number of deleted rows.
+    /// </summary>
+    int EnforceRetention(int maxRecords, int maxAgeDays);
+}

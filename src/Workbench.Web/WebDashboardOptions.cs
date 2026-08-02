@@ -30,6 +30,12 @@ public sealed class WebDashboardOptions
     /// <summary>SQLite database override; empty uses the standard Workbench path.</summary>
     public string DatabasePath { get; set; } = string.Empty;
 
+    /// <summary>Mobile action audit retention: maximum records kept (enforced at startup).</summary>
+    public int AuditRetentionRecords { get; set; } = 5000;
+
+    /// <summary>Mobile action audit retention: maximum age in days (enforced at startup).</summary>
+    public int AuditRetentionDays { get; set; } = 90;
+
     /// <summary>
     /// Lifetime of a browser session issued by the token exchange. After
     /// expiry the phone re-authenticates via its bookmarked token URL.

@@ -23,10 +23,13 @@ public interface IMobileActionService
     /// unlisted actions are refused with a typed result instead of throwing.
     /// One action per project at a time — a concurrent second execution is
     /// refused ("already running"), never queued. Null only for an unknown
-    /// project.
+    /// project. <paramref name="auditContext"/> carries the per-request audit
+    /// identity (session id + nonce correlation id) from the HTTP route; the
+    /// service never touches HttpContext itself.
     /// </summary>
     Task<MobileActionExecution?> ExecuteAsync(
-        long projectId, string actionId, bool confirmed, CancellationToken cancellationToken = default);
+        long projectId, string actionId, bool confirmed,
+        MobileActionAuditContext? auditContext = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -46,7 +49,8 @@ public sealed class MobileActionService(
     ITmuxService tmux,
     IPredefinedCommandRunner predefined,
     DashboardSnapshotService snapshots,
-    ActionJournal journal) : IMobileActionService
+    ActionJournal journal,
+    MobileActionAuditService? audit = null) : IMobileActionService
 {
     public const string RefreshStatusId = "refreshStatus";
     public const string TmuxAttachInfoId = "tmuxAttachInfo";
@@ -190,7 +194,8 @@ public sealed class MobileActionService(
     // ---------- execution ----------
 
     public async Task<MobileActionExecution?> ExecuteAsync(
-        long projectId, string actionId, bool confirmed, CancellationToken cancellationToken = default)
+        long projectId, string actionId, bool confirmed,
+        MobileActionAuditContext? auditContext = null, CancellationToken cancellationToken = default)
     {
         if (projects.GetById(projectId) is not { } project)
             return null;
@@ -201,9 +206,18 @@ public sealed class MobileActionService(
         var descriptor = preview.Action;
         var startedAt = DateTimeOffset.Now;
 
+        // One correlation id per execution attempt: the nonce's when the route
+        // supplied one, a fresh one otherwise (blocked/rejected attempts too).
+        var correlationId = auditContext?.CorrelationId ?? MobileActionAuditService.NewCorrelationId();
+        var services = AffectedServices(project, preview);
+        audit?.RecordAttempted(auditContext, preview, services, correlationId);
+
         MobileActionExecution Refused(ActionOutcome outcome, string reason)
         {
             Record(project, actionId, outcome, reason);
+            audit?.RecordRefused(auditContext, preview,
+                outcome is ActionOutcome.Blocked ? MobileActionAuditState.Blocked : MobileActionAuditState.Rejected,
+                reason, services, correlationId);
             return new MobileActionExecution(NewExecutionId(), descriptor, Succeeded: false,
                 Blocked: true, ExitCode: null, Duration: TimeSpan.Zero, Output: reason, startedAt);
         }
@@ -232,7 +246,18 @@ public sealed class MobileActionService(
                 execution.Succeeded
                     ? $"exit {execution.ExitCode?.ToString() ?? "n/a"} in {execution.Duration.TotalSeconds:0.#}s"
                     : SecretRedactor.Redact(Tail(execution.Output)));
+            audit?.RecordTerminal(auditContext, preview, execution, services, correlationId);
             return execution;
+        }
+        catch (OperationCanceledException)
+        {
+            // The caller hung up mid-run: audit the cancellation, then let the
+            // cancellation propagate exactly as before.
+            audit?.RecordTerminal(auditContext, preview,
+                new MobileActionExecution(NewExecutionId(), descriptor, Succeeded: false, Blocked: false,
+                    ExitCode: null, DateTimeOffset.Now - startedAt, "Cancelled by the caller.", startedAt),
+                services, correlationId, MobileActionAuditState.Cancelled);
+            throw;
         }
         finally
         {
@@ -431,6 +456,23 @@ public sealed class MobileActionService(
         LoadConfig(project)?.MobileActions
             .Where(e => e.Type == TypeDockerRestartService && e.Service is { Length: > 0 })
         ?? [];
+
+    /// <summary>The service names an action touches, for the audit record.</summary>
+    private IReadOnlyList<string> AffectedServices(Project project, MobileActionPreview preview)
+    {
+        if (preview.Action.Service is { Length: > 0 } service)
+            return [service];
+
+        if (preview.Action.Type == TypeDockerRestartAllowed)
+        {
+            return RestartTargets(project)
+                .Where(target => !DatabaseRestartRefused(target, out _))
+                .Select(target => target.Service!)
+                .ToList();
+        }
+
+        return [];
+    }
 
     /// <summary>The database hard guard: exact or prefix match against the database-like set.</summary>
     private static bool DatabaseRestartRefused(MobileActionConfig? entry, out string? reason)

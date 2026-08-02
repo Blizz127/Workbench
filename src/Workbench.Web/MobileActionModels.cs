@@ -83,3 +83,14 @@ public sealed record ActionJournalEntry(
     string ActionId,
     ActionOutcome Outcome,
     string Detail);
+
+/// <summary>
+/// Per-request audit identity handed from the HTTP routes into the action
+/// layer, so <see cref="IMobileActionService"/> never touches HttpContext.
+/// <see cref="SessionId"/> is the raw session id — it is hashed (SHA-256) by
+/// the audit service before storage and never persisted as-is.
+/// <see cref="CorrelationId"/> comes from the consumed confirmation nonce so
+/// every transition of one execution links together; null means "no nonce
+/// context" and the action layer mints a fresh one.
+/// </summary>
+public sealed record MobileActionAuditContext(string? SessionId, string? CorrelationId);
