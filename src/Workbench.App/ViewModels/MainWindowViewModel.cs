@@ -86,7 +86,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         IsDashboardSelected = true;
-        return new DashboardViewModel(_services, OpenProject);
+        return new DashboardViewModel(_services, OpenProject, OpenProjectRun);
     }
 
     /// <summary>True when a project page has an in-flight build/run/test/health-check.</summary>
@@ -111,7 +111,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IsDashboardSelected = true;
         IsSettingsSelected = false;
         ClearProjectContext();
-        CurrentPage = new DashboardViewModel(_services, OpenProject);
+        CurrentPage = new DashboardViewModel(_services, OpenProject, OpenProjectRun);
         PersistNavigation("dashboard", null);
     }
 
@@ -126,12 +126,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         PersistNavigation("settings", null);
     }
 
-    public void OpenProject(long projectId)
+    public void OpenProject(long projectId) => OpenProject(projectId, section: null);
+
+    /// <summary>Dashboard "Run" primary action: the workspace, landed on the Run section.</summary>
+    private void OpenProjectRun(long projectId) => OpenProject(projectId, "Run");
+
+    private void OpenProject(long projectId, string? section)
     {
         IsSearchOpen = false;
         var detail = ProjectDetailViewModel.TryCreate(_services, projectId, NavigateHome, TopBar.RefreshStatus);
         if (detail is null)
             return;
+
+        if (section is not null)
+            detail.SelectSectionCommand.Execute(section);
 
         IsDashboardSelected = false;
         IsSettingsSelected = false;

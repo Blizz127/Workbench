@@ -7,8 +7,9 @@ namespace Workbench.App.ViewModels;
 
 /// <summary>
 /// The "Shared Blockers" section shown on the Progress page and the Shared
-/// State page: counts by lifecycle status, the full blocker list (all
-/// statuses — resolved/dismissed are history), and CRUD. Blockers that have
+/// State page: counts by lifecycle status, the blocker list split into ACTIVE
+/// (active + monitoring, expanded) and RESOLVED (resolved + dismissed,
+/// collapsed by default — they're history), and CRUD. Blockers that have
 /// not been exported yet (or changed since the last sync) are marked as
 /// pending export so the user knows the shared file is behind.
 /// </summary>
@@ -17,12 +18,28 @@ public sealed partial class ProjectBlockersViewModel : ViewModelBase
     private readonly AppServices _services;
     private readonly Project _project;
 
-    public ObservableCollection<SharedBlockerItemViewModel> Items { get; } = [];
+    /// <summary>Active + monitoring blockers — the working list, always visible.</summary>
+    public ObservableCollection<SharedBlockerItemViewModel> ActiveItems { get; } = [];
+
+    /// <summary>Resolved + dismissed blockers — history, collapsed by default.</summary>
+    public ObservableCollection<SharedBlockerItemViewModel> ResolvedItems { get; } = [];
 
     [ObservableProperty] private string _countsText = string.Empty;
     [ObservableProperty] private string _newTitle = string.Empty;
     [ObservableProperty] private string _newSeverity = string.Empty;
     [ObservableProperty] private string _newDescription = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowResolvedSection))]
+    [NotifyPropertyChangedFor(nameof(ResolvedToggleText))]
+    private bool _showResolved;
+
+    public bool HasActive => ActiveItems.Count > 0;
+    public bool HasResolved => ResolvedItems.Count > 0;
+    public bool HasAnyBlockers => HasActive || HasResolved;
+    public bool ShowResolvedSection => ShowResolved && HasResolved;
+    public string ResolvedToggleText =>
+        $"{(ShowResolved ? "Hide" : "Show")} resolved ({ResolvedItems.Count})";
 
     public ProjectBlockersViewModel(AppServices services, Project project)
     {
@@ -37,15 +54,29 @@ public sealed partial class ProjectBlockersViewModel : ViewModelBase
         var shared = LoadSharedState();
         var all = _services.Blockers.GetForProject(_project.Id);
 
-        Items.Clear();
+        ActiveItems.Clear();
+        ResolvedItems.Clear();
         foreach (var blocker in all)
-            Items.Add(new SharedBlockerItemViewModel(blocker, IsPendingExport(blocker, shared), this));
+        {
+            var item = new SharedBlockerItemViewModel(blocker, IsPendingExport(blocker, shared), this);
+            (blocker.Status is BlockerStatus.Active or BlockerStatus.Monitoring ? ActiveItems : ResolvedItems)
+                .Add(item);
+        }
+
+        OnPropertyChanged(nameof(HasActive));
+        OnPropertyChanged(nameof(HasResolved));
+        OnPropertyChanged(nameof(HasAnyBlockers));
+        OnPropertyChanged(nameof(ShowResolvedSection));
+        OnPropertyChanged(nameof(ResolvedToggleText));
 
         CountsText = all.Count == 0
             ? string.Empty
             : $"{Count(all, BlockerStatus.Active)} active · {Count(all, BlockerStatus.Monitoring)} monitoring · " +
               $"{Count(all, BlockerStatus.Resolved)} resolved · {Count(all, BlockerStatus.Dismissed)} dismissed";
     }
+
+    [RelayCommand]
+    private void ToggleResolved() => ShowResolved = !ShowResolved;
 
     private static int Count(IReadOnlyList<Blocker> all, BlockerStatus status) => all.Count(b => b.Status == status);
 

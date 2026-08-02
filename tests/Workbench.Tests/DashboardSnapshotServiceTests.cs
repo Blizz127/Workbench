@@ -1,4 +1,5 @@
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 using Workbench.Web;
 using Xunit;
 
@@ -12,17 +13,41 @@ public sealed class DashboardSnapshotServiceTests
         WebStubs.Docker? docker = null,
         WebStubs.Git? git = null,
         WebStubs.Tmux? tmux = null,
-        WebStubs.Blockers? blockers = null) =>
-        new(
+        WebStubs.Blockers? blockers = null,
+        WebStubs.Milestones? milestones = null,
+        WebStubs.Frontiers? frontiers = null,
+        WebStubs.RuntimeHealthRecords? runtimeHealth = null,
+        WebStubs.BuildHistory? builds = null,
+        WebStubs.TestHistory? tests = null,
+        WebStubs.ProjectConfigs? configs = null)
+    {
+        var projectRepo = new WebStubs.Projects(projects);
+        var timelineRepo = new WebStubs.Timeline(timeline ?? []);
+        var blockerRepo = blockers ?? new WebStubs.Blockers();
+        var milestoneRepo = milestones ?? new WebStubs.Milestones();
+        var frontierRepo = frontiers ?? new WebStubs.Frontiers();
+        var runtimeRepo = runtimeHealth ?? new WebStubs.RuntimeHealthRecords();
+        var buildRepo = builds ?? new WebStubs.BuildHistory();
+        var testRepo = tests ?? new WebStubs.TestHistory();
+        var gitService = git ?? new WebStubs.Git(WebFixtures.BansheeGit());
+
+        var projection = new DashboardProjectionBuilder(
+            projectRepo, milestoneRepo, blockerRepo, frontierRepo, runtimeRepo,
+            buildRepo, testRepo, timelineRepo, new WebStubs.MobileActionAudits(), gitService);
+
+        return new DashboardSnapshotService(
             new WebStubs.SystemHealth(),
-            new WebStubs.Projects(projects),
-            git ?? new WebStubs.Git(WebFixtures.BansheeGit()),
+            projectRepo,
+            gitService,
             docker ?? new WebStubs.Docker(
                 p => p.ComposeFile is null ? null : "/repo/banshee/docker-compose.docker.yml",
                 _ => WebFixtures.BansheeCompose()),
             tmux ?? new WebStubs.Tmux(WebFixtures.TmuxRunning()),
-            new WebStubs.Timeline(timeline ?? []),
-            blockers ?? new WebStubs.Blockers());
+            timelineRepo,
+            blockerRepo,
+            projection,
+            configs ?? new WebStubs.ProjectConfigs(_ => null));
+    }
 
     [Fact]
     public async Task Dashboard_composes_health_tmux_and_compact_project_cards()
@@ -145,5 +170,95 @@ public sealed class DashboardSnapshotServiceTests
         // the TTL caches are what keep phone polling cheap.
         Assert.Equal(1, docker.InspectCount);
         Assert.Equal(1, git.CallCount);
+    }
+
+    [Fact]
+    public async Task Cards_carry_the_shared_projection_health_progress_and_blockers()
+    {
+        var snapshot = await Service(
+            [WebFixtures.Banshee()],
+            milestones: new WebStubs.Milestones(
+                new Milestone { ProjectId = 7, Title = "boot", Status = MilestoneStatus.Done, Weight = 3 },
+                new Milestone { ProjectId = 7, Title = "renderer", Status = MilestoneStatus.Active, Weight = 1 }),
+            frontiers: new WebStubs.Frontiers(
+                new Frontier { ProjectId = 7, Title = "boot", Status = FrontierStatus.Completed },
+                new Frontier { ProjectId = 7, Title = "lobby protocol", Status = FrontierStatus.Current }),
+            blockers: new WebStubs.Blockers(
+                new Blocker { ProjectId = 7, Description = "NAT drops", Severity = "Critical", Status = BlockerStatus.Active }),
+            runtimeHealth: new WebStubs.RuntimeHealthRecords(
+                new RuntimeHealthRecord { ProjectId = 7, CheckedAt = new DateTimeOffset(2026, 8, 1, 10, 0, 0, TimeSpan.Zero), Health = RuntimeHealth.Healthy }),
+            builds: new WebStubs.BuildHistory(
+                new BuildRecord { ProjectId = 7, Kind = ExecutionKind.Build, StartedAt = new DateTimeOffset(2026, 8, 1, 11, 0, 0, TimeSpan.Zero), ExitCode = 0 }),
+            tests: new WebStubs.TestHistory(
+                new TestRecord { ProjectId = 7, Result = TestResult.Failed, StartedAt = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero) }))
+            .BuildAsync();
+
+        var card = Assert.Single(snapshot.Projects);
+
+        // Health: the test failure wins over the healthy runtime; the badge is text, never color alone.
+        Assert.Equal("Failing", card.HealthText);
+        Assert.Equal("bad", card.HealthBadgeClass);
+        Assert.Contains("Last test run failed", card.HealthReasonsText);
+
+        // Weighted progress: 3 of 4 weight done = 75%.
+        Assert.Equal("1/2 milestones · 75%", card.ProgressText);
+        Assert.Equal(75.0, card.ProgressPercent, precision: 6);
+
+        Assert.Equal("1/2 frontiers · lobby protocol", card.FrontierText);
+        Assert.Equal("1 active · highest critical", card.BlockerText);
+        Assert.Equal("build OK · test FAIL", card.ResultsText);
+        Assert.Equal("OpenProject", card.PrimaryAction); // the fixture project has no run command
+        Assert.False(card.HasMobileActions);
+
+        // Summary totals mirror the desktop bar.
+        Assert.Equal(1, snapshot.Summary.TotalProjects);
+        Assert.Equal(1, snapshot.Summary.FailingCount);
+        Assert.Equal(1, snapshot.Summary.ActiveBlockerCount);
+        Assert.Equal(1, snapshot.Summary.RunningServices);
+        Assert.Equal(1, snapshot.Summary.DirtyProjects);
+    }
+
+    [Fact]
+    public async Task No_milestones_means_progress_not_configured_never_zero()
+    {
+        var snapshot = await Service([WebFixtures.Banshee()]).BuildAsync();
+
+        var card = Assert.Single(snapshot.Projects);
+        Assert.Null(card.ProgressText);
+        Assert.Equal(0, card.ProgressPercent);
+        Assert.Null(card.FrontierText);
+        Assert.Null(card.BlockerText);
+        Assert.Null(card.ResultsText);
+        Assert.Null(card.LastActivityText);
+    }
+
+    [Fact]
+    public async Task Card_fields_redact_secret_shaped_text()
+    {
+        var snapshot = await Service(
+            [WebFixtures.Banshee()],
+            frontiers: new WebStubs.Frontiers(
+                new Frontier { ProjectId = 7, Title = "deploy with MARIADB_PASSWORD=sup3rsecret", Status = FrontierStatus.Current }),
+            blockers: new WebStubs.Blockers(
+                new Blocker { ProjectId = 7, Description = "x", Severity = "high password=sekrit", Status = BlockerStatus.Active }))
+            .BuildAsync();
+
+        var card = Assert.Single(snapshot.Projects);
+        Assert.DoesNotContain("sup3rsecret", card.FrontierText);
+        Assert.Contains("MARIADB_PASSWORD=***", card.FrontierText);
+        Assert.DoesNotContain("sekrit", card.BlockerText);
+    }
+
+    [Fact]
+    public async Task Actions_link_is_gated_on_the_mobile_allowlist()
+    {
+        var snapshot = await Service(
+            [WebFixtures.Banshee()],
+            configs: new WebStubs.ProjectConfigs(path =>
+                path == WebFixtures.BansheeRepoDir ? WebFixtures.BansheeConfig() : null))
+            .BuildAsync();
+
+        var card = Assert.Single(snapshot.Projects);
+        Assert.True(card.HasMobileActions);
     }
 }

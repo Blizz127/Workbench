@@ -56,6 +56,73 @@ internal static class WebStubs
         public void Delete(long id) => throw new NotSupportedException();
     }
 
+    /// <summary>In-memory milestones for the shared projection; mutations are not supported.</summary>
+    public sealed class Milestones(params Milestone[] milestones) : IMilestoneRepository
+    {
+        public IReadOnlyList<Milestone> GetForProject(long projectId) =>
+            milestones.Where(m => m.ProjectId == projectId).ToList();
+
+        public long Add(Milestone milestone) => throw new NotSupportedException();
+        public void Update(Milestone milestone) => throw new NotSupportedException();
+        public void Delete(long id) => throw new NotSupportedException();
+    }
+
+    /// <summary>In-memory frontiers for the shared projection; mutations are not supported.</summary>
+    public sealed class Frontiers(params Frontier[] frontiers) : IFrontierRepository
+    {
+        public IReadOnlyList<Frontier> GetForProject(long projectId) =>
+            frontiers.Where(f => f.ProjectId == projectId).ToList();
+
+        public Frontier? GetCurrent(long projectId) =>
+            frontiers.FirstOrDefault(f => f.ProjectId == projectId && f.Status == FrontierStatus.Current);
+
+        public Frontier? GetNext(long projectId) =>
+            frontiers.FirstOrDefault(f => f.ProjectId == projectId && f.Status == FrontierStatus.Next);
+
+        public long Add(Frontier frontier) => throw new NotSupportedException();
+        public void Update(Frontier frontier) => throw new NotSupportedException();
+        public void Delete(long id) => throw new NotSupportedException();
+    }
+
+    /// <summary>In-memory runtime health records for the shared projection.</summary>
+    public sealed class RuntimeHealthRecords(params RuntimeHealthRecord[] records) : IRuntimeHealthRepository
+    {
+        public IReadOnlyList<RuntimeHealthRecord> GetForProject(long projectId, int limit = 20) =>
+            records.Where(r => r.ProjectId == projectId)
+                .OrderByDescending(r => r.CheckedAt).Take(limit).ToList();
+
+        public RuntimeHealthRecord? GetLatest(long projectId) =>
+            GetForProject(projectId).FirstOrDefault();
+
+        public long Add(RuntimeHealthRecord record) => throw new NotSupportedException();
+    }
+
+    /// <summary>In-memory build/run history for the shared projection.</summary>
+    public sealed class BuildHistory(params BuildRecord[] records) : IBuildHistoryRepository
+    {
+        public IReadOnlyList<BuildRecord> GetForProject(
+            long projectId, int limit = 100, ExecutionKind? kind = null) =>
+            records.Where(r => r.ProjectId == projectId && (kind is null || r.Kind == kind))
+                .OrderByDescending(r => r.StartedAt).Take(limit).ToList();
+
+        public BuildRecord? GetLatest(long projectId, ExecutionKind kind = ExecutionKind.Build) =>
+            GetForProject(projectId, 1, kind).FirstOrDefault();
+
+        public long Add(BuildRecord record) => throw new NotSupportedException();
+    }
+
+    /// <summary>In-memory test history for the shared projection.</summary>
+    public sealed class TestHistory(params TestRecord[] records) : ITestHistoryRepository
+    {
+        public IReadOnlyList<TestRecord> GetForProject(long projectId, int limit = 100) =>
+            records.Where(r => r.ProjectId == projectId)
+                .OrderByDescending(r => r.StartedAt).Take(limit).ToList();
+
+        public TestRecord? GetLatest(long projectId) => GetForProject(projectId, 1).FirstOrDefault();
+
+        public long Add(TestRecord record) => throw new NotSupportedException();
+    }
+
     public sealed class Git(
         Func<string?, RepositorySnapshot> snapshotFor,
         Func<string?, string?>? workingTreeDiffFor = null,

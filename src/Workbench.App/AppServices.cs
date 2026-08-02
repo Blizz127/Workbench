@@ -23,6 +23,7 @@ public sealed class AppServices
     public IBuildHistoryRepository Builds { get; }
     public ITestHistoryRepository Tests { get; }
     public IRuntimeHealthRepository RuntimeHealth { get; }
+    public IMobileActionAuditRepository MobileAudits { get; }
 
     public IGitService Git { get; }
     public ITodoScanner Todos { get; }
@@ -41,6 +42,9 @@ public sealed class AppServices
     public ITmuxService Tmux { get; }
     public ITerminalLauncher Terminal { get; }
 
+    /// <summary>The shared dashboard projection — the desktop dashboard renders this, nothing else.</summary>
+    public DashboardProjectionBuilder Dashboard { get; }
+
     public AppServices(string? databasePath = null)
     {
         Database = new WorkbenchDatabase(databasePath ?? WorkbenchDatabase.GetDefaultDatabasePath());
@@ -54,6 +58,7 @@ public sealed class AppServices
         Builds = new BuildHistoryRepository(Database);
         Tests = new TestHistoryRepository(Database);
         RuntimeHealth = new RuntimeHealthRepository(Database);
+        MobileAudits = new MobileActionAuditRepository(Database);
 
         Git = new GitService();
         Todos = new TodoScanner();
@@ -70,6 +75,10 @@ public sealed class AppServices
         Docker = new DockerComposeService(Runner);
         Tmux = new TmuxService(Runner);
         Terminal = new TerminalLauncher();
+
+        Dashboard = new DashboardProjectionBuilder(
+            Projects, Milestones, Blockers, Frontiers, RuntimeHealth,
+            Builds, Tests, Timeline, MobileAudits, Git);
 
         // The sample seeders no longer run at startup — samples/ is inert demo
         // data (tests still reference it). Projects are discovered on disk instead.

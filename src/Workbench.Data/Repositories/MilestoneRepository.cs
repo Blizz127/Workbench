@@ -6,15 +6,15 @@ namespace Workbench.Data.Repositories;
 
 public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestoneRepository
 {
+    private const string SelectColumns =
+        "id, project_id, title, is_completed, completed_at, sort_order, notes, status, weight";
+
     public IReadOnlyList<Milestone> GetForProject(long projectId)
     {
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText =
-            """
-            SELECT id, project_id, title, is_completed, completed_at, sort_order, notes
-            FROM milestones WHERE project_id = $pid ORDER BY sort_order, id;
-            """;
+            $"SELECT {SelectColumns} FROM milestones WHERE project_id = $pid ORDER BY sort_order, id;";
         command.Parameters.AddWithValue("$pid", projectId);
 
         var results = new List<Milestone>();
@@ -26,12 +26,14 @@ public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestone
 
     public long Add(Milestone milestone)
     {
+        Normalize(milestone);
+
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO milestones (project_id, title, is_completed, completed_at, sort_order, notes)
-            VALUES ($pid, $title, $done, $completed_at, $order, $notes);
+            INSERT INTO milestones (project_id, title, is_completed, completed_at, sort_order, notes, status, weight)
+            VALUES ($pid, $title, $done, $completed_at, $order, $notes, $status, $weight);
             SELECT last_insert_rowid();
             """;
         Bind(command, milestone);
@@ -41,12 +43,14 @@ public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestone
 
     public void Update(Milestone milestone)
     {
+        Normalize(milestone);
+
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE milestones SET title = $title, is_completed = $done, completed_at = $completed_at,
-                sort_order = $order, notes = $notes
+                sort_order = $order, notes = $notes, status = $status, weight = $weight
             WHERE id = $id;
             """;
         Bind(command, milestone);
@@ -63,6 +67,27 @@ public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestone
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Keeps the legacy flag and the lifecycle status consistent in both
+    /// directions, mirroring the blocker Normalize. Status is authoritative:
+    /// Done forces the flag on and stamps completed_at; leaving Done forces
+    /// the flag off and clears the timestamp. The one legacy convenience is
+    /// the old checklist flow — a caller that only sets <c>IsCompleted</c>
+    /// gets a Done status. Callers that change state should set
+    /// <see cref="Milestone.Status"/> directly.
+    /// </summary>
+    private static void Normalize(Milestone m)
+    {
+        if (m.IsCompleted && m.Status == MilestoneStatus.NotStarted)
+            m.Status = MilestoneStatus.Done;
+
+        m.IsCompleted = m.Status == MilestoneStatus.Done;
+        if (m.IsCompleted)
+            m.CompletedAt ??= DateTimeOffset.Now;
+        else
+            m.CompletedAt = null;
+    }
+
     private static void Bind(SqliteCommand command, Milestone m)
     {
         command.Parameters.AddWithValue("$pid", m.ProjectId);
@@ -71,6 +96,8 @@ public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestone
         command.Parameters.AddWithValue("$completed_at", SqliteMapping.ToDb(m.CompletedAt));
         command.Parameters.AddWithValue("$order", m.SortOrder);
         command.Parameters.AddWithValue("$notes", SqliteMapping.ToDbNullable(m.Notes));
+        command.Parameters.AddWithValue("$status", m.Status.ToString());
+        command.Parameters.AddWithValue("$weight", SqliteMapping.ToDbNullable(m.Weight));
     }
 
     private static Milestone Map(SqliteDataReader reader) => new()
@@ -82,5 +109,7 @@ public sealed class MilestoneRepository(WorkbenchDatabase database) : IMilestone
         CompletedAt = reader.GetNullableDateTimeOffset(4),
         SortOrder = reader.GetInt32(5),
         Notes = reader.GetNullableString(6),
+        Status = reader.GetEnum<MilestoneStatus>(7),
+        Weight = reader.GetNullableInt32(8),
     };
 }

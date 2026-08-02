@@ -5,10 +5,35 @@
              x:Class="Workbench.App.Views.ProgressView"
              x:DataType="vm:ProjectDetailViewModel">
 
+    <UserControl.Resources>
+        <!-- One milestone row, shared by every status group -->
+        <DataTemplate x:Key="MilestoneRow" x:DataType="vm:MilestoneItemViewModel">
+            <DockPanel Margin="{StaticResource Space0Vertical}">
+                <Button DockPanel.Dock="Right" Content="✕" Classes="command.ghost"
+                        Padding="{StaticResource CompactButtonPadding}"
+                        Command="{Binding RemoveCommand}"
+                        AutomationProperties.Name="Remove milestone" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding CompletedText}"
+                           Classes="muted" VerticalAlignment="Center"
+                           Margin="{StaticResource Space4Right}"
+                           IsVisible="{Binding IsCompleted}" />
+                <Border DockPanel.Dock="Right" Classes="badge"
+                        Classes.danger="{Binding StatusIsBlocked}"
+                        VerticalAlignment="Center" Margin="{StaticResource Space3Right}"
+                        IsVisible="{Binding ShowStatusBadge}">
+                    <TextBlock Text="{Binding StatusText}" />
+                </Border>
+                <CheckBox IsChecked="{Binding IsCompleted}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" Classes.done="{Binding IsCompleted}" />
+                </CheckBox>
+            </DockPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <ScrollViewer Margin="{StaticResource Space3Top}">
         <StackPanel Spacing="{StaticResource Space5}" MaxWidth="760" HorizontalAlignment="Left">
 
-            <!-- Milestone progress (milestone-based only — no other percentages) -->
+            <!-- Milestones: weighted progress + status-grouped checklist -->
             <Border Classes="card">
                 <StackPanel Spacing="{StaticResource Space3}">
                     <TextBlock Text="Milestones" Classes="h2" />
@@ -19,25 +44,43 @@
                                      VerticalAlignment="Center" Margin="{StaticResource Space3Right}" />
                     </DockPanel>
 
-                    <ItemsControl ItemsSource="{Binding Milestones.Items}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:MilestoneItemViewModel">
-                                <DockPanel Margin="{StaticResource Space0Vertical}">
-                                    <Button DockPanel.Dock="Right" Content="✕" Classes="command.ghost"
-                                            Padding="{StaticResource CompactButtonPadding}"
-                                            Command="{Binding RemoveCommand}"
-                                            AutomationProperties.Name="Remove milestone" />
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding CompletedText}"
-                                               Classes="muted" VerticalAlignment="Center"
-                                               Margin="{StaticResource Space4Right}"
-                                               IsVisible="{Binding IsCompleted}" />
-                                    <CheckBox IsChecked="{Binding IsCompleted}" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}" Classes.done="{Binding IsCompleted}" />
-                                    </CheckBox>
-                                </DockPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <TextBlock Text="No milestones yet — add your first milestone below to start tracking progress."
+                               Classes="muted" TextWrapping="Wrap"
+                               IsVisible="{Binding !Milestones.HasMilestones}" />
+
+                    <StackPanel IsVisible="{Binding Milestones.HasMilestones}" Spacing="{StaticResource Space2}">
+                        <StackPanel IsVisible="{Binding Milestones.ActiveItems.Count}">
+                            <TextBlock Text="Active" Classes="section-header" />
+                            <ItemsControl ItemsSource="{Binding Milestones.ActiveItems}"
+                                          ItemTemplate="{StaticResource MilestoneRow}" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding Milestones.BlockedItems.Count}">
+                            <TextBlock Text="Blocked" Classes="section-header" />
+                            <ItemsControl ItemsSource="{Binding Milestones.BlockedItems}"
+                                          ItemTemplate="{StaticResource MilestoneRow}" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding Milestones.NotStartedItems.Count}">
+                            <TextBlock Text="Not Started" Classes="section-header" />
+                            <ItemsControl ItemsSource="{Binding Milestones.NotStartedItems}"
+                                          ItemTemplate="{StaticResource MilestoneRow}" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding Milestones.DoneItems.Count}">
+                            <TextBlock Text="Done" Classes="section-header" />
+                            <ItemsControl ItemsSource="{Binding Milestones.DoneItems}"
+                                          ItemTemplate="{StaticResource MilestoneRow}" />
+                        </StackPanel>
+
+                        <!-- Dismissed: collapsed by default -->
+                        <Button Content="{Binding Milestones.DismissedToggleText}" Classes="command.ghost"
+                                HorizontalAlignment="Left"
+                                Command="{Binding Milestones.ToggleDismissedCommand}"
+                                IsVisible="{Binding Milestones.DismissedCount}" />
+                        <StackPanel IsVisible="{Binding Milestones.ShowDismissedSection}">
+                            <TextBlock Text="Dismissed" Classes="section-header" />
+                            <ItemsControl ItemsSource="{Binding Milestones.DismissedItems}"
+                                          ItemTemplate="{StaticResource MilestoneRow}" />
+                        </StackPanel>
+                    </StackPanel>
 
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Add milestone" Classes="command.secondary"
@@ -51,11 +94,38 @@
                 </StackPanel>
             </Border>
 
-            <!-- Frontier -->
+            <!-- Frontier: read-only checklist + the existing current/next/advance controls -->
             <Border Classes="card">
                 <StackPanel Spacing="{StaticResource Space2}">
-                    <TextBlock Text="Frontier" Classes="h2" />
-                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Milestones.FrontierProgressText}"
+                                   Classes="muted" VerticalAlignment="Center"
+                                   IsVisible="{Binding Milestones.HasFrontiers}" />
+                        <TextBlock Text="Frontier" Classes="h2" />
+                    </DockPanel>
+
+                    <TextBlock Text="No frontier set — add one below to start tracking the edge of progress."
+                               Classes="muted" TextWrapping="Wrap"
+                               IsVisible="{Binding !Milestones.HasFrontiers}" />
+                    <ItemsControl ItemsSource="{Binding Milestones.FrontierItems}"
+                                  IsVisible="{Binding Milestones.HasFrontiers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:FrontierItemViewModel">
+                                <DockPanel Margin="{StaticResource Space0Vertical}">
+                                    <Border DockPanel.Dock="Right" Classes="badge"
+                                            Classes.success="{Binding IsCompleted}"
+                                            Classes.info="{Binding IsCurrent}"
+                                            VerticalAlignment="Center" Margin="{StaticResource Space3Left}">
+                                        <TextBlock Text="{Binding StatusText}" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Title}" Classes.done="{Binding IsCompleted}"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid ColumnDefinitions="Auto,8,*" RowDefinitions="Auto,Auto,Auto" Margin="{StaticResource Space2Top}">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="current" Classes="muted" />
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Overview.CurrentFrontier}" TextWrapping="Wrap" />
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="next" Classes="muted" />

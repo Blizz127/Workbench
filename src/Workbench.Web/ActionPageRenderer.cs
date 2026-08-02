@@ -17,7 +17,9 @@ public static class ActionPageRenderer
     public static void WriteActionsSection(
         StringBuilder html, long projectId, IReadOnlyList<MobileActionDescriptor> actions)
     {
-        html.Append("<h2>Actions</h2><div class=\"card\">");
+        // The named anchor lets dashboard cards deep-link here without an id
+        // hook — the actions/journal sections stay outside the JS-polled DOM.
+        html.Append("<a name=\"actions\"></a><h2>Actions</h2><div class=\"card\">");
         if (actions.Count == 0)
             html.Append("<span class=\"muted\">No actions available for this project.</span>");
 

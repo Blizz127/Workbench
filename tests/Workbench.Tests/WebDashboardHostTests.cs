@@ -58,6 +58,15 @@ public sealed class WebDashboardHostTests
                         IsResolved = true,
                     }));
                 services.AddSingleton<ISystemHealthService>(new WebStubs.SystemHealth());
+                // The shared projection builder resolves these from DI; stub them
+                // so host tests stay in-memory.
+                services.AddSingleton<IMilestoneRepository>(new WebStubs.Milestones(
+                    new Milestone { ProjectId = 7, Title = "boot", Status = MilestoneStatus.Done }));
+                services.AddSingleton<IFrontierRepository>(new WebStubs.Frontiers(
+                    new Frontier { ProjectId = 7, Title = "lobby protocol", Status = FrontierStatus.Current }));
+                services.AddSingleton<IRuntimeHealthRepository>(new WebStubs.RuntimeHealthRecords());
+                services.AddSingleton<IBuildHistoryRepository>(new WebStubs.BuildHistory());
+                services.AddSingleton<ITestHistoryRepository>(new WebStubs.TestHistory());
                 services.AddSingleton<IGitService>(new WebStubs.Git(path =>
                     path == WebFixtures.BansheeRepoDir
                         ? WebFixtures.BansheeGit()
@@ -307,5 +316,45 @@ public sealed class WebDashboardHostTests
 
         Assert.Contains("Xenogears Decompilation", html);
         Assert.Contains("repo missing", html);
+    }
+
+    [Fact]
+    public async Task Dashboard_json_carries_health_progress_summary_and_no_secrets()
+    {
+        using var factory = new DashboardFactory(withToken: true);
+        using var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/snapshot");
+        request.Headers.Add("X-Workbench-Token", Token);
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        using var json = JsonDocument.Parse(body);
+        var root = json.RootElement;
+
+        // Fleet summary bar totals.
+        var summary = root.GetProperty("summary");
+        Assert.Equal(2, summary.GetProperty("totalProjects").GetInt32());
+        Assert.Equal(1, summary.GetProperty("blockedCount").GetInt32());
+        Assert.Equal(1, summary.GetProperty("unavailableCount").GetInt32());
+        Assert.Equal(1, summary.GetProperty("activeBlockerCount").GetInt32());
+
+        var projects = root.GetProperty("projects");
+        var banshee = projects.EnumerateArray().Single(p => p.GetProperty("name").GetString() == "Banshee Realm 11");
+        Assert.Equal("Blocked", banshee.GetProperty("healthText").GetString());
+        Assert.Equal("bad", banshee.GetProperty("healthBadgeClass").GetString());
+        Assert.Contains("critical", banshee.GetProperty("healthReasonsText").GetString());
+        Assert.Equal("1/1 milestones · 100%", banshee.GetProperty("progressText").GetString());
+        Assert.Contains("lobby protocol", banshee.GetProperty("frontierText").GetString());
+        Assert.Contains("1 active", banshee.GetProperty("blockerText").GetString());
+
+        // "Progress not configured" is null, never 0%.
+        var xenogears = projects.EnumerateArray().Single(p => p.GetProperty("name").GetString() == "Xenogears Decompilation");
+        Assert.Equal("Unavailable", xenogears.GetProperty("healthText").GetString());
+        Assert.Equal(JsonValueKind.Null, xenogears.GetProperty("progressText").ValueKind);
+
+        // No secret-shaped values anywhere in the snapshot JSON.
+        Assert.DoesNotContain("sup3rsecret", body);
     }
 }

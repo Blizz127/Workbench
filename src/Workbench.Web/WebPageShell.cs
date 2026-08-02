@@ -45,8 +45,11 @@ internal static class WebPageShell
         .muted { color: #9aa3b2; font-size: .85rem; }
         .card { background: #1a1d24; border: 1px solid #2a2e38; border-radius: 12px;
                 padding: 14px; margin: 12px 0; }
-        a.project-card { display: block; text-decoration: none; color: inherit; min-height: 44px; }
-        a.project-card:active, a.project-card:hover { border-color: #4f8ff7; }
+        .project-card { min-height: 44px; }
+        .project-card:hover { border-color: #4f8ff7; }
+        .summary { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 6px;
+                   font-size: .85rem; color: #9aa3b2; }
+        .summary-item strong { color: #e6e8ee; font-variant-numeric: tabular-nums; }
         .view-link { display: inline-flex; align-items: center; min-height: 44px; color: #4f8ff7;
                      font-weight: 600; font-size: .95rem; }
         .back-link { display: inline-flex; align-items: center; min-height: 44px; color: #4f8ff7;
@@ -181,31 +184,107 @@ internal static class WebPageShell
             });
           }
 
+          function renderSummary(s) {
+            var body = $("summary-body"); if (!body) return;
+            clear(body);
+            function item(label, count, badgeClass) {
+              var wrap = el("span", "summary-item");
+              wrap.appendChild(el("strong", null, String(count)));
+              wrap.appendChild(document.createTextNode(" "));
+              if (badgeClass) wrap.appendChild(badge(label, badgeClass));
+              else wrap.appendChild(document.createTextNode(label));
+              body.appendChild(wrap);
+            }
+            item("projects", s.totalProjects);
+            item("healthy", s.healthyCount, "ok");
+            item("attention", s.attentionCount, s.attentionCount > 0 ? "warn" : null);
+            item("blocked", s.blockedCount, s.blockedCount > 0 ? "bad" : null);
+            item("failing", s.failingCount, s.failingCount > 0 ? "bad" : null);
+            item("unavailable", s.unavailableCount, s.unavailableCount > 0 ? "bad" : null);
+            item("blockers", s.activeBlockerCount, s.activeBlockerCount > 0 ? "warn" : null);
+            item("running", s.runningServices);
+            item("failing services", s.failingServices, s.failingServices > 0 ? "bad" : null);
+            item("dirty", s.dirtyProjects, s.dirtyProjects > 0 ? "warn" : null);
+          }
+
           function renderProjects(projects) {
             var body = $("projects-body"); if (!body) return;
             clear(body);
             if (!projects.length) { body.appendChild(el("div", "card muted", "No projects registered.")); return; }
             projects.forEach(function (p) {
-              var card = el("a", "card project-card");
-              card.href = "/projects/" + p.id;
+              // The card is a div so the footer can hold both tap targets.
+              var card = el("div", "card project-card");
               var head = row();
               head.appendChild(el("strong", "grow", p.name));
+              var health = badge(p.healthText || "Unknown", p.healthBadgeClass || null);
+              if (p.healthReasonsText) health.title = p.healthReasonsText;
+              head.appendChild(health);
               head.appendChild(badge(p.status));
               card.appendChild(head);
+
+              // Progress: a null projection means "not configured", never 0%.
+              var prog = row();
+              prog.appendChild(muted("progress"));
+              if (p.progressText) {
+                var grow = el("div", "grow");
+                var bar = el("div", "bar");
+                var fill = el("div");
+                fill.style.width = Math.max(0, Math.min(100, p.progressPercent)) + "%";
+                bar.appendChild(fill);
+                grow.appendChild(bar);
+                prog.appendChild(grow);
+                prog.appendChild(muted(p.progressText));
+              } else {
+                prog.appendChild(el("span", "muted grow", "Progress not configured"));
+              }
+              card.appendChild(prog);
+
+              var fr = row();
+              fr.appendChild(muted("frontier"));
+              fr.appendChild(el("span", p.frontierText ? "mono grow" : "muted grow",
+                p.frontierText || "no frontier set"));
+              card.appendChild(fr);
+
+              var bl = row();
+              bl.appendChild(muted("blockers"));
+              var blGrow = el("span", "grow");
+              if (p.blockerText) blGrow.appendChild(badge(p.blockerText, "bad"));
+              else blGrow.appendChild(muted("no active blockers"));
+              bl.appendChild(blGrow);
+              card.appendChild(bl);
+
               var git = row();
               git.appendChild(muted("git"));
               git.appendChild(monoGrow(p.gitText));
               if (p.gitDirty) git.appendChild(badge("dirty", "warn"));
               if (p.gitUnavailable) git.appendChild(badge("repo missing", "bad"));
               card.appendChild(git);
+
+              var res = row();
+              res.appendChild(muted("results"));
+              if (p.resultsText) res.appendChild(monoGrow(p.resultsText));
+              else res.appendChild(el("span", "muted grow", "no build/test history"));
+              card.appendChild(res);
+
               if (p.dockerSummary) {
                 var d = row(); d.appendChild(muted("docker")); d.appendChild(monoGrow(p.dockerSummary)); card.appendChild(d);
               }
               if (p.tmuxText) {
                 var s = row(); s.appendChild(muted("tmux")); s.appendChild(monoGrow(p.tmuxText)); card.appendChild(s);
               }
+              if (p.lastActivityText) {
+                var a = row(); a.appendChild(muted("activity"));
+                a.appendChild(el("span", "muted grow", "last " + p.lastActivityText)); card.appendChild(a);
+              }
               var view = row();
-              view.appendChild(el("span", "view-link", "View project →"));
+              var viewLink = el("a", "view-link", "View project →");
+              viewLink.href = "/projects/" + p.id;
+              view.appendChild(viewLink);
+              if (p.hasMobileActions) {
+                var actionsLink = el("a", "view-link", "Actions →");
+                actionsLink.href = "/projects/" + p.id + "#actions";
+                view.appendChild(actionsLink);
+              }
               card.appendChild(view);
               body.appendChild(card);
             });
@@ -273,7 +352,7 @@ internal static class WebPageShell
           }
 
           function render(data) {
-            if (page === "dashboard") { renderSystem(data.system); renderTmux(data.tmux); renderProjects(data.projects); }
+            if (page === "dashboard") { renderSystem(data.system); renderSummary(data.summary); renderTmux(data.tmux); renderProjects(data.projects); }
             else if (page === "detail") { renderDetail(data); }
           }
 

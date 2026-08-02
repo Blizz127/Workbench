@@ -29,6 +29,9 @@ builder.Services.AddSingleton(sp => new WorkbenchDatabase(
 builder.Services.AddSingleton<IProjectRepository>(sp => new ProjectRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<ITimelineRepository>(sp => new TimelineRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<IBlockerRepository>(sp => new BlockerRepository(sp.GetRequiredService<WorkbenchDatabase>()));
+builder.Services.AddSingleton<IMilestoneRepository>(sp => new MilestoneRepository(sp.GetRequiredService<WorkbenchDatabase>()));
+builder.Services.AddSingleton<IFrontierRepository>(sp => new FrontierRepository(sp.GetRequiredService<WorkbenchDatabase>()));
+builder.Services.AddSingleton<IRuntimeHealthRepository>(sp => new RuntimeHealthRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<ISystemHealthService, SystemHealthService>();
 builder.Services.AddSingleton<IGitService, GitService>();
 builder.Services.AddSingleton<IProjectFileService, ProjectFileService>();
@@ -54,6 +57,10 @@ builder.Services.AddSingleton<IMobileActionAuditRepository>(sp =>
     new MobileActionAuditRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<MobileActionAuditService>();
 builder.Services.AddSingleton<IMobileActionService, MobileActionService>();
+
+// The shared dashboard projection — the same builder the desktop app uses;
+// the snapshot service feeds it TTL-cached git snapshots.
+builder.Services.AddSingleton<DashboardProjectionBuilder>();
 
 var app = builder.Build();
 

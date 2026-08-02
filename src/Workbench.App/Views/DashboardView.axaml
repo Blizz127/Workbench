@@ -13,25 +13,52 @@
             <DockPanel VerticalAlignment="Center">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
                             Spacing="{StaticResource Space3}" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space1}"
-                                VerticalAlignment="Center">
-                        <Button Content="Comfortable" Classes="command.ghost" Classes.selected="{Binding !IsCompact}"
-                                Command="{Binding SetDensityCommand}" CommandParameter="comfortable"
-                                AutomationProperties.Name="Comfortable density" />
-                        <Button Content="Compact" Classes="command.ghost" Classes.selected="{Binding IsCompact}"
-                                Command="{Binding SetDensityCommand}" CommandParameter="compact"
-                                AutomationProperties.Name="Compact density" />
-                    </StackPanel>
                     <Button Content="+ Add project" Classes="command" Command="{Binding ToggleAddPanelCommand}" />
                     <Button Content="Rescan" Classes="command" Command="{Binding RescanCommand}"
                             ToolTip.Tip="Re-scan the discovery folder for new projects" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}" VerticalAlignment="Center">
-                    <TextBlock Text="Development Lab" Classes="h1" />
-                    <TextBlock Text="{Binding SummaryText}" Classes="muted" VerticalAlignment="Center" />
-                </StackPanel>
+                <TextBlock Text="Development Lab" Classes="h1" VerticalAlignment="Center" />
             </DockPanel>
 
+            <!-- Fleet summary bar: compact text+count badges, never color alone -->
+            <WrapPanel>
+                <Border Classes="badge" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.TotalProjects, StringFormat='{}{0} projects'}" />
+                </Border>
+                <Border Classes="badge success" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.HealthyCount, StringFormat='{}{0} healthy'}" />
+                </Border>
+                <Border Classes="badge" Classes.warning="{Binding HasAttention}" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.AttentionCount, StringFormat='{}{0} attention'}" />
+                </Border>
+                <Border Classes="badge" Classes.danger="{Binding HasBlocked}" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.BlockedCount, StringFormat='{}{0} blocked'}" />
+                </Border>
+                <Border Classes="badge" Classes.danger="{Binding HasFailing}" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.FailingCount, StringFormat='{}{0} failing'}" />
+                </Border>
+                <Border Classes="badge" Classes.danger="{Binding HasUnavailable}" Margin="{StaticResource ChipMargin}">
+                    <TextBlock Text="{Binding Summary.UnavailableCount, StringFormat='{}{0} unavailable'}" />
+                </Border>
+                <Border Classes="badge" Classes.warning="{Binding HasActiveBlockers}" Margin="{StaticResource ChipMargin}"
+                        ToolTip.Tip="Active blockers across all projects">
+                    <TextBlock Text="{Binding Summary.ActiveBlockerCount, StringFormat='{}{0} blockers'}" />
+                </Border>
+                <Border Classes="badge" Margin="{StaticResource ChipMargin}"
+                        ToolTip.Tip="Projects whose runtime is healthy or degraded">
+                    <TextBlock Text="{Binding Summary.RunningServices, StringFormat='{}{0} running'}" />
+                </Border>
+                <Border Classes="badge" Classes.danger="{Binding HasFailingServices}" Margin="{StaticResource ChipMargin}"
+                        ToolTip.Tip="Projects whose latest runtime health check failed">
+                    <TextBlock Text="{Binding Summary.FailingServices, StringFormat='{}{0} failing services'}" />
+                </Border>
+                <Border Classes="badge" Classes.warning="{Binding HasDirty}" Margin="{StaticResource ChipMargin}"
+                        ToolTip.Tip="Projects with uncommitted changes">
+                    <TextBlock Text="{Binding Summary.DirtyProjects, StringFormat='{}{0} dirty'}" />
+                </Border>
+            </WrapPanel>
+
+            <!-- Host metrics -->
             <Grid ColumnDefinitions="*,12,*,12,*,12,*">
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="{StaticResource Space2}">
@@ -62,20 +89,30 @@
                 </Border>
             </Grid>
 
-            <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}" VerticalAlignment="Center">
-                <TextBlock Text="Status" Classes="muted" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding StatusFilters}" SelectedItem="{Binding SelectedFilter}"
-                          Width="{StaticResource FilterComboWidth}" />
-                <TextBlock Text="Tag" Classes="muted" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding TagFilters}" SelectedItem="{Binding SelectedTag}"
-                          Width="{StaticResource FilterComboWidthWide}" />
-                <TextBlock Text="Availability" Classes="muted" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding AvailabilityFilters}" SelectedItem="{Binding SelectedAvailability}"
-                          Width="{StaticResource FilterComboWidthWide}" />
-                <TextBlock Text="Sort" Classes="muted" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}"
-                          Width="{StaticResource FilterComboWidth}" />
-            </StackPanel>
+            <!-- Filter chips + sort -->
+            <DockPanel VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            Spacing="{StaticResource Space2}" VerticalAlignment="Center">
+                    <TextBlock Text="Sort" Classes="muted" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}"
+                              Width="{StaticResource FilterComboWidthWide}" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding FilterChips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DashboardFilterChipViewModel">
+                            <Button Content="{Binding Label}" Classes="command.ghost"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Command="{Binding SelectCommand}"
+                                    Margin="{StaticResource Space3Right}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
         </StackPanel>
 
         <!-- Development Sessions (tmux): read-only inspection plus explicit, confirmed actions -->
@@ -100,165 +137,186 @@
             </StackPanel>
         </Border>
 
-        <!-- Empty state -->
-        <Border DockPanel.Dock="Top" Classes="empty-state" Margin="{StaticResource Space5Top}"
-                IsVisible="{Binding !Cards.Count}">
-            <TextBlock Classes="empty-state" Text="No projects match the current filters." />
+        <!-- Recent activity: merged timeline + mobile-action stream -->
+        <Border DockPanel.Dock="Right" Classes="card" Width="{StaticResource ActivityPanelWidth}"
+                Margin="{StaticResource Space5Left}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Recent Activity" Classes="h2" />
+                <TextBlock DockPanel.Dock="Top" Text="No recent activity yet." Classes="muted"
+                           IsVisible="{Binding !HasRecentActivity}" />
+                <ScrollViewer>
+                    <ItemsControl ItemsSource="{Binding RecentActivity}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DashboardActivityItemViewModel">
+                                <Button Classes="card-open" Command="{Binding OpenCommand}"
+                                        ToolTip.Tip="Open the project">
+                                    <StackPanel Spacing="{StaticResource Space0}" Margin="{StaticResource Space1Bottom}">
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
+                                            <TextBlock Text="{Binding WhenText}" Classes="muted mono" />
+                                            <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold"
+                                                       FontSize="{StaticResource FontSizeSmall}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Category}" Classes="muted" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Message}" FontSize="{StaticResource FontSizeSmall}"
+                                                   TextWrapping="Wrap" MaxLines="2" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
         </Border>
 
         <!-- Project cards -->
-        <ScrollViewer Margin="{StaticResource Space5Top}">
-            <ItemsControl ItemsSource="{Binding Cards}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:ProjectCardViewModel">
-                        <Border Classes="card project-card" Classes.compact="{Binding IsCompact}"
-                                Margin="{StaticResource CardMargin}">
-                            <StackPanel Classes="card-body">
+        <Grid Margin="{StaticResource Space5Top}">
+            <Border Classes="empty-state" IsVisible="{Binding !Cards.Count}">
+                <TextBlock Classes="empty-state" Text="No projects match the current filters." />
+            </Border>
+            <ScrollViewer IsVisible="{Binding !!Cards.Count}">
+                <ItemsControl ItemsSource="{Binding Cards}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ProjectCardViewModel">
+                            <Border Classes="card project-card" Margin="{StaticResource CardMargin}">
+                                <StackPanel Classes="card-body">
 
-                                <!-- Header: accent tile, name (opens the project), badges -->
-                                <Grid ColumnDefinitions="Auto,8,*">
-                                    <Border Grid.Column="0" Classes="card-accent"
-                                            Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
-                                        <TextBlock Text="{Binding Initial}" FontWeight="Bold"
-                                                   Foreground="{DynamicResource AccentForegroundBrush}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <DockPanel Grid.Column="2" VerticalAlignment="Center">
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                                                    Spacing="{StaticResource Space1}" VerticalAlignment="Center">
-                                            <Border Classes="badge" Classes.warning="{Binding IsSharedBadgeWarning}"
-                                                    IsVisible="{Binding HasSharedBadge}"
-                                                    ToolTip.Tip="Shared-state sync status">
-                                                <TextBlock Text="{Binding SharedBadge}" />
-                                            </Border>
-                                            <Border Classes="badge"
-                                                    Classes.success="{Binding StatusIsSuccess}"
-                                                    Classes.warning="{Binding StatusIsWarning}"
-                                                    Classes.danger="{Binding StatusIsDanger}"
-                                                    Classes.info="{Binding StatusIsInfo}">
-                                                <TextBlock Text="{Binding Status}" />
-                                            </Border>
-                                        </StackPanel>
-                                        <Button Classes="card-open" Command="{Binding OpenCommand}"
-                                                ToolTip.Tip="{Binding Name}"
-                                                AutomationProperties.Name="{Binding Name}">
-                                            <TextBlock Classes="card-title" Text="{Binding Name}" />
-                                        </Button>
-                                    </DockPanel>
-                                </Grid>
+                                    <!-- Header: accent tile, name (opens the project), health + status badges -->
+                                    <Grid ColumnDefinitions="Auto,8,*">
+                                        <Border Grid.Column="0" Classes="card-accent"
+                                                Background="{Binding Status, Converter={x:Static conv:StatusToBrushConverter.Instance}}">
+                                            <TextBlock Text="{Binding Initial}" FontWeight="Bold"
+                                                       Foreground="{DynamicResource AccentForegroundBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <DockPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                                        Spacing="{StaticResource Space1}" VerticalAlignment="Center">
+                                                <Border Classes="badge"
+                                                        Classes.success="{Binding HealthIsSuccess}"
+                                                        Classes.warning="{Binding HealthIsWarning}"
+                                                        Classes.danger="{Binding HealthIsDanger}"
+                                                        ToolTip.Tip="{Binding HealthReasonsText}">
+                                                    <TextBlock Text="{Binding HealthText}" />
+                                                </Border>
+                                                <Border Classes="badge">
+                                                    <TextBlock Text="{Binding Status}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <Button Classes="card-open" Command="{Binding OpenCommand}"
+                                                    ToolTip.Tip="{Binding Name}"
+                                                    AutomationProperties.Name="{Binding Name}">
+                                                <TextBlock Classes="card-title" Text="{Binding Name}" />
+                                            </Button>
+                                        </DockPanel>
+                                    </Grid>
 
-                                <!-- Alerts -->
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}"
-                                            IsVisible="{Binding HasAlerts}">
-                                    <Border Classes="badge warning" IsVisible="{Binding IsUnavailable}">
+                                    <!-- Repository availability -->
+                                    <Border Classes="badge danger" IsVisible="{Binding IsUnavailable}"
+                                            HorizontalAlignment="Left">
                                         <TextBlock Text="repo missing on this machine" />
                                     </Border>
-                                    <Border Classes="badge danger" IsVisible="{Binding HasBlockers}">
-                                        <TextBlock Text="{Binding BlockerText}" />
-                                    </Border>
+
+                                    <!-- Frontier -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="frontier" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding FrontierText}"
+                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FrontierText}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="60,8,*" IsVisible="{Binding HasFrontier}">
+                                        <TextBlock Grid.Column="0" Text="checklist" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding FrontierCountText}" Classes="muted" />
+                                    </Grid>
+
+                                    <!-- Next safest step -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="next" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding NextStepText}"
+                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding NextStepText}" />
+                                    </Grid>
+
+                                    <!-- Milestone progress (null projection = not configured, never 0%) -->
+                                    <Grid ColumnDefinitions="60,8,*,8,Auto" IsVisible="{Binding HasProgress}">
+                                        <TextBlock Grid.Column="0" Text="progress" Classes="muted"
+                                                   VerticalAlignment="Center" />
+                                        <ProgressBar Grid.Column="2" Classes="thin" Value="{Binding ProgressPercent}"
+                                                     Maximum="100" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Text="{Binding ProgressText}"
+                                                   Classes="muted" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="60,8,*" IsVisible="{Binding !HasProgress}">
+                                        <TextBlock Grid.Column="0" Text="progress" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding ProgressEmptyText}" Classes="muted"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <!-- Blockers -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="blockers" Classes="muted" />
+                                        <Border Grid.Column="2" Classes="badge danger" HorizontalAlignment="Left"
+                                                IsVisible="{Binding HasActiveBlockers}">
+                                            <TextBlock Text="{Binding BlockerText}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding BlockerText}" Classes="muted"
+                                                   IsVisible="{Binding !HasActiveBlockers}" />
+                                    </Grid>
+
+                                    <!-- Git -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="git" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding GitText}" Classes="mono"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+
+                                    <!-- Latest build/test/launch verdicts -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="results" Classes="muted" />
+                                        <WrapPanel Grid.Column="2">
+                                            <TextBlock Text="{Binding BuildText, StringFormat='build {0}'}"
+                                                       Margin="{StaticResource Space3Right}" VerticalAlignment="Center"
+                                                       Foreground="{Binding BuildOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                            <TextBlock Text="{Binding TestText, StringFormat='test {0}'}"
+                                                       Margin="{StaticResource Space3Right}" VerticalAlignment="Center"
+                                                       Foreground="{Binding TestOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                            <TextBlock Text="{Binding LaunchText, StringFormat='run {0}'}"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{Binding LaunchOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
+                                        </WrapPanel>
+                                    </Grid>
+
+                                    <!-- Runtime health -->
+                                    <Grid ColumnDefinitions="60,8,*">
+                                        <TextBlock Grid.Column="0" Text="runtime" Classes="muted" />
+                                        <TextBlock Grid.Column="2" Text="{Binding RuntimeHealthText}"
+                                                   Foreground="{Binding RuntimeHealth, Converter={x:Static conv:HealthToBrushConverter.Instance}}" />
+                                    </Grid>
+
+                                    <!-- Footer: repo path, last activity, primary action -->
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Classes="command"
+                                                Content="{Binding PrimaryActionText}"
+                                                Command="{Binding PrimaryCommand}"
+                                                ToolTip.Tip="{Binding PrimaryActionTip}"
+                                                AutomationProperties.Name="Primary project action" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding RepositoryText}" Classes="muted mono"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip.Tip="{Binding RepositoryText}" />
+                                            <TextBlock Text="{Binding LastActivityText, StringFormat='last activity {0}'}"
+                                                       Classes="muted" />
+                                        </StackPanel>
+                                    </DockPanel>
                                 </StackPanel>
-
-                                <!-- Frontier (comfortable only) -->
-                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding !IsCompact}">
-                                    <TextBlock Grid.Column="0" Text="frontier" Classes="muted" />
-                                    <TextBlock Grid.Column="2" Text="{Binding FrontierText}"
-                                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FrontierText}" />
-                                </Grid>
-
-                                <!-- Git -->
-                                <Grid ColumnDefinitions="Auto,8,*">
-                                    <TextBlock Grid.Column="0" Text="git" Classes="muted" />
-                                    <TextBlock Grid.Column="2" Text="{Binding GitText}" Classes="mono"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Grid>
-
-                                <!-- Git sync times (comfortable only, once enriched) -->
-                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowGitSync}">
-                                    <TextBlock Grid.Column="0" Text="sync" Classes="muted" />
-                                    <TextBlock Grid.Column="2" Text="{Binding GitSyncText}" Classes="mono muted"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Grid>
-
-                                <!-- Docker (comfortable only, once probed) -->
-                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowDocker}">
-                                    <TextBlock Grid.Column="0" Text="docker" Classes="muted" />
-                                    <TextBlock Grid.Column="2" Text="{Binding DockerText}" Classes="mono"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{Binding DockerOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                                </Grid>
-
-                                <!-- Milestone progress -->
-                                <Grid ColumnDefinitions="60,8,*,8,Auto" IsVisible="{Binding HasMilestones}">
-                                    <TextBlock Grid.Column="0" Text="progress" Classes="muted"
-                                               VerticalAlignment="Center" />
-                                    <ProgressBar Grid.Column="2" Classes="thin" Value="{Binding MilestoneProgress}"
-                                                 Maximum="100" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="4" Text="{Binding MilestoneText}"
-                                               Classes="muted" VerticalAlignment="Center"
-                                               IsVisible="{Binding !IsCompact}" />
-                                </Grid>
-
-                                <!-- Latest results -->
-                                <Grid ColumnDefinitions="Auto,8,*">
-                                    <TextBlock Grid.Column="0" Text="results" Classes="muted" />
-                                    <WrapPanel Grid.Column="2">
-                                        <TextBlock Text="{Binding LastBuildText, StringFormat='build {0}'}"
-                                                   Margin="{StaticResource Space3Right}" VerticalAlignment="Center"
-                                                   Foreground="{Binding BuildOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                                        <TextBlock Text="{Binding LastTestText, StringFormat='test {0}'}"
-                                                   Margin="{StaticResource Space3Right}" VerticalAlignment="Center"
-                                                   Foreground="{Binding TestOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                                        <TextBlock Text="{Binding LastRunText, StringFormat='run {0}'}"
-                                                   VerticalAlignment="Center" IsVisible="{Binding HasRun}"
-                                                   Foreground="{Binding RunOutcome, Converter={x:Static conv:OutcomeToBrushConverter.Instance}}" />
-                                    </WrapPanel>
-                                </Grid>
-
-                                <!-- Shared sync timestamps (comfortable only, when shared) -->
-                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding ShowSharedSync}">
-                                    <TextBlock Grid.Column="0" Text="shared" Classes="muted" />
-                                    <TextBlock Grid.Column="2" Text="{Binding SharedSyncText}" Classes="muted"
-                                               TextTrimming="CharacterEllipsis" />
-                                </Grid>
-
-                                <!-- Active task (comfortable only) -->
-                                <TextBlock Text="{Binding ActiveTask}" TextWrapping="Wrap" MaxLines="2"
-                                           IsVisible="{Binding !IsCompact}" />
-
-                                <!-- Footer: tags, last-updated, Start -->
-                                <DockPanel>
-                                    <Button DockPanel.Dock="Right" Classes="command" Content="▶ Start"
-                                            Command="{Binding OpenCommand}" IsVisible="{Binding CanStart}"
-                                            ToolTip.Tip="Open the workspace — run it from the Builds &amp; Tests tab"
-                                            AutomationProperties.Name="Start project" />
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding LastUpdated}" Classes="muted"
-                                               VerticalAlignment="Center" Margin="{StaticResource Space3Right}"
-                                               IsVisible="{Binding !IsCompact}" />
-                                    <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding !IsCompact}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="x:String">
-                                                <Border Classes="chip" Margin="{StaticResource ChipMargin}">
-                                                    <TextBlock Text="{Binding}" FontSize="{StaticResource FontSizeMicro}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </DockPanel>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </UserControl>

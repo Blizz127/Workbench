@@ -248,7 +248,40 @@ public sealed class WorkbenchDatabase
         // Non-destructive column adds with backfills; is_resolved stays and is
         // kept in sync with status by the repository.
         new Migration(10, AddRichBlockerColumns),
+
+        // Milestone status lifecycle + optional progress weight. Non-destructive
+        // column adds; status is backfilled from the legacy is_completed flag,
+        // which stays and is kept in sync with status by the repository.
+        new Migration(11, AddMilestoneStatusAndWeight),
     ];
+
+    private static void AddMilestoneStatusAndWeight(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var existing = GetColumnNames(connection, transaction, "milestones");
+        if (existing.Count == 0)
+            return; // Table predates this lineage (partial test fixtures); nothing to upgrade.
+        foreach (var (name, definition) in new (string Name, string Definition)[]
+        {
+            ("status", "TEXT NOT NULL DEFAULT 'NotStarted'"),
+            ("weight", "INTEGER"),
+        })
+        {
+            if (existing.Contains(name))
+                continue;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE milestones ADD COLUMN {name} {definition};";
+            command.ExecuteNonQuery();
+        }
+
+        // Backfill, idempotent: the legacy flag is the source of truth for
+        // rows that predate the status column.
+        using var backfill = connection.CreateCommand();
+        backfill.Transaction = transaction;
+        backfill.CommandText = "UPDATE milestones SET status = 'Done' WHERE is_completed != 0 AND status = 'NotStarted';";
+        backfill.ExecuteNonQuery();
+    }
 
     private static void AddRichBlockerColumns(SqliteConnection connection, SqliteTransaction transaction)
     {

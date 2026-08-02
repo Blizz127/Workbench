@@ -4,18 +4,26 @@ using Workbench.Core.Models;
 
 namespace Workbench.App.ViewModels;
 
-/// <summary>One dashboard card. Git and milestone/blocker/history fields fill in asynchronously after load.</summary>
+/// <summary>
+/// One dashboard card — a thin display wrapper over the shared
+/// <see cref="ProjectDashboardCard"/> projection. All health/progress math
+/// happened in Core; this class only formats.
+/// </summary>
 public sealed partial class ProjectCardViewModel : ViewModelBase
 {
     private readonly Action<long> _openProject;
+    private readonly Action<long> _openRun;
 
     public Project Project { get; }
+    public ProjectDashboardCard Card { get; }
 
-    public string Name => Project.Name;
-    public string Status => Project.Status.ToString();
+    public string Name => Card.Name;
+    public string Status => Card.Status.ToString();
 
-    /// <summary>First letter of the name, shown in the card's accent tile.</summary>
-    public string Initial => Name.Length > 0 ? char.ToUpperInvariant(Name[0]).ToString() : "?";
+    /// <summary>First letter of the projection's accent hint, shown in the card's accent tile.</summary>
+    public string Initial => Card.AccentOrIcon.Length > 0
+        ? char.ToUpperInvariant(Card.AccentOrIcon[0]).ToString()
+        : "?";
 
     /// <summary>
     /// A missing repository is a normal state for a shared project (its files
@@ -23,235 +31,129 @@ public sealed partial class ProjectCardViewModel : ViewModelBase
     /// </summary>
     public string RepositoryText =>
         Project.RepositoryPath is { Length: > 0 } path
-            ? Directory.Exists(path) ? path : "Not available on this machine"
+            ? Card.RepositoryAvailable ? path : "Not available on this machine"
             : Project.SharedId is not null ? "Not available on this machine" : "no repository";
 
-    public bool IsUnavailable =>
-        Project.RepositoryPath is { Length: > 0 } path
-            ? !Directory.Exists(path)
-            : Project.SharedId is not null;
-
-    /// <summary>Prominent Start action: a launch command exists and the repo is on this machine.</summary>
-    public bool CanStart => !string.IsNullOrWhiteSpace(Project.RunCommand) && !IsUnavailable;
-
-    public string ActiveTask => Project.ActiveTask ?? "—";
-    public string LastUpdated => Project.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
-    public IReadOnlyList<string> Tags => Project.Tags;
-
-    public string FrontierText { get; }
-    public string LastBuildText { get; }
-    public bool LastBuildOk { get; }
-    public bool HasBuild { get; }
-    public string LastTestText { get; }
-    public bool LastTestOk { get; }
-    public bool HasTest { get; }
-
-    /// <summary>Sort key for "Failing": the latest build or test run went red.</summary>
-    public bool IsFailing => (HasBuild && !LastBuildOk) || (HasTest && !LastTestOk);
-
-    // Nullable outcomes for the results row: null (no run yet) renders muted, not red.
-    public bool? BuildOutcome => HasBuild ? LastBuildOk : null;
-    public bool? TestOutcome => HasTest ? LastTestOk : null;
-    public bool? RunOutcome => HasRun ? LastRunOk : null;
-
-    // Status → badge variant (neutral when none applies, e.g. Complete).
-    public bool StatusIsSuccess => Project.Status == ProjectStatus.Active;
-    public bool StatusIsWarning => Project.Status == ProjectStatus.Waiting;
-    public bool StatusIsDanger => Project.Status == ProjectStatus.Broken;
-    public bool StatusIsInfo => Project.Status == ProjectStatus.Research;
-
-    /// <summary>Compact density toggle, mirrored from the dashboard VM.</summary>
-    [ObservableProperty]
-    private bool _isCompact;
-
-    [ObservableProperty]
-    private string _branch = "…";
-
-    [ObservableProperty]
-    private string _lastCommit = "…";
+    public bool IsUnavailable => !Card.RepositoryAvailable;
 
     /// <summary>One-line git state: branch + dirty marker + ahead/behind counts.</summary>
-    [ObservableProperty]
-    private string _gitText = "…";
-
-    /// <summary>Last successful pull/push times (from the timeline journal); empty until enriched.</summary>
-    [ObservableProperty]
-    private string _gitSyncText = string.Empty;
-
-    /// <summary>One-line compose state (e.g. "5/5 containers up", "stopped"); empty until probed.</summary>
-    [ObservableProperty]
-    private string _dockerText = string.Empty;
-
-    /// <summary>Brush key for the docker row: null unknown/muted, true all up, false partial/stopped.</summary>
-    [ObservableProperty]
-    private bool? _dockerOutcome;
-
-    [ObservableProperty]
-    private bool _hasGit;
-
-    /// <summary>Set asynchronously when the shared file differs from local state; null hides the chip.</summary>
-    [ObservableProperty]
-    private string? _sharedBadge;
-
-    [ObservableProperty]
-    private int _openBlockerCount;
-
-    [ObservableProperty]
-    private string _milestoneText = string.Empty;
-
-    [ObservableProperty]
-    private double _milestoneProgress;
-
-    [ObservableProperty]
-    private bool _hasMilestones;
-
-    [ObservableProperty]
-    private string _lastRunText = "no runs";
-
-    [ObservableProperty]
-    private bool _lastRunOk;
-
-    [ObservableProperty]
-    private bool _hasRun;
-
-    public bool HasBlockers => OpenBlockerCount > 0;
-    public string BlockerText => $"{OpenBlockerCount} {(OpenBlockerCount == 1 ? "blocker" : "blockers")}";
-
-    /// <summary>Alert row: missing repository or open blockers.</summary>
-    public bool HasAlerts => IsUnavailable || HasBlockers;
-
-    public bool HasSharedBadge => SharedBadge is not null;
-
-    /// <summary>Phase C convention: conflict/newer badges are warnings; the rest are neutral.</summary>
-    public bool IsSharedBadgeWarning => SharedBadge is "conflict with shared" or "shared is newer";
-
-    /// <summary>Shared timestamps row: comfortable density only, and only when shared at least once.</summary>
-    public bool ShowSharedSync => HasSharedSync && !IsCompact;
-
-    /// <summary>Docker status row: comfortable density only, and only once a probe produced text.</summary>
-    public bool ShowDocker => DockerText.Length > 0 && !IsCompact;
-
-    /// <summary>Git sync-times row: comfortable density only, for valid repos once enriched.</summary>
-    public bool ShowGitSync => HasGit && GitSyncText.Length > 0 && !IsCompact;
-
-    public bool HasSharedSync =>
-        Project.SharedLastExportedAt is not null || Project.SharedLastImportedAt is not null;
-
-    public string SharedSyncText
+    public string GitText
     {
         get
         {
-            var parts = new List<string>(2);
-            if (Project.SharedLastExportedAt is { } exported)
-                parts.Add($"exported {exported.LocalDateTime:yyyy-MM-dd HH:mm}");
-            if (Project.SharedLastImportedAt is { } imported)
-                parts.Add($"imported {imported.LocalDateTime:yyyy-MM-dd HH:mm}");
-            return string.Join(" · ", parts);
+            if (!Card.RepositoryAvailable)
+                return "—";
+            var text = (Card.BranchName ?? "?") + (Card.IsDirty ? "*" : "");
+            if (Card.AheadBy is int ahead and > 0)
+                text += $" ↑{ahead}";
+            if (Card.BehindBy is int behind and > 0)
+                text += $" ↓{behind}";
+            return text;
         }
     }
 
-    public ProjectCardViewModel(AppServices services, Project project, Action<long> openProject)
+    public string DirtyText => Card.IsDirty ? "uncommitted changes" : string.Empty;
+    public bool IsDirty => Card.IsDirty;
+
+    // Frontier
+    public bool HasFrontier => Card.FrontierProgress.TotalCount > 0;
+    public string FrontierText => Card.CurrentFrontierTitle ?? "no frontier set";
+    public string FrontierCountText => Card.FrontierProgress.TotalCount == 0
+        ? string.Empty
+        : $"{Card.FrontierProgress.CompletedCount} of {Card.FrontierProgress.TotalCount} frontiers completed";
+
+    // Next safest step
+    public bool HasNextStep => Card.NextSafestStep is { Length: > 0 };
+    public string NextStepText => Card.NextSafestStep ?? "—";
+
+    // Milestone progress: null projection means "not configured", never 0%.
+    public bool HasProgress => Card.MilestoneProgress is not null;
+    public double ProgressPercent => Card.MilestoneProgress?.Percent ?? 0;
+    public string ProgressText => Card.MilestoneProgress is { } progress
+        ? $"{progress.CompletedCount} of {progress.TotalCount} milestones · {progress.Percent:F0}%"
+        : string.Empty;
+    public string ProgressEmptyText => "Progress not configured — add milestones in Settings";
+
+    // Blockers
+    public bool HasActiveBlockers => Card.ActiveBlockerCount > 0;
+    public string BlockerText
+    {
+        get
+        {
+            if (Card.ActiveBlockerCount == 0)
+                return Card.MonitoringBlockerCount > 0
+                    ? $"no active blockers · {Card.MonitoringBlockerCount} monitoring"
+                    : "no active blockers";
+            var text = $"{Card.ActiveBlockerCount} active {(Card.ActiveBlockerCount == 1 ? "blocker" : "blockers")}";
+            if (Card.HighestActiveSeverity is { } severity)
+                text += $" · highest {severity}";
+            if (Card.MonitoringBlockerCount > 0)
+                text += $" · {Card.MonitoringBlockerCount} monitoring";
+            return text;
+        }
+    }
+
+    // Last build/test/launch verdicts (no output text anywhere in the projection).
+    public bool HasBuild => Card.LastBuildResult is not null;
+    public bool HasTest => Card.LastTestResult is not null;
+    public bool HasLaunch => Card.LastLaunchResult is not null;
+    public string BuildText => ResultText(Card.LastBuildResult, "no builds yet");
+    public string TestText => ResultText(Card.LastTestResult, "no test runs yet");
+    public string LaunchText => ResultText(Card.LastLaunchResult, "no runs yet");
+    public bool? BuildOutcome => Card.LastBuildResult?.Succeeded;
+    public bool? TestOutcome => Card.LastTestResult?.Succeeded;
+    public bool? LaunchOutcome => Card.LastLaunchResult?.Succeeded;
+
+    // Runtime health
+    public bool HasRuntimeHealth => Card.RuntimeHealth is not null;
+    public string RuntimeHealthText => Card.RuntimeHealth?.ToString() ?? "—";
+    public Core.Models.RuntimeHealth? RuntimeHealth => Card.RuntimeHealth;
+
+    public string LastActivityText => Card.LastActivityAt is { } at
+        ? at.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+        : "no activity yet";
+
+    // Health badge: the state name is always shown as TEXT — never color alone.
+    public string HealthText => Card.HealthAssessment.State.ToString();
+    public string HealthReasonsText => string.Join(Environment.NewLine, Card.HealthAssessment.Reasons);
+    public bool HealthIsSuccess => Card.HealthAssessment.State == ProjectHealthState.Healthy;
+    public bool HealthIsWarning => Card.HealthAssessment.State == ProjectHealthState.Attention;
+    public bool HealthIsDanger => Card.HealthAssessment.State
+        is ProjectHealthState.Blocked or ProjectHealthState.Failing or ProjectHealthState.Unavailable;
+
+    // Primary action: Run/Start when the projection says a launch profile exists
+    // AND the repository is here; otherwise the card just opens the project.
+    public bool IsRunAction =>
+        Card.PrimaryAction == DashboardPrimaryAction.RunOrStart && Card.RepositoryAvailable;
+    public string PrimaryActionText => IsRunAction ? "▶ Run" : "Open Project";
+    public string PrimaryActionTip => IsRunAction
+        ? "Open the workspace on the Run section — execution stays explicit"
+        : "Open the project workspace";
+
+    public ProjectCardViewModel(
+        Project project, ProjectDashboardCard card, Action<long> openProject, Action<long> openRun)
     {
         Project = project;
+        Card = card;
         _openProject = openProject;
-
-        FrontierText = services.Frontiers.GetCurrent(project.Id)?.Title ?? "—";
-
-        var build = services.Builds.GetLatest(project.Id);
-        HasBuild = build is not null;
-        LastBuildOk = build?.Succeeded == true;
-        LastBuildText = build is null
-            ? "no builds"
-            : build.Succeeded
-                ? $"OK · {build.StartedAt.LocalDateTime:MM-dd HH:mm}"
-                : $"FAIL · {build.StartedAt.LocalDateTime:MM-dd HH:mm}";
-
-        var test = services.Tests.GetLatest(project.Id);
-        HasTest = test is not null;
-        LastTestOk = test?.Result == TestResult.Passed;
-        LastTestText = test is null ? "no test runs" : $"{test.Result} · {test.StartedAt.LocalDateTime:MM-dd HH:mm}";
+        _openRun = openRun;
     }
-
-    /// <summary>Applied on the UI thread from the background enrichment pass.</summary>
-    public void ApplyEnrichment(int milestoneTotal, int milestoneCompleted, int openBlockers, BuildRecord? lastRun)
-    {
-        HasMilestones = milestoneTotal > 0;
-        MilestoneText = $"{milestoneCompleted} of {milestoneTotal} milestones";
-        MilestoneProgress = milestoneTotal == 0 ? 0 : 100.0 * milestoneCompleted / milestoneTotal;
-        OpenBlockerCount = openBlockers;
-
-        HasRun = lastRun is not null;
-        LastRunOk = lastRun?.Succeeded == true;
-        LastRunText = lastRun is null
-            ? "no runs"
-            : lastRun.Succeeded
-                ? $"OK · {lastRun.StartedAt.LocalDateTime:MM-dd HH:mm}"
-                : $"FAIL · {lastRun.StartedAt.LocalDateTime:MM-dd HH:mm}";
-    }
-
-    public void ApplyGitSnapshot(RepositorySnapshot snapshot)
-    {
-        HasGit = snapshot.IsValid;
-        if (!snapshot.IsValid)
-        {
-            Branch = "—";
-            LastCommit = "—";
-            GitText = "—";
-            return;
-        }
-
-        Branch = snapshot.BranchName ?? "?";
-        LastCommit = snapshot.LastCommit is { } c
-            ? $"{c.ShortSha} {Truncate(c.MessageSummary, 46)}"
-            : "no commits";
-
-        var gitText = Branch + (snapshot.IsDirty ? "*" : "");
-        if (snapshot.AheadBy is int ahead and > 0)
-            gitText += $" ↑{ahead}";
-        if (snapshot.BehindBy is int behind and > 0)
-            gitText += $" ↓{behind}";
-        if (snapshot.IsDirty)
-            gitText += $" · {snapshot.ModifiedFiles.Count} dirty";
-        GitText = gitText;
-    }
-
-    /// <summary>Applied on the UI thread from the background enrichment pass.</summary>
-    public void ApplyGitSyncTimes(GitSyncTimes times) =>
-        GitSyncText = $"pull {FormatTime(times.LastPull)} · push {FormatTime(times.LastPush)}";
-
-    private static string FormatTime(DateTimeOffset? time) =>
-        time?.LocalDateTime.ToString("MM-dd HH:mm") ?? "—";
 
     [RelayCommand]
     private void Open() => _openProject(Project.Id);
 
-    partial void OnOpenBlockerCountChanged(int value)
+    /// <summary>The card's main button: the Run section when runnable, else the workspace.</summary>
+    [RelayCommand]
+    private void Primary()
     {
-        OnPropertyChanged(nameof(HasBlockers));
-        OnPropertyChanged(nameof(BlockerText));
-        OnPropertyChanged(nameof(HasAlerts));
+        if (IsRunAction)
+            _openRun(Project.Id);
+        else
+            _openProject(Project.Id);
     }
 
-    partial void OnSharedBadgeChanged(string? value)
-    {
-        OnPropertyChanged(nameof(HasSharedBadge));
-        OnPropertyChanged(nameof(IsSharedBadgeWarning));
-    }
-
-    partial void OnIsCompactChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShowSharedSync));
-        OnPropertyChanged(nameof(ShowDocker));
-        OnPropertyChanged(nameof(ShowGitSync));
-    }
-
-    partial void OnHasGitChanged(bool value) => OnPropertyChanged(nameof(ShowGitSync));
-    partial void OnGitSyncTextChanged(string value) => OnPropertyChanged(nameof(ShowGitSync));
-    partial void OnDockerTextChanged(string value) => OnPropertyChanged(nameof(ShowDocker));
-
-    partial void OnHasRunChanged(bool value) => OnPropertyChanged(nameof(RunOutcome));
-    partial void OnLastRunOkChanged(bool value) => OnPropertyChanged(nameof(RunOutcome));
-
-    private static string Truncate(string value, int max) =>
-        value.Length <= max ? value : value[..max] + "…";
+    private static string ResultText(DashboardExecutionResult? result, string emptyText) =>
+        result is null
+            ? emptyText
+            : $"{(result.TimedOut ? "TIMEOUT" : result.Succeeded ? "OK" : "FAIL")} · {result.When.LocalDateTime:MM-dd HH:mm}";
 }

@@ -33,10 +33,17 @@ public sealed class MobileActionServiceTests
         {
             var harness = new Harness();
             customize?.Invoke(harness);
+            var git = new WebStubs.Git(WebFixtures.BansheeGit());
+            var timeline = new WebStubs.Timeline();
+            var blockers = new WebStubs.Blockers();
+            var projection = new DashboardProjectionBuilder(
+                harness.Projects, new WebStubs.Milestones(), blockers, new WebStubs.Frontiers(),
+                new WebStubs.RuntimeHealthRecords(), new WebStubs.BuildHistory(), new WebStubs.TestHistory(),
+                timeline, new WebStubs.MobileActionAudits(), git);
             var snapshots = new DashboardSnapshotService(
                 new WebStubs.SystemHealth(), harness.Projects,
-                new WebStubs.Git(WebFixtures.BansheeGit()), harness.Docker, harness.Tmux,
-                new WebStubs.Timeline(), new WebStubs.Blockers());
+                git, harness.Docker, harness.Tmux,
+                timeline, blockers, projection, harness.Configs);
             harness.Service = new MobileActionService(
                 harness.Projects, harness.Configs, harness.Docker, harness.Tmux,
                 harness.Predefined, snapshots, harness.Journal);

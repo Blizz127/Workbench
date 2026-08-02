@@ -22,7 +22,9 @@ public sealed class DashboardSnapshotService(
     IDockerComposeService docker,
     ITmuxService tmux,
     ITimelineRepository timeline,
-    IBlockerRepository blockers)
+    IBlockerRepository blockers,
+    DashboardProjectionBuilder projection,
+    IProjectConfigService configs)
 {
     internal static readonly TimeSpan HealthTtl = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan DockerTtl = TimeSpan.FromSeconds(15);
@@ -48,9 +50,20 @@ public sealed class DashboardSnapshotService(
             var health = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
             var tmuxStatus = await GetTmuxAsync(cancellationToken).ConfigureAwait(false);
 
+            // Cards come from the shared projection builder (fed TTL-cached
+            // git snapshots), so the phone shows exactly the desktop's
+            // health/progress/blocker semantics.
+            var allProjects = projects.GetAll();
             var cards = new List<WebProjectCard>();
-            foreach (var project in projects.GetAll())
-                cards.Add(await BuildCardAsync(project, tmuxStatus, cancellationToken).ConfigureAwait(false));
+            var projectionCards = new List<ProjectDashboardCard>();
+            foreach (var project in allProjects)
+            {
+                var (card, projectionCard) = await BuildCardAsync(project, tmuxStatus, cancellationToken).ConfigureAwait(false);
+                cards.Add(card);
+                projectionCards.Add(projectionCard);
+            }
+
+            var totals = DashboardProjectionBuilder.BuildSummary(projectionCards);
 
             return new WebDashboardSnapshot(
                 GeneratedAt: DateTimeOffset.Now,
@@ -63,6 +76,10 @@ public sealed class DashboardSnapshotService(
                     DiskPercent: health.DiskUsagePercent,
                     UptimeText: FormatUptime(health.Uptime)),
                 Tmux: MapTmux(tmuxStatus),
+                Summary: new WebSummaryBlock(
+                    totals.TotalProjects, totals.HealthyCount, totals.AttentionCount, totals.BlockedCount,
+                    totals.FailingCount, totals.UnavailableCount, totals.UnknownCount, totals.ActiveBlockerCount,
+                    totals.RunningServices, totals.FailingServices, totals.DirtyProjects),
                 Projects: cards);
         }
         finally
@@ -156,11 +173,15 @@ public sealed class DashboardSnapshotService(
         }
     }
 
-    private async Task<WebProjectCard> BuildCardAsync(
+    private async Task<(WebProjectCard Card, ProjectDashboardCard Projection)> BuildCardAsync(
         Project project, TmuxServerStatus tmuxStatus, CancellationToken cancellationToken)
     {
         var snapshot = await GetGitAsync(project, cancellationToken).ConfigureAwait(false);
         var compose = await GetDockerAsync(project, cancellationToken).ConfigureAwait(false);
+
+        // The shared builder computes health, progress, blockers, and last
+        // results; the TTL-cached snapshot keeps phone polling cheap.
+        var projectionCard = projection.BuildCard(project, snapshot);
 
         var repoMissing = project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path);
         var gitText = repoMissing
@@ -182,7 +203,10 @@ public sealed class DashboardSnapshotService(
                 ? "no session"
                 : session.IsAttached ? "attached" : "detached";
 
-        return new WebProjectCard(
+        var milestone = projectionCard.MilestoneProgress;
+        var frontier = projectionCard.FrontierProgress;
+
+        return (new WebProjectCard(
             Id: project.Id,
             Name: project.Name,
             Status: project.Status.ToString(),
@@ -190,7 +214,76 @@ public sealed class DashboardSnapshotService(
             GitDirty: !repoMissing && snapshot.IsValid && snapshot.IsDirty,
             GitUnavailable: repoMissing,
             DockerSummary: compose?.Error is null ? compose?.Summary : null,
-            TmuxText: tmuxText);
+            TmuxText: tmuxText,
+            HealthText: projectionCard.HealthAssessment.State.ToString(),
+            HealthBadgeClass: HealthBadgeClass(projectionCard.HealthAssessment.State),
+            HealthReasonsText: string.Join(" · ", projectionCard.HealthAssessment.Reasons),
+            ProgressText: milestone is null
+                ? null
+                : $"{milestone.CompletedCount}/{milestone.TotalCount} milestones · {milestone.Percent:0}%",
+            ProgressPercent: milestone?.Percent ?? 0,
+            FrontierText: frontier.TotalCount == 0
+                ? null
+                : $"{frontier.CompletedCount}/{frontier.TotalCount} frontiers"
+                  + (frontier.CurrentFrontierTitle is { } title
+                      ? $" · {SecretRedactor.Redact(title)}"
+                      : string.Empty),
+            BlockerText: projectionCard.ActiveBlockerCount == 0 && projectionCard.MonitoringBlockerCount == 0
+                ? null
+                : $"{projectionCard.ActiveBlockerCount} active"
+                  + (projectionCard.HighestActiveSeverity is { } severity
+                      ? $" · highest {SecretRedactor.Redact(severity)}"
+                      : string.Empty)
+                  + (projectionCard.MonitoringBlockerCount > 0
+                      ? $" · {projectionCard.MonitoringBlockerCount} monitoring"
+                      : string.Empty),
+            ResultsText: ResultsText(projectionCard),
+            LastActivityText: projectionCard.LastActivityAt?.LocalDateTime.ToString("MM-dd HH:mm"),
+            HasMobileActions: HasMobileActions(project),
+            PrimaryAction: projectionCard.PrimaryAction.ToString()), projectionCard);
+    }
+
+    private static string HealthBadgeClass(ProjectHealthState state) => state switch
+    {
+        ProjectHealthState.Healthy => "ok",
+        ProjectHealthState.Attention => "warn",
+        ProjectHealthState.Blocked or ProjectHealthState.Failing or ProjectHealthState.Unavailable => "bad",
+        _ => string.Empty,
+    };
+
+    /// <summary>Verdicts only ("build OK · test FAIL · run OK") — never commands or output.</summary>
+    private static string? ResultsText(ProjectDashboardCard card)
+    {
+        var parts = new List<string>(3);
+        if (card.LastBuildResult is { } build)
+            parts.Add(Verdict("build", build));
+        if (card.LastTestResult is { } test)
+            parts.Add(Verdict("test", test));
+        if (card.LastLaunchResult is { } launch)
+            parts.Add(Verdict("run", launch));
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
+    }
+
+    private static string Verdict(string label, DashboardExecutionResult result) =>
+        $"{label} {(result.TimedOut ? "TIMEOUT" : result.Succeeded ? "OK" : "FAIL")}";
+
+    /// <summary>
+    /// The Actions link exists only where the project's mobile allowlist has
+    /// entries — the same config read the action service does, never a new
+    /// mutation surface. A malformed config simply means "no actions".
+    /// </summary>
+    private bool HasMobileActions(Project project)
+    {
+        if (project.RepositoryPath is not { Length: > 0 } path || !Directory.Exists(path))
+            return false;
+        try
+        {
+            return configs.Load(path)?.MobileActions.Count > 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private async Task<SystemHealthSnapshot> GetHealthAsync(CancellationToken cancellationToken)

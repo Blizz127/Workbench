@@ -4,6 +4,91 @@
              x:Class="Workbench.App.Views.BlockerListView"
              x:DataType="vm:ProjectBlockersViewModel">
 
+    <UserControl.Resources>
+        <!-- One blocker row, shared by the active and resolved lists -->
+        <DataTemplate x:Key="BlockerRow" x:DataType="vm:SharedBlockerItemViewModel">
+            <Border Background="{DynamicResource NeutralTintBrush}"
+                    CornerRadius="{StaticResource RadiusMedium}"
+                    Padding="{StaticResource Space3All}" Margin="{StaticResource Space1Vertical}">
+                <StackPanel Spacing="{StaticResource Space1}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Classes="badge" VerticalAlignment="Top"
+                                Margin="{StaticResource Space1Left}">
+                            <TextBlock Text="{Binding StatusText}" />
+                        </Border>
+                        <Border DockPanel.Dock="Right" Classes="badge danger" VerticalAlignment="Top"
+                                Margin="{StaticResource Space1Left}" IsVisible="{Binding HasSeverity}">
+                            <TextBlock Text="{Binding Severity}" />
+                        </Border>
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding Evidence, StringFormat='evidence: {0}'}" Classes="muted mono"
+                               TextWrapping="Wrap" IsVisible="{Binding HasEvidence}" />
+                    <TextBlock Text="{Binding NextSafestStep, StringFormat='next safest step: {0}'}"
+                               TextWrapping="Wrap" IsVisible="{Binding HasNextSafestStep}" />
+                    <TextBlock Text="{Binding Resolution, StringFormat='resolution: {0}'}" Classes="muted"
+                               TextWrapping="Wrap" IsVisible="{Binding HasResolution}" />
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
+                        <TextBlock Text="{Binding UpdatedText}" Classes="muted"
+                                   FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Owner, StringFormat='· owner: {0}'}" Classes="muted"
+                                   FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center"
+                                   IsVisible="{Binding HasOwner}" />
+                        <Border Classes="badge" IsVisible="{Binding PendingExport}" VerticalAlignment="Center">
+                            <TextBlock Text="pending export" FontSize="{StaticResource FontSizeCaption}" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Read actions -->
+                    <WrapPanel IsVisible="{Binding !IsEditing}">
+                        <Button Content="Edit" Classes="command.ghost"
+                                Command="{Binding BeginEditCommand}" Margin="{StaticResource Space3Right}" />
+                        <Button Content="{Binding MonitorButtonText}" Classes="command.ghost"
+                                Command="{Binding ToggleMonitoringCommand}" IsVisible="{Binding IsOpen}"
+                                Margin="{StaticResource Space3Right}" />
+                        <Button Content="Dismiss" Classes="command.ghost"
+                                Command="{Binding DismissCommand}" IsVisible="{Binding IsOpen}"
+                                Margin="{StaticResource Space3Right}" />
+                        <Button Content="Reopen" Classes="command.ghost"
+                                Command="{Binding ReopenCommand}" IsVisible="{Binding !IsOpen}" />
+                    </WrapPanel>
+                    <DockPanel IsVisible="{Binding IsOpen}">
+                        <Button DockPanel.Dock="Right" Content="Resolve" Classes="command.secondary"
+                                Command="{Binding ResolveCommand}" Margin="{StaticResource Space3Left}" />
+                        <TextBox Text="{Binding ResolutionText}" Watermark="How was it resolved?" />
+                    </DockPanel>
+
+                    <!-- Inline edit form -->
+                    <StackPanel Spacing="{StaticResource Space2}" IsVisible="{Binding IsEditing}">
+                        <TextBox Text="{Binding EditTitle}" Watermark="Title" />
+                        <TextBox Text="{Binding EditDescription}" Watermark="Description"
+                                 AcceptsReturn="True" TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
+                            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding EditSeverity}"
+                                     Watermark="Severity (e.g. critical)" />
+                            <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding EditClass}"
+                                     Watermark="Class (e.g. camera math)" />
+                            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding EditOwner}"
+                                     Watermark="Owner" />
+                            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding EditTags}"
+                                     Watermark="Tags, comma-separated" />
+                        </Grid>
+                        <TextBox Text="{Binding EditEvidence}" Watermark="Evidence" />
+                        <TextBox Text="{Binding EditNextStep}" Watermark="Next safest step" />
+                        <TextBox Text="{Binding EditSourceReference}"
+                                 Watermark="Source reference (ticket, log, upstream issue)" />
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
+                            <Button Content="Save" Classes="command" Command="{Binding SaveEditCommand}" />
+                            <Button Content="Cancel" Classes="command.ghost"
+                                    Command="{Binding CancelEditCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <Border Classes="card">
         <StackPanel Spacing="{StaticResource Space3}">
             <DockPanel>
@@ -11,93 +96,21 @@
                            VerticalAlignment="Center" />
                 <TextBlock Text="Shared Blockers" Classes="h2" />
             </DockPanel>
-            <TextBlock Text="No blockers recorded." Classes="muted" IsVisible="{Binding !Items.Count}" />
+            <TextBlock Text="No blockers recorded." Classes="muted"
+                       IsVisible="{Binding !HasAnyBlockers}" />
 
-            <ItemsControl ItemsSource="{Binding Items}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SharedBlockerItemViewModel">
-                        <Border Background="{DynamicResource NeutralTintBrush}"
-                                CornerRadius="{StaticResource RadiusMedium}"
-                                Padding="{StaticResource Space3All}" Margin="{StaticResource Space1Vertical}">
-                            <StackPanel Spacing="{StaticResource Space1}">
-                                <DockPanel>
-                                    <Border DockPanel.Dock="Right" Classes="badge" VerticalAlignment="Top"
-                                            Margin="{StaticResource Space1Left}">
-                                        <TextBlock Text="{Binding StatusText}" />
-                                    </Border>
-                                    <Border DockPanel.Dock="Right" Classes="badge danger" VerticalAlignment="Top"
-                                            Margin="{StaticResource Space1Left}" IsVisible="{Binding HasSeverity}">
-                                        <TextBlock Text="{Binding Severity}" />
-                                    </Border>
-                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
-                                               VerticalAlignment="Center" />
-                                </DockPanel>
-                                <TextBlock Text="{Binding Evidence, StringFormat='evidence: {0}'}" Classes="muted mono"
-                                           TextWrapping="Wrap" IsVisible="{Binding HasEvidence}" />
-                                <TextBlock Text="{Binding NextSafestStep, StringFormat='next safest step: {0}'}"
-                                           TextWrapping="Wrap" IsVisible="{Binding HasNextSafestStep}" />
-                                <TextBlock Text="{Binding Resolution, StringFormat='resolution: {0}'}" Classes="muted"
-                                           TextWrapping="Wrap" IsVisible="{Binding HasResolution}" />
-                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space2}">
-                                    <TextBlock Text="{Binding UpdatedText}" Classes="muted"
-                                               FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Owner, StringFormat='· owner: {0}'}" Classes="muted"
-                                               FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center"
-                                               IsVisible="{Binding HasOwner}" />
-                                    <Border Classes="badge" IsVisible="{Binding PendingExport}" VerticalAlignment="Center">
-                                        <TextBlock Text="pending export" FontSize="{StaticResource FontSizeCaption}" />
-                                    </Border>
-                                </StackPanel>
+            <!-- Active + monitoring: the working list -->
+            <ItemsControl ItemsSource="{Binding ActiveItems}"
+                          ItemTemplate="{StaticResource BlockerRow}" />
 
-                                <!-- Read actions -->
-                                <WrapPanel IsVisible="{Binding !IsEditing}">
-                                    <Button Content="Edit" Classes="command.ghost"
-                                            Command="{Binding BeginEditCommand}" Margin="{StaticResource Space1Right}" />
-                                    <Button Content="{Binding MonitorButtonText}" Classes="command.ghost"
-                                            Command="{Binding ToggleMonitoringCommand}" IsVisible="{Binding IsOpen}"
-                                            Margin="{StaticResource Space1Right}" />
-                                    <Button Content="Dismiss" Classes="command.ghost"
-                                            Command="{Binding DismissCommand}" IsVisible="{Binding IsOpen}"
-                                            Margin="{StaticResource Space1Right}" />
-                                    <Button Content="Reopen" Classes="command.ghost"
-                                            Command="{Binding ReopenCommand}" IsVisible="{Binding !IsOpen}" />
-                                </WrapPanel>
-                                <DockPanel IsVisible="{Binding IsOpen}">
-                                    <Button DockPanel.Dock="Right" Content="Resolve" Classes="command.secondary"
-                                            Command="{Binding ResolveCommand}" Margin="{StaticResource Space3Left}" />
-                                    <TextBox Text="{Binding ResolutionText}" Watermark="How was it resolved?" />
-                                </DockPanel>
-
-                                <!-- Inline edit form -->
-                                <StackPanel Spacing="{StaticResource Space2}" IsVisible="{Binding IsEditing}">
-                                    <TextBox Text="{Binding EditTitle}" Watermark="Title" />
-                                    <TextBox Text="{Binding EditDescription}" Watermark="Description"
-                                             AcceptsReturn="True" TextWrapping="Wrap" />
-                                    <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
-                                        <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding EditSeverity}"
-                                                 Watermark="Severity (e.g. critical)" />
-                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding EditClass}"
-                                                 Watermark="Class (e.g. camera math)" />
-                                        <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding EditOwner}"
-                                                 Watermark="Owner" />
-                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding EditTags}"
-                                                 Watermark="Tags, comma-separated" />
-                                    </Grid>
-                                    <TextBox Text="{Binding EditEvidence}" Watermark="Evidence" />
-                                    <TextBox Text="{Binding EditNextStep}" Watermark="Next safest step" />
-                                    <TextBox Text="{Binding EditSourceReference}"
-                                             Watermark="Source reference (ticket, log, upstream issue)" />
-                                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Space3}">
-                                        <Button Content="Save" Classes="command" Command="{Binding SaveEditCommand}" />
-                                        <Button Content="Cancel" Classes="command.ghost"
-                                                Command="{Binding CancelEditCommand}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- Resolved + dismissed: history, collapsed by default -->
+            <Button Content="{Binding ResolvedToggleText}" Classes="command.ghost"
+                    HorizontalAlignment="Left"
+                    Command="{Binding ToggleResolvedCommand}"
+                    IsVisible="{Binding HasResolved}" />
+            <ItemsControl ItemsSource="{Binding ResolvedItems}"
+                          ItemTemplate="{StaticResource BlockerRow}"
+                          IsVisible="{Binding ShowResolvedSection}" />
 
             <!-- New blocker -->
             <Grid ColumnDefinitions="*,8,Auto" RowDefinitions="Auto,Auto">

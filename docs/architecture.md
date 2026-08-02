@@ -279,8 +279,15 @@ self-contained HTML pages (phone-first, dark, branded "Development Lab").
   `^[0-9a-fA-F]{7,40}$` before git is touched. Content problems ride in the
   snapshot's `Error` field and render as an error card — they never throw.
   The code pages are static (no polling endpoint).
-- **Pages**: the dashboard shows system metrics, tmux sessions, and compact
-  project cards that are themselves tap targets ("View project"). The detail
+- **Pages**: the dashboard shows a fleet summary bar (health distribution,
+  active blockers, running/failing services, dirty projects — the shared
+  `BuildSummary` totals), system metrics, tmux sessions, and compact project
+  cards built from the shared projection: health badge with the state as
+  TEXT (reasons in the tooltip), weighted milestone progress ("Progress not
+  configured" when null), frontier and blocker summaries, last build/test/
+  launch verdicts, and last activity. Cards link to the detail page ("View
+  project"); an "Actions" link appears only where the project's mobile
+  allowlist has entries. The detail
   page has Overview / Git / Docker / Sessions / Recent Activity sections with
   explicit service rows (state AND health as text badges; a one-shot service
   that exited 0 reads "completed", never failed), plus a static, read-only
@@ -367,6 +374,43 @@ self-contained HTML pages (phone-first, dark, branded "Development Lab").
   scans or migrations beyond the existing idempotent ones. Deployment as a
   systemd user service is documented in
   `docs/mobile-dashboard-deployment.md`.
+
+### Dashboard projection (`Workbench.Core.DashboardProjectionBuilder`)
+
+One builder computes everything a dashboard card needs — for BOTH the
+desktop app and the mobile web dashboard. It is constructed from the plain
+repository interfaces plus `IGitService` (no Avalonia, no ASP.NET, no SQL of
+its own), so `AppServices` and the web host's DI each hold one instance and
+no health/progress logic is duplicated in either UI.
+
+- **Progress** (`ProgressCalculator`): milestone percent is weighted
+  completion over explicit `Milestone.Status` + `Weight`; `Dismissed`
+  milestones are excluded from counts and weights; a project with no
+  non-dismissed milestones gets a NULL `MilestoneProgress` — "Progress not
+  configured", never an implied 0%. Frontier progress is completed/total
+  plus the current frontier title (Current wins over the first Next).
+- **Health** (`ProjectHealthCalculator`): the verdict is the FIRST matching
+  rule in a fixed precedence — Unavailable (repo missing) > Failing (runtime
+  / last build / last test failed) > Blocked (active critical/high blocker)
+  > Attention (lower active blocker / dirty / ahead / behind) > Healthy
+  (explicit healthy evidence) > Unknown. `Reasons` lists every rule that
+  fired so both UIs can explain the badge (tooltip on desktop, `title` on
+  the web). Milestone progress never feeds into health.
+- **Projection cards** also carry branch/dirty/ahead/behind, next safest
+  step (top active blocker's, else the project's), blocker counts + highest
+  active severity, last build/test/launch verdicts (`DashboardExecutionResult`
+  — kind, verdict, when; NEVER output text or commands), runtime health,
+  last activity, and the primary action (RunOrStart when a launch profile
+  exists, else OpenProject). `BuildSummary` totals the fleet (health
+  distribution, active blockers, running/failing services, dirty projects)
+  and `BuildRecentActivity` merges the timeline journal with the mobile
+  action audit, newest first, everything secret-redacted.
+- **Filter/sort** (`DashboardFilters`): the desktop dashboard's chip and
+  sort-menu semantics live here too — pure functions over the projection, so
+  "Needs attention first" orders by exactly the health precedence above.
+- **Web caching**: the web `DashboardSnapshotService` feeds the builder its
+  TTL-cached git snapshots via `BuildCard(project, snapshot)`, so phone
+  polling never doubles the repository walks.
 
 ### Handoff (`Workbench.Core.HandoffService`)
 
@@ -468,9 +512,16 @@ action.
   (`x:DataType`) throughout, so binding paths are checked at build time.
 - `MainWindowViewModel` hosts the current page (dashboard ⇄ project detail)
   and global search. `ViewLocator` maps view models to views by convention.
-- The dashboard loads project cards synchronously from SQLite (fast), then
-  enriches git fields on a background task per repository — the grid stays
-  responsive with dozens of projects.
+- The dashboard renders the shared `DashboardProjectionBuilder` projection:
+  fleet summary bar, filter chips + sort menu (`DashboardFilters` semantics),
+  full projection cards, and the merged recent-activity stream. The
+  projection is built off the UI thread (it walks git repositories) and
+  applied in one posted pass, so the grid stays responsive with dozens of
+  projects. The card's primary action opens the workspace — on the Run
+  section when a launch profile exists; execution stays explicit there.
+- The Progress page groups milestones by status (Active / Blocked / Not
+  Started / Done; Dismissed collapsed), shows the frontier checklist, and
+  keeps resolved blockers collapsed behind a toggle.
 - The detail page is a `TabControl`; each tab (Overview, Timeline, Milestones,
   Notes, Builds & Tests, Handoff, Settings) has its own view model.
 - Item view models (cards, search hits, blockers, milestones) carry their own

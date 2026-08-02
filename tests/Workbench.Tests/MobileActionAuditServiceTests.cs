@@ -271,10 +271,17 @@ public sealed class MobileActionAuditServiceTests : IDisposable
             var tmux = new WebStubs.Tmux(WebFixtures.TmuxRunning());
             var configs = new WebStubs.ProjectConfigs(path =>
                 path == WebFixtures.BansheeRepoDir ? WebFixtures.BansheeConfig() : WebFixtures.XenogearsConfig());
+            var git = new WebStubs.Git(WebFixtures.BansheeGit());
+            var timeline = new WebStubs.Timeline();
+            var blockers = new WebStubs.Blockers();
+            var projection = new DashboardProjectionBuilder(
+                projects, new WebStubs.Milestones(), blockers, new WebStubs.Frontiers(),
+                new WebStubs.RuntimeHealthRecords(), new WebStubs.BuildHistory(), new WebStubs.TestHistory(),
+                timeline, new WebStubs.MobileActionAudits(), git);
             var snapshots = new DashboardSnapshotService(
                 new WebStubs.SystemHealth(), projects,
-                new WebStubs.Git(WebFixtures.BansheeGit()), docker, tmux,
-                new WebStubs.Timeline(), new WebStubs.Blockers());
+                git, docker, tmux,
+                timeline, blockers, projection, configs);
 
             return new AuditHarness
             {

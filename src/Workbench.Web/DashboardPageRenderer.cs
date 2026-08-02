@@ -18,6 +18,11 @@ public static class DashboardPageRenderer
         html.Append("<h1>Development Lab</h1>");
         WriteRefreshNote(html, snapshot.GeneratedAt);
 
+        // Fleet summary: one compact text+count bar, same totals as the desktop.
+        html.Append("<div class=\"summary\" id=\"summary-body\">");
+        WriteSummaryRows(html, snapshot.Summary);
+        html.Append("</div>");
+
         // System
         html.Append("<h2>System</h2><div class=\"card metrics\">");
         WriteMetric(html, "CPU", "sys-cpu-v", snapshot.System.CpuText, "sys-cpu-b", snapshot.System.CpuPercent);
@@ -49,6 +54,31 @@ public static class DashboardPageRenderer
         html.Append("<p class=\"muted\">updated <span id=\"last-refresh\">")
             .Append(generatedAt.ToString("HH:mm:ss"))
             .Append("</span> · read-only <span class=\"badge warn\" id=\"stale\" hidden>stale — retrying</span></p>");
+    }
+
+    internal static void WriteSummaryRows(StringBuilder html, WebSummaryBlock summary)
+    {
+        WriteSummaryItem(html, "projects", summary.TotalProjects, null);
+        WriteSummaryItem(html, "healthy", summary.HealthyCount, "ok");
+        WriteSummaryItem(html, "attention", summary.AttentionCount, summary.AttentionCount > 0 ? "warn" : null);
+        WriteSummaryItem(html, "blocked", summary.BlockedCount, summary.BlockedCount > 0 ? "bad" : null);
+        WriteSummaryItem(html, "failing", summary.FailingCount, summary.FailingCount > 0 ? "bad" : null);
+        WriteSummaryItem(html, "unavailable", summary.UnavailableCount, summary.UnavailableCount > 0 ? "bad" : null);
+        WriteSummaryItem(html, "blockers", summary.ActiveBlockerCount, summary.ActiveBlockerCount > 0 ? "warn" : null);
+        WriteSummaryItem(html, "running", summary.RunningServices, null);
+        WriteSummaryItem(html, "failing services", summary.FailingServices, summary.FailingServices > 0 ? "bad" : null);
+        WriteSummaryItem(html, "dirty", summary.DirtyProjects, summary.DirtyProjects > 0 ? "warn" : null);
+    }
+
+    private static void WriteSummaryItem(StringBuilder html, string label, int count, string? badgeClass)
+    {
+        // The label itself carries the badge — color is never the only signal.
+        html.Append("<span class=\"summary-item\"><strong>").Append(count).Append("</strong> ");
+        if (badgeClass is not null)
+            html.Append("<span class=\"badge ").Append(badgeClass).Append("\">").Append(label).Append("</span>");
+        else
+            html.Append(label);
+        html.Append("</span>");
     }
 
     private static void WriteMetric(
@@ -100,9 +130,39 @@ public static class DashboardPageRenderer
 
     private static void WriteProjectCard(StringBuilder html, WebProjectCard project)
     {
-        html.Append("<a class=\"card project-card\" href=\"/projects/").Append(project.Id).Append("\">")
+        // The card is a div so the footer can hold both the "View project"
+        // tap target and the allowlist-gated "Actions" link.
+        html.Append("<div class=\"card project-card\">")
             .Append("<div class=\"row\"><strong class=\"grow\">").Append(WebPageShell.Encode(project.Name))
-            .Append("</strong><span class=\"badge\">").Append(WebPageShell.Encode(project.Status)).Append("</span></div>");
+            .Append("</strong><span class=\"badge").Append(project.HealthBadgeClass.Length > 0 ? " " + project.HealthBadgeClass : string.Empty)
+            .Append("\" title=\"").Append(WebPageShell.Encode(project.HealthReasonsText)).Append("\">")
+            .Append(WebPageShell.Encode(project.HealthText)).Append("</span>")
+            .Append("<span class=\"badge\">").Append(WebPageShell.Encode(project.Status)).Append("</span></div>");
+
+        // Progress: a null projection means "not configured", never 0%.
+        if (project.ProgressText is not null)
+        {
+            html.Append("<div class=\"row\"><span class=\"muted\">progress</span><div class=\"grow\">")
+                .Append("<div class=\"bar\"><div style=\"width:")
+                .Append(Math.Clamp(project.ProgressPercent, 0, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))
+                .Append("%\"></div></div></div><span class=\"muted\">")
+                .Append(WebPageShell.Encode(project.ProgressText)).Append("</span></div>");
+        }
+        else
+        {
+            html.Append("<div class=\"row\"><span class=\"muted\">progress</span><span class=\"muted grow\">")
+                .Append("Progress not configured").Append("</span></div>");
+        }
+
+        html.Append("<div class=\"row\"><span class=\"muted\">frontier</span><span class=\"")
+            .Append(project.FrontierText is null ? "muted grow" : "mono grow").Append("\">")
+            .Append(WebPageShell.Encode(project.FrontierText ?? "no frontier set")).Append("</span></div>");
+
+        html.Append("<div class=\"row\"><span class=\"muted\">blockers</span><span class=\"grow\">")
+            .Append(project.BlockerText is null
+                ? "<span class=\"muted\">no active blockers</span>"
+                : "<span class=\"badge bad\">" + WebPageShell.Encode(project.BlockerText) + "</span>")
+            .Append("</span></div>");
 
         html.Append("<div class=\"row\"><span class=\"muted\">git</span><span class=\"mono grow\">")
             .Append(WebPageShell.Encode(project.GitText)).Append("</span>");
@@ -112,6 +172,13 @@ public static class DashboardPageRenderer
             html.Append("<span class=\"badge bad\">repo missing</span>");
         html.Append("</div>");
 
+        if (project.ResultsText is not null)
+            html.Append("<div class=\"row\"><span class=\"muted\">results</span><span class=\"mono grow\">")
+                .Append(WebPageShell.Encode(project.ResultsText)).Append("</span></div>");
+        else
+            html.Append("<div class=\"row\"><span class=\"muted\">results</span><span class=\"muted grow\">")
+                .Append("no build/test history").Append("</span></div>");
+
         if (project.DockerSummary is not null)
             html.Append("<div class=\"row\"><span class=\"muted\">docker</span><span class=\"mono grow\">")
                 .Append(WebPageShell.Encode(project.DockerSummary)).Append("</span></div>");
@@ -120,6 +187,14 @@ public static class DashboardPageRenderer
             html.Append("<div class=\"row\"><span class=\"muted\">tmux</span><span class=\"mono grow\">")
                 .Append(WebPageShell.Encode(project.TmuxText)).Append("</span></div>");
 
-        html.Append("<div class=\"row\"><span class=\"view-link\">View project →</span></div></a>");
+        if (project.LastActivityText is not null)
+            html.Append("<div class=\"row\"><span class=\"muted\">activity</span><span class=\"muted grow\">last ")
+                .Append(WebPageShell.Encode(project.LastActivityText)).Append("</span></div>");
+
+        html.Append("<div class=\"row\"><a class=\"view-link\" href=\"/projects/").Append(project.Id)
+            .Append("\">View project →</a>");
+        if (project.HasMobileActions)
+            html.Append("<a class=\"view-link\" href=\"/projects/").Append(project.Id).Append("#actions\">Actions →</a>");
+        html.Append("</div></div>");
     }
 }

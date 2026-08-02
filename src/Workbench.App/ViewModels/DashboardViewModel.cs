@@ -3,52 +3,60 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.App.ViewModels;
 
 /// <summary>
-/// Mission control: every registered project as a card, filterable by status,
-/// tag, and machine availability, sortable by activity/blockers/failures/name,
-/// in comfortable or compact density. Git, milestone, blocker, and run-history
-/// data is loaded asynchronously after the cards appear so the dashboard stays
-/// responsive with dozens of projects.
+/// Mission control: the shared <see cref="DashboardProjectionBuilder"/>
+/// projection rendered as a fleet summary bar, filter chips, a sort menu,
+/// project cards, and the merged recent-activity stream. The projection is
+/// built off the UI thread (it walks git repositories) and applied in one
+/// pass, so the dashboard stays responsive with dozens of projects.
+/// Filter/sort semantics live in <see cref="DashboardFilters"/> — this view
+/// model only holds the selection state.
 /// </summary>
 public sealed partial class DashboardViewModel : ViewModelBase
 {
-    private const string AllTagsLabel = "All tags";
-
     private readonly AppServices _services;
     private readonly Action<long> _openProject;
+    private readonly Action<long> _openRun;
     private List<ProjectCardViewModel> _allCards = [];
 
     public ObservableCollection<ProjectCardViewModel> Cards { get; } = [];
 
+    /// <summary>Merged timeline + mobile-action stream, newest first.</summary>
+    public ObservableCollection<DashboardActivityItemViewModel> RecentActivity { get; } = [];
+
     /// <summary>Development Sessions panel: tmux sessions with explicit create/attach/rename/kill.</summary>
     public TmuxSessionsViewModel TmuxSessions { get; }
 
-    public string[] StatusFilters { get; } = ["All", "Active", "Waiting", "Broken", "Research", "Complete"];
+    /// <summary>Filter chips; exactly one is selected at a time.</summary>
+    public ObservableCollection<DashboardFilterChipViewModel> FilterChips { get; } = [];
 
-    public ObservableCollection<string> TagFilters { get; } = [AllTagsLabel];
-
-    public string[] AvailabilityFilters { get; } = ["All", "Available here", "Missing here"];
-
-    public string[] SortOptions { get; } = ["Recently active", "Blocked", "Failing", "Alphabetical"];
+    public string[] SortOptions { get; } =
+        ["Needs attention first", "Recently active", "Alphabetical", "Progress", "Blocker severity"];
 
     [ObservableProperty]
-    private string _selectedFilter = "All";
+    private string _selectedSort = "Needs attention first";
+
+    /// <summary>Fleet-wide totals from the projection (summary bar).</summary>
+    [ObservableProperty]
+    private ProjectDashboardSummary _summary = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    // Summary-bar alert flags: tint a badge only when its count is nonzero.
+    [ObservableProperty] private bool _hasAttention;
+    [ObservableProperty] private bool _hasBlocked;
+    [ObservableProperty] private bool _hasFailing;
+    [ObservableProperty] private bool _hasUnavailable;
+    [ObservableProperty] private bool _hasActiveBlockers;
+    [ObservableProperty] private bool _hasFailingServices;
+    [ObservableProperty] private bool _hasDirty;
 
     [ObservableProperty]
-    private string _selectedTag = AllTagsLabel;
+    private bool _hasRecentActivity;
 
-    [ObservableProperty]
-    private string _selectedAvailability = "All";
-
-    [ObservableProperty]
-    private string _selectedSort = "Recently active";
-
-    [ObservableProperty]
-    private string _summaryText = string.Empty;
-
+    // System metrics (host-level, orthogonal to the projection)
     [ObservableProperty]
     private string _cpuText = "Loading…";
 
@@ -70,10 +78,6 @@ public sealed partial class DashboardViewModel : ViewModelBase
     [ObservableProperty]
     private double _diskPercent;
 
-    /// <summary>Compact density; persisted as AppSettings.DashboardDensity.</summary>
-    [ObservableProperty]
-    private bool _isCompact;
-
     // "Add project" panel
     [ObservableProperty]
     private bool _isAddPanelOpen;
@@ -87,12 +91,17 @@ public sealed partial class DashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string? _addProjectError;
 
-    public DashboardViewModel(AppServices services, Action<long> openProject)
+    public DashboardViewModel(AppServices services, Action<long> openProject, Action<long> openRun)
     {
         _services = services;
         _openProject = openProject;
-        IsCompact = services.AppSettings.Settings.DashboardDensity == "compact";
+        _openRun = openRun;
         TmuxSessions = new TmuxSessionsViewModel(services.Tmux, services.Terminal);
+
+        foreach (var filter in Enum.GetValues<DashboardFilter>())
+            FilterChips.Add(new DashboardFilterChipViewModel(filter, SetFilter));
+        FilterChips[0].IsSelected = true;
+
         Reload();
         _ = LoadSystemHealthAsync();
     }
@@ -133,135 +142,75 @@ public sealed partial class DashboardViewModel : ViewModelBase
         ? $"{(int)uptime.TotalDays}d {uptime.Hours}h"
         : $"{uptime.Hours}h {uptime.Minutes}m";
 
+    private DashboardFilter SelectedFilter =>
+        FilterChips.FirstOrDefault(c => c.IsSelected)?.Filter ?? DashboardFilter.All;
+
+    private DashboardSort SelectedSortOrder => SelectedSort switch
+    {
+        "Recently active" => DashboardSort.RecentlyActive,
+        "Alphabetical" => DashboardSort.Alphabetical,
+        "Progress" => DashboardSort.Progress,
+        "Blocker severity" => DashboardSort.BlockerSeverity,
+        _ => DashboardSort.NeedsAttentionFirst,
+    };
+
+    [RelayCommand]
+    private void SetFilter(DashboardFilter filter)
+    {
+        foreach (var chip in FilterChips)
+            chip.IsSelected = chip.Filter == filter;
+        ApplyFilter();
+    }
+
+    partial void OnSelectedSortChanged(string value) => ApplyFilter();
+
     private void Reload()
     {
-        var projects = _services.Projects.GetAll();
-        _allCards = projects
-            .Select(p => new ProjectCardViewModel(_services, p, _openProject) { IsCompact = IsCompact })
-            .ToList();
-
-        RebuildTagFilters(projects);
-        ApplyFilter();
-        UpdateSummary(projects);
-
-        // Enrich with git state off the UI thread, one repo at a time; shared
-        // state files are read (never written) in the same pass — but only in
-        // Enabled mode; Manual/Disabled never touch the shared folder here.
-        // Milestone, blocker, and run-history reads are cheap local queries
-        // batched in.
-        var cards = _allCards.ToList();
-        var sharedFolder = _services.AppSettings.SharedStateFolder;
-        var machineName = _services.AppSettings.MachineName;
-        var sharedMode = _services.AppSettings.Mode;
-        _ = Task.Run(async () =>
+        // The projection walks git repositories — build it off the UI thread
+        // and apply the cards/summary/activity in one posted pass.
+        _ = Task.Run(() =>
         {
-            IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles =
-                Workbench.Core.Services.SharedStateModeRules.LoadAllForBadges(
-                    _services.SharedState, sharedMode, sharedFolder);
-
-            foreach (var card in cards)
-            {
-                var snapshot = _services.Git.GetSnapshot(card.Project.RepositoryPath, recentCommitCount: 1);
-                var badge = Workbench.Core.Services.SharedStateModeRules.Badges(sharedMode)
-                    ? SharedBadgeFor(card.Project, sharedFiles, machineName)
-                    : null;
-                var milestones = _services.Milestones.GetForProject(card.Project.Id);
-                var openBlockers = _services.Blockers.GetOpen(card.Project.Id).Count;
-                var lastRun = _services.Builds.GetLatest(card.Project.Id, ExecutionKind.Run);
-                var syncTimes = _services.GitSync.GetSyncTimes(card.Project);
-                var (dockerText, dockerOutcome) = await ProbeDocker(card.Project);
-                Dispatcher.UIThread.Post(() =>
-                {
-                    card.ApplyGitSnapshot(snapshot);
-                    card.ApplyGitSyncTimes(syncTimes);
-                    card.SharedBadge = badge;
-                    card.DockerText = dockerText;
-                    card.DockerOutcome = dockerOutcome;
-                    card.ApplyEnrichment(milestones.Count, milestones.Count(m => m.IsCompleted), openBlockers, lastRun);
-                });
-            }
+            var projection = _services.Dashboard.Build();
+            var projects = _services.Projects.GetAll().ToDictionary(p => p.Id);
+            Dispatcher.UIThread.Post(() => ApplyProjection(projection, projects));
         });
     }
 
-    /// <summary>
-    /// One-shot compose probe for the card's docker row: counts services in
-    /// state "running". Blank text means "no probe" (no compose file, no
-    /// status command, or the probe itself failed).
-    /// </summary>
-    private async Task<(string Text, bool? Outcome)> ProbeDocker(Project project)
+    private void ApplyProjection(DashboardProjection projection, IReadOnlyDictionary<long, Project> projects)
     {
-        var path = project.RepositoryPath;
-        if (path is null || !Directory.Exists(path))
-            return (string.Empty, null);
-        if (!Workbench.Core.Services.ComposeFileInspector.HasComposeFile(path) &&
-            string.IsNullOrWhiteSpace(project.Launch.StatusCommand))
-            return (string.Empty, null);
+        _allCards = projection.Cards
+            .Where(c => projects.ContainsKey(c.ProjectId))
+            .Select(c => new ProjectCardViewModel(projects[c.ProjectId], c, _openProject, _openRun))
+            .ToList();
+        Summary = projection.Summary;
+        HasAttention = Summary.AttentionCount > 0;
+        HasBlocked = Summary.BlockedCount > 0;
+        HasFailing = Summary.FailingCount > 0;
+        HasUnavailable = Summary.UnavailableCount > 0;
+        HasActiveBlockers = Summary.ActiveBlockerCount > 0;
+        HasFailingServices = Summary.FailingServices > 0;
+        HasDirty = Summary.DirtyProjects > 0;
 
-        var result = await _services.Runner.RunAsync(
-            "docker compose ps --format '{{.Service}} {{.State}}'",
-            path,
-            TimeSpan.FromSeconds(5));
-        if (result.ExitCode != 0)
-            return (string.Empty, null);
+        RecentActivity.Clear();
+        foreach (var item in projection.RecentActivity)
+            RecentActivity.Add(new DashboardActivityItemViewModel(item, _openProject));
+        HasRecentActivity = RecentActivity.Count > 0;
 
-        var services = result.Output
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var running = services.Count(l => l.Contains("running", StringComparison.OrdinalIgnoreCase));
-
-        return running == 0
-            ? ("stopped", false)
-            : running == services.Length
-                ? ($"{running}/{services.Length} containers up", true)
-                : ($"{running}/{services.Length} up", false);
+        ApplyFilter();
     }
 
-    private void RebuildTagFilters(IReadOnlyList<Project> projects)
+    private void ApplyFilter()
     {
-        var tags = projects.SelectMany(p => p.Tags).Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
-        TagFilters.Clear();
-        TagFilters.Add(AllTagsLabel);
-        foreach (var tag in tags)
-            TagFilters.Add(tag);
-        if (!TagFilters.Contains(SelectedTag))
-            SelectedTag = AllTagsLabel;
+        var selected = DashboardFilters.Apply(
+            [.. _allCards.Select(c => c.Card)], SelectedFilter, SelectedSortOrder);
+        var order = selected.Select((card, index) => (card.ProjectId, index))
+            .ToDictionary(x => x.ProjectId, x => x.index);
+
+        Cards.Clear();
+        foreach (var card in _allCards.Where(c => order.ContainsKey(c.Card.ProjectId))
+                     .OrderBy(c => order[c.Card.ProjectId]))
+            Cards.Add(card);
     }
-
-    /// <summary>Compares a project against its shared file; null means in sync (or not shared).</summary>
-    private string? SharedBadgeFor(
-        Project project,
-        IReadOnlyList<Workbench.Core.Services.SharedStateFileInfo> sharedFiles,
-        string machineName) =>
-        SharedStatusBadge.For(_services.SharedState, project, sharedFiles, machineName);
-
-    private void UpdateSummary(IReadOnlyList<Project> projects)
-    {
-        var active = projects.Count(p => p.Status == ProjectStatus.Active);
-        var broken = projects.Count(p => p.Status == ProjectStatus.Broken);
-        var waiting = projects.Count(p => p.Status == ProjectStatus.Waiting);
-        SummaryText = $"{projects.Count} projects · {active} active · {waiting} waiting · {broken} broken";
-    }
-
-    partial void OnSelectedFilterChanged(string value) => ApplyFilter();
-    partial void OnSelectedTagChanged(string value) => ApplyFilter();
-    partial void OnSelectedAvailabilityChanged(string value) => ApplyFilter();
-    partial void OnSelectedSortChanged(string value) => ApplyFilter();
-
-    partial void OnIsCompactChanged(bool value)
-    {
-        foreach (var card in _allCards)
-            card.IsCompact = value;
-
-        var density = value ? "compact" : "comfortable";
-        if (_services.AppSettings.Settings.DashboardDensity != density)
-        {
-            _services.AppSettings.Settings.DashboardDensity = density;
-            _services.AppSettings.Save();
-        }
-    }
-
-    [RelayCommand]
-    private void SetDensity(string density) => IsCompact = density == "compact";
 
     /// <summary>Re-scans the discovery folder for new projects, then reloads the cards.</summary>
     [RelayCommand]
@@ -277,35 +226,6 @@ public sealed partial class DashboardViewModel : ViewModelBase
         }
 
         Reload();
-    }
-
-    private void ApplyFilter()
-    {
-        IEnumerable<ProjectCardViewModel> query = _allCards;
-
-        if (SelectedFilter != "All")
-            query = query.Where(c => c.Status == SelectedFilter);
-        if (SelectedTag != AllTagsLabel)
-            query = query.Where(c => c.Tags.Contains(SelectedTag));
-        query = SelectedAvailability switch
-        {
-            "Available here" => query.Where(c => !c.IsUnavailable),
-            "Missing here" => query.Where(c => c.IsUnavailable),
-            _ => query,
-        };
-        query = SelectedSort switch
-        {
-            "Blocked" => query.OrderByDescending(c => c.OpenBlockerCount)
-                .ThenByDescending(c => c.Project.UpdatedAt),
-            "Failing" => query.OrderByDescending(c => c.IsFailing)
-                .ThenByDescending(c => c.Project.UpdatedAt),
-            "Alphabetical" => query.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase),
-            _ => query.OrderByDescending(c => c.Project.UpdatedAt),
-        };
-
-        Cards.Clear();
-        foreach (var card in query)
-            Cards.Add(card);
     }
 
     [RelayCommand]
@@ -357,4 +277,37 @@ public sealed partial class DashboardViewModel : ViewModelBase
         AddProjectError = null;
         Reload();
     }
+}
+
+/// <summary>One filter chip; the parent flips <see cref="IsSelected"/> so chips need no converters.</summary>
+public sealed partial class DashboardFilterChipViewModel(
+    DashboardFilter filter, Action<DashboardFilter> select) : ViewModelBase
+{
+    public DashboardFilter Filter { get; } = filter;
+
+    public string Label { get; } = filter switch
+    {
+        DashboardFilter.NeedsAttention => "Needs attention",
+        DashboardFilter.RecentlyActive => "Recently active",
+        _ => filter.ToString(),
+    };
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    [RelayCommand]
+    private void Select() => select(Filter);
+}
+
+/// <summary>One row of the merged recent-activity stream; opens the project it belongs to.</summary>
+public sealed partial class DashboardActivityItemViewModel(
+    DashboardActivityItem item, Action<long> openProject) : ViewModelBase
+{
+    public string WhenText => item.When.LocalDateTime.ToString("MM-dd HH:mm");
+    public string ProjectName => item.ProjectName;
+    public string Category => item.Category;
+    public string Message => item.Message;
+
+    [RelayCommand]
+    private void Open() => openProject(item.ProjectId);
 }
