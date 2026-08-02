@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Blizz127/workbench/main/docs/workbench.schema.json",
+  "schemaVersion": 1,
+  "name": "Ragnarok Online DIT",
+  "description": "Private Hercules-based Ragnarok Online server for the DIT Human Behavior Platform. Preservation-focused solo server; observation-only HPM bridge is planned. R0 has no autonomous actors or LLM behavior.",
+  "buildCommand": "cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j$(nproc)",
+  "runCommand": "bash ../tooling/start-all.sh",
+  "testCommand": "bash ../tooling/health-check.sh",
+  "composeFile": "../database/docker-compose.yml",
+  "tmuxSession": "ragnarok-dit",
+  "documentationPaths": [
+    "../docs/README.md",
+    "../docs/STATUS.md",
+    "../docs/ACTIVE_HANDOFF.md",
+    "../docs/HERCULES_ARCHITECTURE.md",
+    "../docs/DIT_BRIDGE_ARCHITECTURE.md",
+    "../docs/ROADMAP.md",
+    "../docs/WORKBENCH_INTEGRATION.md",
+    "README.md"
+  ],
+  "aiContextPaths": [
+    "../docs/ACTIVE_HANDOFF.md",
+    "../docs/STATUS.md",
+    "../docs/DIT_BRIDGE_ARCHITECTURE.md",
+    "../docs/BUILD_AND_DEPLOYMENT_PLAN.md",
+    "../docs/ROADMAP.md"
+  ],
+  "tags": [
+    "Game Preservation",
+    "Game Server",
+    "Ragnarok Online",
+    "Hercules",
+    "DIT",
+    "C",
+    "HPM"
+  ],
+  "promptRules": "Preserve Hercules upstream compatibility.\nNo autonomous actors or LLM behavior during R0.\nDIT bridge remains observation-only and HPM-based.\nDo not modify sources/hercules-upstream or sources/rathena-reference.\nDo not invent client packet versions without client evidence.\nDo not expose services beyond localhost / Tailscale without explicit approval.",
+  "launchProfile": {
+    "startupGraceSeconds": 15,
+    "statusCommand": "check() { if ss -ltn 2>/dev/null | grep -q \":$2 \"; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; check mariadb 3307; check login-server 6900; check char-server 6121; check map-server 5121",
+    "requiredServices": [
+      "login-server",
+      "char-server",
+      "map-server"
+    ],
+    "optionalServices": [
+      "mariadb"
+    ],
+    "healthyPatterns": [
+      "up"
+    ],
+    "failedPatterns": [
+      "down",
+      "error",
+      "fatal"
+    ],
+    "serviceLogCommand": "tail -200 ../runtime/logs/{service}.log",
+    "healthCheckRetries": 5,
+    "healthCheckIntervalSeconds": 5,
+    "stopCommand": "bash ../tooling/stop-all.sh",
+    "logsCommand": "tail -120 ../runtime/logs/*.log 2>/dev/null || echo 'No runtime logs yet'"
+  },
+  "mobileActions": [
+    {
+      "id": "build",
+      "label": "Build Server",
+      "type": "predefinedCommand",
+      "commandId": "build"
+    },
+    {
+      "id": "test",
+      "label": "Health Check",
+      "type": "predefinedCommand",
+      "commandId": "test"
+    },
+    {
+      "id": "launch",
+      "label": "Start All Game Services",
+      "type": "predefinedCommand",
+      "commandId": "launch",
+      "safety": "requiresDoubleConfirmation"
+    }
+  ]
+}

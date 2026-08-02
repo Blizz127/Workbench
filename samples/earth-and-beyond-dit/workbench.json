@@ -1,0 +1,92 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Blizz127/workbench/main/docs/workbench.schema.json",
+  "schemaVersion": 1,
+  "name": "Earth & Beyond DIT",
+  "description": "Preservation-first Net-7 modernization on Linux: isolated MariaDB 10.11, historical database import, and a native Linux Net-7 binary that reaches item loading. DIT player/object/movement seams come later.",
+  "buildCommand": "cd tooling/linux-build && docker build -t net7-linux-build . && docker run --rm -v \"$(pwd)\":/output net7-linux-build bash -c \"make -f Makefile.linux -j$(nproc) && cp Net7 /output/Net7-linux\"",
+  "runCommand": "docker compose --project-name enb-e2 -f deploy/e2/compose.yml up -d",
+  "testCommand": "bash database/scripts/validate-schema.sh",
+  "composeFile": "deploy/e2/compose.yml",
+  "tmuxSession": "earth-and-beyond-dit",
+  "documentationPaths": [
+    "docs/README.md",
+    "docs/STATUS.md",
+    "docs/ACTIVE_HANDOFF.md",
+    "docs/ROADMAP.md",
+    "docs/LINUX_RUNTIME_STATUS.md",
+    "docs/SCHEMA_COMPATIBILITY.md",
+    "docs/MODERNIZATION_AND_LOADABLE_BASELINE_PLAN.md",
+    "docs/WORKBENCH_INTEGRATION.md"
+  ],
+  "aiContextPaths": [
+    "docs/ACTIVE_HANDOFF.md",
+    "docs/STATUS.md",
+    "docs/MODERNIZATION_AND_LOADABLE_BASELINE_PLAN.md",
+    "docs/LINUX_RUNTIME_STATUS.md",
+    "docs/SCHEMA_COMPATIBILITY.md",
+    "docs/ROADMAP.md"
+  ],
+  "tags": [
+    "Game Preservation",
+    "Game Server",
+    "Net-7",
+    "Earth and Beyond",
+    "DIT",
+    "MariaDB"
+  ],
+  "promptRules": "Do not modify the archival clone at sources/net7-kyp/.\nDo not expose any service to public interfaces; localhost only.\nDo not use net-7.org or local.net-7.org hostnames.\nDo not normalize line endings or bulk-format historical source.\nDo not edit the historical dump at database/historical/; use migrations.\nDo not start E3 client work before the E2-D ABI audit passes.\nDo not disturb FFXI, WoW, Xenogears, or Workbench running services.",
+  "launchProfile": {
+    "startupGraceSeconds": 15,
+    "statusCommand": "check() { if ss -ltn 2>/dev/null | grep -q \":$2 \"; then echo \"$1 up\"; else echo \"$1 down\"; fi; }; check enb-database 13306; if pgrep -f 'Net7-linux' >/dev/null 2>&1; then echo 'net7 up'; else echo 'net7 down'; fi; if ss -ltn 2>/dev/null | grep -q ':3501 '; then echo 'sector up'; else echo 'sector down'; fi; if ss -ltn 2>/dev/null | grep -q ':443 '; then echo 'proxy-auth up'; else echo 'proxy-auth down'; fi",
+    "requiredServices": [
+      "enb-database"
+    ],
+    "optionalServices": [
+      "net7",
+      "sector",
+      "proxy-auth"
+    ],
+    "healthyPatterns": [
+      "up"
+    ],
+    "failedPatterns": [
+      "error",
+      "fatal"
+    ],
+    "serviceLogCommand": "case \"{service}\" in enb-database) docker compose --project-name enb-e2 -f deploy/e2/compose.yml logs --no-color --tail=200 enb-database ;; net7|sector|proxy-auth) tail -200 tooling/logs/Net7_server_* 2>/dev/null | tail -200 ;; *) echo \"No log mapping for {service}\" ;; esac",
+    "healthCheckRetries": 5,
+    "healthCheckIntervalSeconds": 5,
+    "stopCommand": "docker compose --project-name enb-e2 -f deploy/e2/compose.yml stop; pkill -f 'Net7-linux' 2>/dev/null || true",
+    "logsCommand": "docker compose --project-name enb-e2 -f deploy/e2/compose.yml logs --no-color --tail=80; echo '---'; tail -80 tooling/logs/Net7_server_* 2>/dev/null || true"
+  },
+  "mobileActions": [
+    {
+      "id": "build",
+      "label": "Build Net-7",
+      "type": "predefinedCommand",
+      "commandId": "build"
+    },
+    {
+      "id": "test",
+      "label": "Schema Health Check",
+      "type": "predefinedCommand",
+      "commandId": "test"
+    },
+    {
+      "id": "launch",
+      "label": "Start Database",
+      "type": "predefinedCommand",
+      "commandId": "launch",
+      "safety": "requiresDoubleConfirmation",
+      "allowDatabase": true
+    },
+    {
+      "id": "db-logs",
+      "label": "View Database Logs",
+      "type": "dockerLogsService",
+      "service": "enb-database",
+      "safety": "readOnly",
+      "allowDatabase": true
+    }
+  ]
+}
