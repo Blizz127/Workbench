@@ -20,6 +20,7 @@ public interface IVisualTestRepository
     List<VisualTestProfile> GetProfilesForProject(long projectId);
     List<VisualCaptureCheckpoint> GetCheckpoints(long profileId);
     void AddProfile(VisualTestProfile profile);
+    void AddCaptureCheckpoint(VisualCaptureCheckpoint checkpoint);
     void UpdateProfile(VisualTestProfile profile);
     void DeleteProfile(long id);
 

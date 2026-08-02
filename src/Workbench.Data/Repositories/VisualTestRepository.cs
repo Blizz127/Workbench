@@ -58,16 +58,40 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         using var cmd = c.CreateCommand();
         cmd.Transaction = t;
         cmd.CommandText = @"INSERT INTO visual_test_profiles
-            (project_id, stable_id, name, description, launch_kind, build_command, launch_command,
+            (project_id, stable_id, name, description, launch_kind, artifact_kind, build_command, launch_command,
              working_directory, environment, display, startup_timeout_seconds, process_name,
              window_title_pattern, window_class_pattern, expected_exit_codes,
              success_log_patterns, failure_log_patterns, screenshot_folder,
              retain_last_runs, stop_after_capture, leave_running, created_at, updated_at)
-            VALUES (@pid,@sid,@n,@d,@lk,@bc,@lc,@wd,@e,@disp,@to,@pn,@wt,@wc,@eec,@slp,@flp,@sf,@rlr,@sac,@lr,@ca,@ua);
+            VALUES (@pid,@sid,@n,@d,@lk,@ak,@bc,@lc,@wd,@e,@disp,@to,@pn,@wt,@wc,@eec,@slp,@flp,@sf,@rlr,@sac,@lr,@ca,@ua);
             SELECT last_insert_rowid();";
         BindProfile(cmd, profile);
         profile.Id = (long)cmd.ExecuteScalar()!;
         t.Commit();
+    }
+
+    public void AddCaptureCheckpoint(VisualCaptureCheckpoint cp)
+    {
+        using var c = database.OpenConnection();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = @"INSERT INTO visual_test_checkpoints
+            (profile_id, sort_order, name, delay_after_seconds,
+             wait_for_window_title, wait_for_log_pattern, input_action,
+             screenshot_filename, window_only, required, notes)
+            VALUES (@pid,@so,@n,@das,@wfwt,@wflp,@ia,@sf,@wo,@req,@notes);
+            SELECT last_insert_rowid();";
+        cmd.Parameters.AddWithValue("@pid", cp.ProfileId);
+        cmd.Parameters.AddWithValue("@so", cp.SortOrder);
+        cmd.Parameters.AddWithValue("@n", cp.Name);
+        cmd.Parameters.AddWithValue("@das", cp.DelayAfterSeconds);
+        cmd.Parameters.AddWithValue("@wfwt", (object?)cp.WaitForWindowTitle ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@wflp", (object?)cp.WaitForLogPattern ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ia", (object?)cp.InputAction ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sf", cp.ScreenshotFilename);
+        cmd.Parameters.AddWithValue("@wo", cp.WindowOnly ? 1L : 0L);
+        cmd.Parameters.AddWithValue("@req", cp.Required ? 1L : 0L);
+        cmd.Parameters.AddWithValue("@notes", (object?)cp.Notes ?? DBNull.Value);
+        cp.Id = (long)cmd.ExecuteScalar()!;
     }
 
     public void UpdateProfile(VisualTestProfile profile)
@@ -77,7 +101,7 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         using var cmd = c.CreateCommand();
         cmd.Transaction = t;
         cmd.CommandText = @"UPDATE visual_test_profiles SET
-            name=@n, description=@d, launch_kind=@lk, build_command=@bc,
+            name=@n, description=@d, launch_kind=@lk, artifact_kind=@ak, build_command=@bc,
             launch_command=@lc, working_directory=@wd, environment=@e, display=@disp,
             startup_timeout_seconds=@to, process_name=@pn,
             window_title_pattern=@wt, window_class_pattern=@wc,
@@ -235,19 +259,20 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         Id = r.GetInt64(0), ProjectId = r.GetInt64(1), StableId = r.GetString(2), Name = r.GetString(3),
         Description = r.IsDBNull(4) ? null : r.GetString(4),
         LaunchKind = r.IsDBNull(5) ? VisualTestLaunchKind.Native : Enum.Parse<VisualTestLaunchKind>(r.GetString(5)),
-        BuildCommand = r.IsDBNull(6) ? null : r.GetString(6),
-        LaunchCommand = r.GetString(7),
-        WorkingDirectory = r.IsDBNull(8) ? null : r.GetString(8),
-        Environment = r.IsDBNull(9) ? null : r.GetString(9),
-        Display = r.GetString(10), StartupTimeoutSeconds = r.GetInt32(11), ProcessName = r.GetString(12),
-        WindowTitlePattern = r.IsDBNull(13) ? null : r.GetString(13),
-        WindowClassPattern = r.IsDBNull(14) ? null : r.GetString(14),
-        ExpectedExitCodes = r.IsDBNull(15) ? null : r.GetString(15),
-        SuccessLogPatterns = r.IsDBNull(16) ? null : r.GetString(16),
-        FailureLogPatterns = r.IsDBNull(17) ? null : r.GetString(17),
-        ScreenshotFolder = r.GetString(18), RetainLastRuns = r.GetInt32(19),
-        StopAfterCapture = r.GetInt32(20) != 0, LeaveRunning = r.GetInt32(21) != 0,
-        CreatedAt = DateTimeOffset.Parse(r.GetString(22)), UpdatedAt = DateTimeOffset.Parse(r.GetString(23)),
+        ArtifactKind = r.IsDBNull(6) ? VisualTestArtifactKind.NativePort : Enum.Parse<VisualTestArtifactKind>(r.GetString(6)),
+        BuildCommand = r.IsDBNull(6) ? null : r.GetString(7),
+        LaunchCommand = r.GetString(8),
+        WorkingDirectory = r.IsDBNull(8) ? null : r.GetString(9),
+        Environment = r.IsDBNull(9) ? null : r.GetString(10),
+        Display = r.GetString(11), StartupTimeoutSeconds = r.GetInt32(12), ProcessName = r.GetString(13),
+        WindowTitlePattern = r.IsDBNull(13) ? null : r.GetString(14),
+        WindowClassPattern = r.IsDBNull(14) ? null : r.GetString(15),
+        ExpectedExitCodes = r.IsDBNull(15) ? null : r.GetString(16),
+        SuccessLogPatterns = r.IsDBNull(16) ? null : r.GetString(17),
+        FailureLogPatterns = r.IsDBNull(17) ? null : r.GetString(18),
+        ScreenshotFolder = r.GetString(19), RetainLastRuns = r.GetInt32(20),
+        StopAfterCapture = r.GetInt32(21) != 0, LeaveRunning = r.GetInt32(22) != 0,
+        CreatedAt = DateTimeOffset.Parse(r.GetString(23)), UpdatedAt = DateTimeOffset.Parse(r.GetString(24)),
     };
 
     private static void BindProfile(SqliteCommand cmd, VisualTestProfile p)
@@ -255,6 +280,7 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
         cmd.Parameters.AddWithValue("@pid", p.ProjectId); cmd.Parameters.AddWithValue("@sid", p.StableId);
         cmd.Parameters.AddWithValue("@n", p.Name); cmd.Parameters.AddWithValue("@d", (object?)p.Description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lk", p.LaunchKind.ToString());
+        cmd.Parameters.AddWithValue("@ak", p.ArtifactKind.ToString());
         cmd.Parameters.AddWithValue("@bc", (object?)p.BuildCommand ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lc", p.LaunchCommand);
         cmd.Parameters.AddWithValue("@wd", (object?)p.WorkingDirectory ?? DBNull.Value);

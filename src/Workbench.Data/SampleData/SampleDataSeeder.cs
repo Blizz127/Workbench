@@ -36,6 +36,7 @@ public static class SampleDataSeeder
         var blockers = new BlockerRepository(database);
         var timeline = new TimelineRepository(database);
         var notes = new NoteRepository(database);
+        var visualTests = new VisualTestRepository(database);
         var builds = new BuildHistoryRepository(database);
         var tests = new TestHistoryRepository(database);
 
@@ -55,7 +56,7 @@ public static class SampleDataSeeder
                 GenericSoftwareSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
 
             [ParasiteEveSeeder.ProjectName] = () =>
-                ParasiteEveSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),
+                ParasiteEveSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, visualTests, now),
 
             [DraenorSeeder.ProjectName] = () =>
                 DraenorSeeder.Seed(projects, milestones, frontiers, blockers, timeline, notes, now),

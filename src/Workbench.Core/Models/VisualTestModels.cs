@@ -11,6 +11,17 @@ public enum VisualTestLaunchKind
     Unavailable,
 }
 
+/// <summary>What artifact the visual test runs.</summary>
+public enum VisualTestArtifactKind
+{
+    /// <summary>Original retail executable from disc/image.</summary>
+    RetailReference,
+    /// <summary>Rebuilt executable from matching decompilation.</summary>
+    MatchingBuild,
+    /// <summary>Native PC port (not an emulated PS1 binary).</summary>
+    NativePort,
+}
+
 /// <summary>
 /// A reusable visual-test profile: launches a GUI application, waits for
 /// defined checkpoints, captures screenshots, and associates them with a
@@ -30,6 +41,9 @@ public sealed class VisualTestProfile
 
     /// <summary>How the target is launched: Native, Emulator, or Unavailable.</summary>
     public VisualTestLaunchKind LaunchKind { get; set; } = VisualTestLaunchKind.Native;
+
+    /// <summary>What artifact: RetailReference, MatchingBuild, or NativePort.</summary>
+    public VisualTestArtifactKind ArtifactKind { get; set; } = VisualTestArtifactKind.NativePort;
 
     /// <summary>Optional: run this build command before launching.</summary>
     public string? BuildCommand { get; set; }

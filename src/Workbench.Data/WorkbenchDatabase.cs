@@ -257,6 +257,9 @@ public sealed class WorkbenchDatabase
         // Visual test profiles, checkpoints, runs, captures, and baselines
         // (Phase 3A: reusable visual validation for any project).
         new Migration(12, AddVisualTestTables),
+
+        // Artifact identity for visual test profiles (RetailReference, MatchingBuild, NativePort).
+        new Migration(13, AddVisualTestArtifactKind),
     ];
 
     private static void AddVisualTestTables(SqliteConnection connection, SqliteTransaction transaction)
@@ -349,6 +352,18 @@ public sealed class WorkbenchDatabase
             cmd.CommandText = sql;
             cmd.ExecuteNonQuery();
         }
+    }
+
+    private static void AddVisualTestArtifactKind(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        var existing = GetColumnNames(connection, transaction, "visual_test_profiles");
+        if (existing.Count == 0) return;
+        if (existing.Contains("artifact_kind")) return;
+
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = "ALTER TABLE visual_test_profiles ADD COLUMN artifact_kind TEXT NOT NULL DEFAULT 'NativePort';";
+        cmd.ExecuteNonQuery();
     }
 
     private static void AddMilestoneStatusAndWeight(SqliteConnection connection, SqliteTransaction transaction)

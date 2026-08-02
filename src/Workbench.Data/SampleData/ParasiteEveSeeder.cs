@@ -1,4 +1,5 @@
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 using Workbench.Data.Repositories;
 
 namespace Workbench.Data.SampleData;
@@ -14,7 +15,8 @@ public static class ParasiteEveSeeder
 
     public static void Seed(ProjectRepository projects, MilestoneRepository milestones,
         FrontierRepository frontiers, BlockerRepository blockers,
-        TimelineRepository timeline, NoteRepository notes, DateTimeOffset now)
+        TimelineRepository timeline, NoteRepository notes,
+        VisualTestRepository visualTests, DateTimeOffset now)
     {
         var project = new Project
         {
@@ -191,5 +193,77 @@ public static class ParasiteEveSeeder
                 """,
             CreatedAt = now.AddDays(-2),
         });
+
+        // --- Visual test profiles ---
+        var repoPath = project.RepositoryPath ?? "/home/blizz/dev/parasite-eve";
+        var retailExe = "build/extracted/disc1/SLUS_006.62";
+        var rebuiltExe = "build/disc1.candidate.exe";
+        var emuBin = "/home/blizz/apps/pcsx-redux/build293-3e10093a/PCSX-Redux-build293-3e10093a.AppImage";
+
+        AddVisualTestProfile(visualTests, project.Id, now, "pe-retail-boot", "PE Retail Reference — Boot",
+            VisualTestLaunchKind.Emulator, VisualTestArtifactKind.RetailReference,
+            $"xvfb-run -a {emuBin} -run -interlaced {retailExe}",
+            "PCSX-Redux", "PCSX-Redux", "parasite-eve/retail-boot",
+            [("boot", 8, null, "01_boot.png", "Title screen or boot logo")]);
+
+        AddVisualTestProfile(visualTests, project.Id, now, "pe-matching-boot", "PE Matching Build — Boot",
+            VisualTestLaunchKind.Emulator, VisualTestArtifactKind.MatchingBuild,
+            $"xvfb-run -a {emuBin} -run -interlaced {rebuiltExe}",
+            "PCSX-Redux", "PCSX-Redux", "parasite-eve/matching-boot",
+            [("boot", 8, null, "01_boot.png", "Must match retail reference")],
+            "scripts/build_us.sh");
+
+        AddVisualTestProfile(visualTests, project.Id, now, "pe-native-boot", "PE Native Port — Boot",
+            VisualTestLaunchKind.Unavailable, VisualTestArtifactKind.NativePort,
+            "(not yet built)",
+            "parasite_eve_port", "Parasite Eve", "parasite-eve/native-boot",
+            [("boot", 5, null, "01_boot.png", "Must match retail reference")]);
+
+        AddVisualTestProfile(visualTests, project.Id, now, "pe-native-intro", "PE Native Port — Intro",
+            VisualTestLaunchKind.Unavailable, VisualTestArtifactKind.NativePort,
+            "(not yet built)",
+            "parasite_eve_port", "Parasite Eve", "parasite-eve/native-intro",
+            [("boot", 5, null, "01_boot.png", "Boot screen"),
+             ("intro", 15, "Return", "02_intro.png", "Intro cinematic or menu")]);
     }
+
+    private static void AddVisualTestProfile(VisualTestRepository repo, long projectId,
+        DateTimeOffset now, string stableId, string name,
+        VisualTestLaunchKind launchKind, VisualTestArtifactKind artifactKind,
+        string launchCommand, string processName, string? windowTitlePattern,
+        string screenshotFolder,
+        (string name, int delay, string? input, string filename, string? notes)[] checkpoints,
+        string? buildCommand = null)
+    {
+        var profile = new VisualTestProfile
+        {
+            ProjectId = projectId, StableId = stableId, Name = name,
+            LaunchKind = launchKind, ArtifactKind = artifactKind,
+            BuildCommand = buildCommand, LaunchCommand = launchCommand,
+            Display = ":99", StartupTimeoutSeconds = 30,
+            ProcessName = processName, WindowTitlePattern = windowTitlePattern,
+            ScreenshotFolder = screenshotFolder,
+            RetainLastRuns = 5, StopAfterCapture = true,
+            CreatedAt = now, UpdatedAt = now,
+        };
+        repo.AddProfile(profile);
+
+        for (int i = 0; i < checkpoints.Length; i++)
+        {
+            var (cpName, delay, input, filename, notes) = checkpoints[i];
+            repo.AddCaptureCheckpoint(new VisualCaptureCheckpoint
+            {
+                ProfileId = profile.Id,
+                SortOrder = i,
+                Name = cpName,
+                DelayAfterSeconds = delay,
+                InputAction = input,
+                ScreenshotFilename = filename,
+                WindowOnly = true,
+                Required = i == 0,
+                Notes = notes,
+            });
+        }
+    }
+
 }
