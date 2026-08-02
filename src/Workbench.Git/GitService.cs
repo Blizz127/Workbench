@@ -114,6 +114,78 @@ public sealed class GitService : IGitService
         }
     }
 
+    public IReadOnlyList<CommitFileChange> GetCommitFiles(string? repositoryPath, string sha)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryPath) || string.IsNullOrWhiteSpace(sha)
+            || !Directory.Exists(repositoryPath))
+            return [];
+
+        try
+        {
+            var discovered = Repository.Discover(repositoryPath);
+            if (discovered is null)
+                return [];
+
+            using var repo = new Repository(discovered);
+            var commit = repo.Lookup<Commit>(sha);
+            if (commit is null)
+                return [];
+
+            var parentTree = commit.Parents.FirstOrDefault()?.Tree;
+            var changes = parentTree is null
+                ? repo.Diff.Compare<TreeChanges>(null, commit.Tree)
+                : repo.Diff.Compare<TreeChanges>(parentTree, commit.Tree);
+
+            return changes
+                .Select(c => new CommitFileChange(
+                    c.Path,
+                    c.Status switch
+                    {
+                        ChangeKind.Added => "added",
+                        ChangeKind.Deleted => "deleted",
+                        ChangeKind.Renamed => "renamed",
+                        _ => "modified",
+                    }))
+                .OrderBy(c => c.Path, StringComparer.Ordinal)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is LibGit2SharpException or IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    public string? GetFileContentAtCommit(string? repositoryPath, string sha, string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryPath) || string.IsNullOrWhiteSpace(sha)
+            || string.IsNullOrWhiteSpace(filePath) || !Directory.Exists(repositoryPath))
+            return null;
+
+        try
+        {
+            var discovered = Repository.Discover(repositoryPath);
+            if (discovered is null)
+                return null;
+
+            using var repo = new Repository(discovered);
+            var commit = repo.Lookup<Commit>(sha);
+            if (commit?[filePath]?.Target is not Blob blob)
+                return null;
+
+            if (blob.IsBinary || blob.Size > MaxBlobBytes)
+                return null;
+
+            return blob.GetContentText();
+        }
+        catch (Exception ex) when (ex is LibGit2SharpException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Largest blob served by <see cref="GetFileContentAtCommit"/> (512 KB).</summary>
+    private const int MaxBlobBytes = 512 * 1024;
+
     private static CommitInfo ToCommitInfo(Commit commit) => new(
         Sha: commit.Sha,
         ShortSha: commit.Sha[..7],

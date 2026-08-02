@@ -41,7 +41,11 @@ internal static class WebStubs
         public long Add(TimelineEntry entry) => throw new NotSupportedException();
     }
 
-    public sealed class Git(Func<string?, RepositorySnapshot> snapshotFor) : IGitService
+    public sealed class Git(
+        Func<string?, RepositorySnapshot> snapshotFor,
+        Func<string?, string?>? workingTreeDiffFor = null,
+        Func<string?, string, IReadOnlyList<CommitFileChange>>? commitFilesFor = null,
+        Func<string?, string, string, string?>? fileContentAtFor = null) : IGitService
     {
         public Git(RepositorySnapshot snapshot) : this(_ => snapshot)
         {
@@ -56,7 +60,15 @@ internal static class WebStubs
         }
 
         public string? GetHeadSha(string? repositoryPath) => snapshotFor(repositoryPath).LastCommit?.Sha;
-        public string? GetWorkingTreeDiff(string? repositoryPath) => null;
+
+        public string? GetWorkingTreeDiff(string? repositoryPath) =>
+            workingTreeDiffFor?.Invoke(repositoryPath);
+
+        public IReadOnlyList<CommitFileChange> GetCommitFiles(string? repositoryPath, string sha) =>
+            commitFilesFor?.Invoke(repositoryPath, sha) ?? [];
+
+        public string? GetFileContentAtCommit(string? repositoryPath, string sha, string filePath) =>
+            fileContentAtFor?.Invoke(repositoryPath, sha, filePath);
     }
 
     public sealed class Docker(

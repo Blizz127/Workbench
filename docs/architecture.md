@@ -256,11 +256,28 @@ parsing of its own: `DashboardSnapshotService` composes typed snapshots,
 `DashboardPageRenderer` / `ProjectDetailPageRenderer` turn them into
 self-contained HTML pages (phone-first, dark, branded "Development Lab").
 
-- **Read-only by construction**: four routes, all GET — `/` (dashboard),
-  `/projects/{id:long}` (project detail), and their two JSON twins
-  (`/api/snapshot`, `/api/projects/{id}`). Any other verb gets 405. Project
-  routes take the database id through a long constraint — never a filesystem
-  path — and unknown ids get a styled 404 page.
+- **Read-only by construction**: all routes are GET — `/` (dashboard),
+  `/projects/{id:long}` (project detail), their two JSON twins
+  (`/api/snapshot`, `/api/projects/{id}`), and the Phase 2C code browser:
+  `/projects/{id}/files` (directory listing), `/projects/{id}/file`
+  (syntax-highlighted, line-numbered view; `?sha=` serves a historical
+  version from the commit), `/projects/{id}/search` (filename or text),
+  `/projects/{id}/changes` (working-tree diff), and
+  `/projects/{id}/commits/{sha}` (commit detail with its changed files).
+  Any other verb gets 405. Project routes take the database id through a
+  long constraint — never a filesystem path — and unknown ids get a styled
+  404 page.
+- **Code browsing confinement**: `ProjectCodeService` composes
+  `IProjectFileService`, which resolves every requested path against the
+  project's repository root and refuses anything that escapes it — rooted
+  paths, `..` segments, backslash variants, and symlinks whose target leaves
+  the root all return a "forbidden" error code, never content. Binary files
+  (NUL sniff) and files over 512 KB are blocked from view (search reads up
+  to 1 MB), `.git`/`bin`/`obj`/`node_modules` are skipped, search caps at
+  200 hits (3 per file) with a truncated flag, and commit ids must match
+  `^[0-9a-fA-F]{7,40}$` before git is touched. Content problems ride in the
+  snapshot's `Error` field and render as an error card — they never throw.
+  The code pages are static (no polling endpoint).
 - **Pages**: the dashboard shows system metrics, tmux sessions, and compact
   project cards that are themselves tap targets ("View project"). The detail
   page has Overview / Git / Docker / Sessions / Recent Activity sections with

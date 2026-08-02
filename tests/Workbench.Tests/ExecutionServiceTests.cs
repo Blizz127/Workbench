@@ -20,6 +20,10 @@ public sealed class ExecutionServiceTests : IClassFixture<DatabaseFixture>
         public string? GetHeadSha(string? repositoryPath) => null;
 
         public string? GetWorkingTreeDiff(string? repositoryPath) => null;
+
+        public IReadOnlyList<CommitFileChange> GetCommitFiles(string? repositoryPath, string sha) => [];
+
+        public string? GetFileContentAtCommit(string? repositoryPath, string sha, string filePath) => null;
     }
 
     private (ExecutionService Service, long ProjectId, BuildHistoryRepository Builds,

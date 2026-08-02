@@ -11,6 +11,9 @@ public sealed record CommitInfo(
 /// <summary>A working-tree change relative to HEAD.</summary>
 public sealed record FileChange(string Path, string State);
 
+/// <summary>A file touched by one commit; <see cref="Kind"/> is "added", "modified", "deleted", or "renamed".</summary>
+public sealed record CommitFileChange(string Path, string Kind);
+
 /// <summary>
 /// Snapshot of a repository's state, produced by <see cref="Services.IGitService"/>.
 /// <see cref="IsValid"/> is false when the path is missing or not a repository,

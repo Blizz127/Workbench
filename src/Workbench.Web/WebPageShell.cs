@@ -69,6 +69,42 @@ internal static class WebPageShell
         ul.lined { padding: 0; margin: 4px 0 0; }
         ul.lined li { list-style: none; padding: 6px 0; border-bottom: 1px solid #22262f; }
         ul.lined li:last-child { border-bottom: 0; }
+        .code-links { display: flex; gap: 18px; }
+        .code-links a { display: inline-flex; align-items: center; min-height: 44px; color: #4f8ff7;
+                        text-decoration: none; font-weight: 600; }
+        a.commit-link { display: block; color: inherit; text-decoration: none; }
+        .breadcrumb { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem;
+                      margin: 4px 0 8px; overflow-wrap: anywhere; }
+        .breadcrumb a { color: #4f8ff7; text-decoration: none; }
+        pre.code { background: #12141a; border: 1px solid #2a2e38; border-radius: 8px;
+                   padding: 8px 0; margin: 8px 0; overflow-x: auto;
+                   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                   font-size: .8rem; line-height: 1.5; }
+        pre.code .line { display: block; white-space: pre; padding-right: 12px; }
+        pre.code .line:target { background: #25375c; }
+        pre.code .ln { display: inline-block; min-width: 3.4em; padding: 0 10px 0 12px;
+                       color: #5b6472; text-align: right; user-select: none; }
+        .tok-k { color: #7aa2f7; }
+        .tok-c { color: #6a9955; }
+        .tok-s { color: #ce9178; }
+        .tok-n { color: #b5cea8; }
+        .tok-t { color: #4ec9b0; }
+        .diff-add, .diff-del, .diff-hunk, .diff-meta, .diff-ctx { display: block; white-space: pre; padding: 0 12px; }
+        .diff-add { background: #14361f; color: #5fd68a; }
+        .diff-del { background: #3d1a1a; color: #f47c7c; }
+        .diff-hunk { color: #7aa2f7; }
+        .diff-meta { color: #9aa3b2; }
+        .badge.added { background: #14361f; color: #5fd68a; }
+        .badge.deleted { background: #3d1a1a; color: #f47c7c; }
+        .badge.modified { background: #3a2c12; color: #f0b45c; }
+        .badge.renamed { background: #1d2b45; color: #7aa2f7; }
+        .search-form input[type="search"] { width: 100%; background: #12141a; color: #e6e8ee;
+                                            border: 1px solid #2a2e38; border-radius: 8px;
+                                            padding: 10px 12px; font-size: 1rem; margin-bottom: 8px; }
+        .search-form label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+                             margin-right: 14px; color: #9aa3b2; }
+        .search-form button { background: #4f8ff7; color: #0f1115; border: 0; border-radius: 8px;
+                              padding: 8px 18px; font-size: .95rem; font-weight: 600; min-height: 40px; }
         """;
 
     private const string ClientScript = """
@@ -76,6 +112,7 @@ internal static class WebPageShell
           "use strict";
           var endpoint = document.body.getAttribute("data-endpoint");
           var page = document.body.getAttribute("data-page");
+          if (!endpoint) return; // static pages (code browser, 404) never poll
           var timer = null, inflight = false, lastOk = new Date();
 
           function $(id) { return document.getElementById(id); }
@@ -172,8 +209,11 @@ internal static class WebPageShell
               var cl = $("git-commits"); clear(cl);
               d.git.recentCommits.forEach(function (c) {
                 var li = el("li");
-                li.appendChild(el("span", "mono", c.shortSha + " " + c.subject + " "));
-                li.appendChild(muted(c.when));
+                var a = el("a", "commit-link");
+                a.href = "/projects/" + d.id + "/commits/" + c.shortSha;
+                a.appendChild(el("span", "mono", c.shortSha + " " + c.subject + " "));
+                a.appendChild(muted(c.when));
+                li.appendChild(a);
                 cl.appendChild(li);
               });
             }

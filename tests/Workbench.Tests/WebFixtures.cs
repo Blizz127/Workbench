@@ -27,6 +27,39 @@ internal static class WebFixtures
         RepositoryPath = "/repo/xenogears-does-not-exist",
     };
 
+    /// <summary>
+    /// A small seeded "repository" for the code-browser host tests: a C#
+    /// source file, searchable text, an HTML-hostile text file, and a binary.
+    /// Seeded once under the shared temp area; contents are rewritten, never
+    /// deleted, so reruns stay deterministic.
+    /// </summary>
+    public static readonly string CodeRepoDir = SeedCodeRepo();
+
+    public static Project CodeProject() => new()
+    {
+        Id = 11,
+        Name = "Crimson Sands",
+        Status = ProjectStatus.Active,
+        RepositoryPath = CodeRepoDir,
+    };
+
+    public static CommitInfo CodeCommit() => new(
+        "ea407af1234567890", "ea407af", "Fix login packet ordering", "blizz",
+        new DateTimeOffset(2026, 7, 31, 20, 0, 0, TimeSpan.Zero));
+
+    private static string SeedCodeRepo()
+    {
+        var root = Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), "workbench-tests", "web-fixture-code")).FullName;
+        Directory.CreateDirectory(Path.Combine(root, "src"));
+        File.WriteAllText(Path.Combine(root, "src", "Program.cs"),
+            "using System;\n\nclass Program\n{\n    static void Main() { Console.WriteLine(\"hi\"); }\n}\n");
+        File.WriteAllText(Path.Combine(root, "notes.txt"), "alpha\nbeta needle gamma\ndelta\n");
+        File.WriteAllText(Path.Combine(root, "evil.txt"), "<script>alert(1)</script>\n");
+        File.WriteAllBytes(Path.Combine(root, "blob.bin"), [0x89, 0x00, 0x50, 0x4E]);
+        return root;
+    }
+
     public static RepositorySnapshot BansheeGit() => new(
         IsValid: true,
         BranchName: "main",

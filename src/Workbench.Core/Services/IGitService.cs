@@ -19,6 +19,18 @@ public interface IGitService
     /// empty string when the tree is clean.
     /// </summary>
     string? GetWorkingTreeDiff(string? repositoryPath);
+
+    /// <summary>
+    /// Files changed by one commit (against its first parent). Short SHAs are
+    /// accepted. Empty when the repository or commit is unavailable.
+    /// </summary>
+    IReadOnlyList<CommitFileChange> GetCommitFiles(string? repositoryPath, string sha);
+
+    /// <summary>
+    /// Text content of one file at one commit. Null when the repository,
+    /// commit, or file is unavailable, or the blob is binary or oversized.
+    /// </summary>
+    string? GetFileContentAtCommit(string? repositoryPath, string sha, string filePath);
 }
 
 /// <summary>Scans a repository's text files for TODO/FIXME/HACK comments.</summary>

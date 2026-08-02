@@ -20,6 +20,14 @@ public static class ProjectDetailPageRenderer
         html.Append("<h1>").Append(WebPageShell.Encode(detail.Name)).Append("</h1>");
         DashboardPageRenderer.WriteRefreshNote(html, detail.GeneratedAt);
 
+        // Static entry into the code browser — deliberately outside every
+        // id-tagged container, so the polling re-render never wipes it.
+        html.Append("<nav class=\"code-links\">")
+            .Append("<a href=\"/projects/").Append(detail.Id).Append("/files\">Code</a>")
+            .Append("<a href=\"/projects/").Append(detail.Id).Append("/changes\">Changes</a>")
+            .Append("<a href=\"/projects/").Append(detail.Id).Append("/search\">Search</a>")
+            .Append("</nav>");
+
         // Overview
         html.Append("<h2>Overview</h2><div class=\"card\">")
             .Append("<div class=\"row\"><span class=\"muted\">status</span><span class=\"badge\" id=\"ov-status\">")
@@ -45,8 +53,10 @@ public static class ProjectDetailPageRenderer
         {
             html.Append("<ul class=\"lined\" id=\"git-commits\">");
             foreach (var commit in detail.Git.RecentCommits)
-                html.Append("<li><span class=\"mono\">").Append(WebPageShell.Encode($"{commit.ShortSha} {commit.Subject} "))
-                    .Append("</span><span class=\"muted\">").Append(WebPageShell.Encode(commit.When)).Append("</span></li>");
+                html.Append("<li><a class=\"commit-link\" href=\"/projects/").Append(detail.Id)
+                    .Append("/commits/").Append(WebPageShell.Encode(commit.ShortSha)).Append("\"><span class=\"mono\">")
+                    .Append(WebPageShell.Encode($"{commit.ShortSha} {commit.Subject} "))
+                    .Append("</span><span class=\"muted\">").Append(WebPageShell.Encode(commit.When)).Append("</span></a></li>");
             html.Append("</ul>");
         }
         else
