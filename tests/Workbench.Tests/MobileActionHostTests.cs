@@ -54,6 +54,7 @@ public sealed class MobileActionHostTests
                 services.AddSingleton<IProjectRepository>(
                     new WebStubs.Projects(WebFixtures.Banshee(), WebFixtures.Xenogears()));
                 services.AddSingleton<ITimelineRepository>(new WebStubs.Timeline());
+                services.AddSingleton<IBlockerRepository>(new WebStubs.Blockers());
                 services.AddSingleton<ISystemHealthService>(new WebStubs.SystemHealth());
                 services.AddSingleton<IGitService>(new WebStubs.Git(WebFixtures.BansheeGit()));
                 services.AddSingleton<IDockerComposeService>(Docker);

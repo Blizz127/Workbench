@@ -21,7 +21,8 @@ public sealed class DashboardSnapshotService(
     IGitService git,
     IDockerComposeService docker,
     ITmuxService tmux,
-    ITimelineRepository timeline)
+    ITimelineRepository timeline,
+    IBlockerRepository blockers)
 {
     internal static readonly TimeSpan HealthTtl = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan DockerTtl = TimeSpan.FromSeconds(15);
@@ -120,6 +121,7 @@ public sealed class DashboardSnapshotService(
                     IsAttached: session?.IsAttached ?? false,
                     WindowCount: session?.WindowCount ?? 0,
                     ActiveWindowName: session?.ActiveWindowName),
+                Blockers: MapBlockers(project.Id),
                 RecentActivity: timeline.GetForProject(project.Id, RecentActivityLimit)
                     .Select(e => new WebActivityEntry(
                         e.Timestamp.ToString("MM-dd HH:mm"),
@@ -232,6 +234,30 @@ public sealed class DashboardSnapshotService(
             : await docker.InspectAsync(project, cancellationToken).ConfigureAwait(false);
         _dockerCache[project.Id] = (DateTimeOffset.UtcNow, value);
         return value;
+    }
+
+    /// <summary>
+    /// Counts by lifecycle status plus the open records. Free-form fields go
+    /// through the same redactor as the journal before they can reach a phone.
+    /// </summary>
+    private BlockerSummaryBlock MapBlockers(long projectId)
+    {
+        var all = blockers.GetForProject(projectId);
+        return new BlockerSummaryBlock(
+            Active: all.Count(b => b.Status == BlockerStatus.Active),
+            Monitoring: all.Count(b => b.Status == BlockerStatus.Monitoring),
+            Resolved: all.Count(b => b.Status == BlockerStatus.Resolved),
+            Dismissed: all.Count(b => b.Status == BlockerStatus.Dismissed),
+            Open: all
+                .Where(b => b.Status is BlockerStatus.Active or BlockerStatus.Monitoring)
+                .Select(b => new WebBlockerEntry(
+                    b.TitleOrDescription,
+                    b.Severity,
+                    b.Status.ToString(),
+                    b.Evidence is null ? null : SecretRedactor.Redact(b.Evidence),
+                    b.NextSafestStep is null ? null : SecretRedactor.Redact(b.NextSafestStep),
+                    b.Owner))
+                .ToList());
     }
 
     private static bool IsFresh(DateTimeOffset at, TimeSpan ttl) =>

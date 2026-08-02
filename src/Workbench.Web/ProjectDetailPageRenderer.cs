@@ -116,6 +116,10 @@ public static class ProjectDetailPageRenderer
 
         html.Append("</ul></div>");
 
+        // Blockers: read-only summary, server-rendered and deliberately outside
+        // every id-tagged container so the polling re-render never wipes it.
+        WriteBlockersSection(html, detail.Blockers);
+
         // Actions + their journal: static, server-rendered, and deliberately
         // outside every id-tagged container so the polling re-render of the
         // detail endpoint never wipes them.
@@ -141,9 +145,43 @@ public static class ProjectDetailPageRenderer
         return html.ToString();
     }
 
-    internal static void WriteServiceRow(StringBuilder html, WebComposeService service)
+    internal static void WriteBlockersSection(StringBuilder html, BlockerSummaryBlock blockers)
     {
-        var badgeClass = service.StateText is "running" or "paused" ? "ok"
+        html.Append("<h2>Blockers</h2><div class=\"card\">");
+        if (blockers.Open.Count == 0 && blockers is { Active: 0, Monitoring: 0, Resolved: 0, Dismissed: 0 })
+        {
+            html.Append("<span class=\"muted\">No blockers recorded.</span></div>");
+            return;
+        }
+
+        html.Append("<div class=\"row\"><span class=\"muted\">counts</span><span class=\"mono grow\">")
+            .Append(WebPageShell.Encode(
+                $"{blockers.Active} active · {blockers.Monitoring} monitoring · " +
+                $"{blockers.Resolved} resolved · {blockers.Dismissed} dismissed"))
+            .Append("</span></div>");
+
+        if (blockers.Open.Count == 0)
+            html.Append("<span class=\"muted\">Nothing active right now.</span>");
+
+        foreach (var blocker in blockers.Open)
+        {
+            html.Append("<div class=\"row\"><span class=\"grow\">").Append(WebPageShell.Encode(blocker.Title)).Append("</span>");
+            if (blocker.Severity is { } severity)
+                html.Append("<span class=\"badge warn\">").Append(WebPageShell.Encode(severity)).Append("</span>");
+            html.Append("<span class=\"badge\">").Append(WebPageShell.Encode(blocker.Status)).Append("</span></div>");
+            if (blocker.Evidence is { } evidence)
+                html.Append("<div class=\"muted mono\">evidence: ").Append(WebPageShell.Encode(evidence)).Append("</div>");
+            if (blocker.NextSafestStep is { } nextStep)
+                html.Append("<div class=\"muted\">next safest step: ").Append(WebPageShell.Encode(nextStep)).Append("</div>");
+            if (blocker.Owner is { } owner)
+                html.Append("<div class=\"muted\">owner: ").Append(WebPageShell.Encode(owner)).Append("</div>");
+        }
+
+        html.Append("</div>");
+    }
+
+    internal static void WriteServiceRow(StringBuilder html, WebComposeService service)
+    {        var badgeClass = service.StateText is "running" or "paused" ? "ok"
             : service.StateText is "completed" ? ""
             : service.StateText is "failed" or "restarting" ? "bad"
             : "warn";

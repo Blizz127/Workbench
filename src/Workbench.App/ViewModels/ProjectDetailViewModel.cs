@@ -29,6 +29,9 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
     public HandoffViewModel Handoff { get; }
     public ProjectSettingsViewModel Settings { get; }
 
+    /// <summary>The Shared Blockers section on the Progress page.</summary>
+    public ProjectBlockersViewModel Blockers { get; }
+
     [ObservableProperty]
     private string _headerName;
 
@@ -93,6 +96,7 @@ public sealed partial class ProjectDetailViewModel : ViewModelBase
         Sessions = new ProjectSessionsViewModel(services.Tmux, services.Terminal, project, services.Timeline);
         Handoff = new HandoffViewModel(services, project);
         Settings = new ProjectSettingsViewModel(services, project, goBack, RefreshHeader);
+        Blockers = new ProjectBlockersViewModel(services, project);
 
         EnrichHeader();
     }

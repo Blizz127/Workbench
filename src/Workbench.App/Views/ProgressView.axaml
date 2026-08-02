@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Workbench.App.ViewModels"
+             xmlns:views="using:Workbench.App.Views"
              x:Class="Workbench.App.Views.ProgressView"
              x:DataType="vm:ProjectDetailViewModel">
 
@@ -70,6 +71,9 @@
                     </DockPanel>
                 </StackPanel>
             </Border>
+
+            <!-- Shared blockers: full lifecycle list + CRUD -->
+            <views:BlockerListView DataContext="{Binding Blockers}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

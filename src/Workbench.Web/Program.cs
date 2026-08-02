@@ -28,6 +28,7 @@ builder.Services.AddSingleton(sp => new WorkbenchDatabase(
         : WorkbenchDatabase.GetDefaultDatabasePath()));
 builder.Services.AddSingleton<IProjectRepository>(sp => new ProjectRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<ITimelineRepository>(sp => new TimelineRepository(sp.GetRequiredService<WorkbenchDatabase>()));
+builder.Services.AddSingleton<IBlockerRepository>(sp => new BlockerRepository(sp.GetRequiredService<WorkbenchDatabase>()));
 builder.Services.AddSingleton<ISystemHealthService, SystemHealthService>();
 builder.Services.AddSingleton<IGitService, GitService>();
 builder.Services.AddSingleton<IProjectFileService, ProjectFileService>();

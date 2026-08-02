@@ -274,7 +274,7 @@ public sealed class MobileActionAuditServiceTests : IDisposable
             var snapshots = new DashboardSnapshotService(
                 new WebStubs.SystemHealth(), projects,
                 new WebStubs.Git(WebFixtures.BansheeGit()), docker, tmux,
-                new WebStubs.Timeline());
+                new WebStubs.Timeline(), new WebStubs.Blockers());
 
             return new AuditHarness
             {

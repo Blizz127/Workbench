@@ -17,6 +17,7 @@ public sealed class SharedStateServiceTests : IDisposable
     private readonly ProjectRepository _projects;
     private readonly MilestoneRepository _milestones;
     private readonly FrontierRepository _frontiers;
+    private readonly BlockerRepository _blockers;
     private readonly SharedStateService _service;
 
     public SharedStateServiceTests()
@@ -26,7 +27,8 @@ public sealed class SharedStateServiceTests : IDisposable
         _projects = new ProjectRepository(_fixture.Database);
         _milestones = new MilestoneRepository(_fixture.Database);
         _frontiers = new FrontierRepository(_fixture.Database);
-        _service = new SharedStateService(_projects, _milestones, _frontiers);
+        _blockers = new BlockerRepository(_fixture.Database);
+        _service = new SharedStateService(_projects, _milestones, _frontiers, _blockers);
     }
 
     public void Dispose()
@@ -299,7 +301,7 @@ public sealed class SharedStateServiceTests : IDisposable
             "activeTask", "currentFrontier", "blockerClass", "evidence",
             "nextSafestStep", "assignedModel", "promptRules", "aiContextPaths",
             "documentationPaths", "commandTemplates", "customLogPatterns",
-            "milestones", "frontierChecklist", "tags", "gitHubRepoUrl",
+            "milestones", "frontierChecklist", "blockers", "tags", "gitHubRepoUrl",
             "defaultBranch", "machineProfiles", "updatedAt", "updatedBy",
         };
         foreach (var property in doc.RootElement.EnumerateObject())

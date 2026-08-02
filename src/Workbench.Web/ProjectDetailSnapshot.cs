@@ -14,7 +14,28 @@ public sealed record ProjectDetailSnapshot(
     GitDetailBlock Git,
     DockerDetailBlock Docker,
     ProjectSessionBlock Session,
+    BlockerSummaryBlock Blockers,
     IReadOnlyList<WebActivityEntry> RecentActivity);
+
+/// <summary>
+/// Read-only blocker summary for the detail page: counts by lifecycle status
+/// plus the open (active/monitoring) records with their evidence and next
+/// safest step. Resolved/dismissed blockers are counts only.
+/// </summary>
+public sealed record BlockerSummaryBlock(
+    int Active,
+    int Monitoring,
+    int Resolved,
+    int Dismissed,
+    IReadOnlyList<WebBlockerEntry> Open);
+
+public sealed record WebBlockerEntry(
+    string Title,
+    string? Severity,
+    string Status,
+    string? Evidence,
+    string? NextSafestStep,
+    string? Owner);
 
 public sealed record GitDetailBlock(
     bool Available,

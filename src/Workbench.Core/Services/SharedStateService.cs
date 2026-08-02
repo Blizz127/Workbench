@@ -14,6 +14,9 @@ public sealed record SharedFieldChange(string Field, string LocalValue, string S
 /// <summary>A parsed shared state file and where it came from.</summary>
 public sealed record SharedStateFileInfo(string FilePath, SharedProjectState State);
 
+/// <summary>A shared state file that matched the pattern but was refused, with the reason.</summary>
+public sealed record SharedStateFileRejection(string FilePath, string Reason);
+
 /// <summary>
 /// What an import would do, computed before anything is applied. The UI shows
 /// this and the user explicitly confirms — there is no silent overwrite.
@@ -34,6 +37,12 @@ public sealed class SharedImportPreview
     /// <summary>Both sides changed — applying overwrites local edits; the user must choose.</summary>
     public bool HasConflict => SharedChangedSinceSync && LocalChangedSinceSync;
 
+    /// <summary>
+    /// Matched blockers changed on BOTH sides since the last sync. Applying
+    /// skips these (keeps local) unless the caller confirms the overwrite.
+    /// </summary>
+    public IReadOnlyList<string> BlockerConflicts { get; init; } = [];
+
     /// <summary>Machine profile matching this machine, if the shared file has one.</summary>
     public MachineProfile? MatchedProfile { get; init; }
 
@@ -41,7 +50,11 @@ public sealed class SharedImportPreview
     public required bool RepositoryAvailable { get; init; }
 }
 
-public sealed record SharedImportResult(Project Project, bool Created, bool RepositoryAvailable);
+public sealed record SharedImportResult(Project Project, bool Created, bool RepositoryAvailable)
+{
+    /// <summary>Blockers left untouched because both sides changed them since the last sync.</summary>
+    public IReadOnlyList<string> SkippedBlockerConflicts { get; init; } = [];
+}
 
 /// <summary>Summary of an Import All / Export All pass over the shared folder.</summary>
 public sealed class SharedSyncSummary
@@ -58,10 +71,21 @@ public interface ISharedStateService
     /// <summary>Existing file matched by stable id, or the default slug-named path for new exports.</summary>
     string GetSharedFilePath(string sharedFolder, Project project);
 
-    /// <summary>All parseable shared project files. Unreadable files are skipped.</summary>
+    /// <summary>All parseable shared project files. Unreadable and rejected files are skipped.</summary>
     IReadOnlyList<SharedStateFileInfo> LoadAll(string sharedFolder);
 
+    /// <summary>Files that matched the shared-state pattern but were refused (unsupported schema version), with reasons.</summary>
+    IReadOnlyList<SharedStateFileRejection> LoadRejections(string sharedFolder);
+
     SharedProjectState? LoadFile(string filePath);
+
+    /// <summary>
+    /// Like <see cref="LoadFile"/>, but explains WHY a file was refused:
+    /// <paramref name="error"/> is set for an unsupported schema version; a
+    /// false return with a null error means unreadable/corrupt. Newer data is
+    /// never silently discarded.
+    /// </summary>
+    bool TryLoadFile(string filePath, out SharedProjectState? state, out string? error);
 
     /// <summary>The registered project matching a shared state's stable id, if any.</summary>
     Project? MatchProject(IReadOnlyList<Project> projects, SharedProjectState state);
@@ -70,14 +94,20 @@ public interface ISharedStateService
     /// Writes the project's shared file, preserving other machines' profiles and
     /// upserting this machine's. Warns (and writes nothing) if the shared file
     /// changed since this machine last synced it, unless <paramref name="force"/>.
+    /// The write is atomic: on failure the previous file stays untouched.
     /// </summary>
     SharedExportResult Export(string sharedFolder, Project project, string machineName, bool force = false);
 
     /// <summary>Computes what applying a shared state to a project would change.</summary>
     SharedImportPreview PreviewImport(SharedProjectState state, Project project, string machineName);
 
-    /// <summary>Applies a shared state to an existing project (fields, milestones, frontier checklist, repo path).</summary>
-    SharedImportResult ApplyImport(SharedProjectState state, Project project, string machineName);
+    /// <summary>
+    /// Applies a shared state to an existing project (fields, milestones,
+    /// frontier checklist, blockers, repo path). Blockers in conflict (changed
+    /// on both sides since the last sync) are skipped and reported unless
+    /// <paramref name="overwriteBlockerConflicts"/> is set.
+    /// </summary>
+    SharedImportResult ApplyImport(SharedProjectState state, Project project, string machineName, bool overwriteBlockerConflicts = false);
 
     /// <summary>Creates a new local project from a shared state (used when no stable-id match exists).</summary>
     SharedImportResult CreateFromShared(SharedProjectState state, string machineName);
@@ -110,10 +140,17 @@ public interface ISharedStateService
 public sealed class SharedStateService(
     IProjectRepository projects,
     IMilestoneRepository milestones,
-    IFrontierRepository frontiers) : ISharedStateService
+    IFrontierRepository frontiers,
+    IBlockerRepository blockers,
+    Action<string, string>? atomicWriter = null) : ISharedStateService
 {
     public const string ProjectsSubfolder = "projects";
     public const string FileSuffix = ".workbench.json";
+
+    /// <summary>Only files matching this pattern are ever cleaned up — our own abandoned temp writes.</summary>
+    private const string TempFilePattern = "*" + FileSuffix + ".*.tmp";
+
+    private readonly Action<string, string> _atomicWriter = atomicWriter ?? WriteAllTextAtomic;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -145,27 +182,68 @@ public sealed class SharedStateService(
         var result = new List<SharedStateFileInfo>();
         foreach (var path in Directory.EnumerateFiles(folder, "*" + FileSuffix).OrderBy(p => p, StringComparer.Ordinal))
         {
-            if (LoadFile(path) is { } state)
+            if (TryLoadFile(path, out var state, out _) && state is not null)
                 result.Add(new SharedStateFileInfo(path, state));
         }
 
         return result;
     }
 
-    public SharedProjectState? LoadFile(string filePath)
+    public IReadOnlyList<SharedStateFileRejection> LoadRejections(string sharedFolder)
     {
+        var folder = GetProjectsFolder(sharedFolder);
+        if (!Directory.Exists(folder))
+            return [];
+
+        var result = new List<SharedStateFileRejection>();
+        foreach (var path in Directory.EnumerateFiles(folder, "*" + FileSuffix).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            if (!TryLoadFile(path, out _, out var error) && error is not null)
+                result.Add(new SharedStateFileRejection(path, error));
+        }
+
+        return result;
+    }
+
+    public SharedProjectState? LoadFile(string filePath) =>
+        TryLoadFile(filePath, out var state, out _) ? state : null;
+
+    public bool TryLoadFile(string filePath, out SharedProjectState? state, out string? error)
+    {
+        state = null;
+        error = null;
         if (!File.Exists(filePath))
-            return null;
+            return false;
 
         try
         {
-            var state = JsonSerializer.Deserialize<SharedProjectState>(File.ReadAllText(filePath), JsonOptions);
-            return state is { Id.Length: > 0 } ? state : null;
+            var text = File.ReadAllText(filePath);
+            var version = ReadSchemaVersion(text);
+            if (version > SharedProjectState.SupportedSchemaVersion)
+            {
+                error = $"unsupported schema version {version} " +
+                        $"(this Workbench supports up to {SharedProjectState.SupportedSchemaVersion})";
+                return false;
+            }
+
+            state = JsonSerializer.Deserialize<SharedProjectState>(text, JsonOptions);
+            return state is { Id.Length: > 0 };
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
-            return null;
+            return false;
         }
+    }
+
+    /// <summary>Raw schemaVersion from the file; files without one predate the field and count as version 1.</summary>
+    private static int ReadSchemaVersion(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.ValueKind == JsonValueKind.Object
+               && doc.RootElement.TryGetProperty("schemaVersion", out var element)
+               && element.TryGetInt32(out var version)
+            ? version
+            : 1;
     }
 
     public Project? MatchProject(IReadOnlyList<Project> allProjects, SharedProjectState state) =>
@@ -196,8 +274,22 @@ public sealed class SharedStateService(
 
         var state = BuildState(project, machineName, existing);
 
-        Directory.CreateDirectory(GetProjectsFolder(sharedFolder));
-        File.WriteAllText(filePath, JsonSerializer.Serialize(state, JsonOptions), Encoding.UTF8);
+        // Serialize first: a serialization failure must leave the previous
+        // valid file untouched. The write itself is atomic — temp file in the
+        // same directory, then an overwrite-move — so a crash mid-write can
+        // never leave a truncated shared file for other machines to import.
+        string json;
+        try
+        {
+            json = JsonSerializer.Serialize(state, JsonOptions);
+            Directory.CreateDirectory(GetProjectsFolder(sharedFolder));
+            _atomicWriter(filePath, json);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return new SharedExportResult(false, filePath,
+                $"Export failed — the previous shared file (if any) is untouched: {ex.Message}");
+        }
 
         // Bookkeeping only — exporting is not a user edit, so updated_at stays put.
         project.SharedId = state.Id;
@@ -206,6 +298,43 @@ public sealed class SharedStateService(
         projects.UpdateSharedSync(project);
 
         return new SharedExportResult(true, filePath, null);
+    }
+
+    /// <summary>
+    /// Atomically replaces <paramref name="targetPath"/> with
+    /// <paramref name="content"/>: write a temp file next to the target (same
+    /// filesystem, so the move is atomic), flush + close, then overwrite-move.
+    /// On any failure the temp file is cleaned up and the target is untouched.
+    /// </summary>
+    public static void WriteAllTextAtomic(string targetPath, string content)
+    {
+        var tempPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+            {
+                writer.Write(content);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(tempPath, targetPath, overwrite: true);
+        }
+        catch
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Best effort — the original failure is the one that matters.
+            }
+
+            throw;
+        }
     }
 
     public SharedImportPreview PreviewImport(SharedProjectState state, Project project, string machineName)
@@ -240,23 +369,109 @@ public sealed class SharedStateService(
         var localFrontiers = project.Id > 0 ? frontiers.GetForProject(project.Id) : [];
         AddChange(changes, "Frontier checklist", DescribeFrontiers(localFrontiers), DescribeFrontiers(state.FrontierChecklist));
 
+        var lastSync = Max(project.SharedLastImportedAt, project.SharedLastExportedAt);
+        var localBlockers = project.Id > 0 ? blockers.GetForProject(project.Id) : [];
+        var blockerConflicts = AddBlockerChanges(changes, localBlockers, state, lastSync);
+
         var profile = FindProfile(state, machineName);
         var effectivePath = profile?.RepositoryPath is { Length: > 0 } p ? p : project.RepositoryPath;
         AddChange(changes, "Repository path (this machine)", project.RepositoryPath, effectivePath);
 
-        var lastSync = Max(project.SharedLastImportedAt, project.SharedLastExportedAt);
         return new SharedImportPreview
         {
             State = state,
             Changes = changes,
             SharedChangedSinceSync = project.SharedLastSyncedStamp is not { } stamp || state.UpdatedAt != stamp,
             LocalChangedSinceSync = lastSync is { } sync && project.UpdatedAt > sync,
+            BlockerConflicts = blockerConflicts,
             MatchedProfile = profile,
             RepositoryAvailable = effectivePath is { Length: > 0 } path && Directory.Exists(path),
         };
     }
 
-    public SharedImportResult ApplyImport(SharedProjectState state, Project project, string machineName)
+    /// <summary>
+    /// Blocker-level preview entries, matched by stable id: additions
+    /// (shared-only), removals (local-only — shown BEFORE any deletion can
+    /// apply), and field-level diffs on matched blockers. Returns the matched
+    /// blockers changed on both sides since the last sync (conflicts).
+    /// </summary>
+    private static List<string> AddBlockerChanges(
+        List<SharedFieldChange> changes,
+        IReadOnlyList<Blocker> localBlockers,
+        SharedProjectState state,
+        DateTimeOffset? lastSync)
+    {
+        var conflicts = new List<string>();
+        var localByStableId = localBlockers
+            .Where(b => b.StableId.Length > 0)
+            .ToDictionary(b => b.StableId, StringComparer.Ordinal);
+        var sharedByStableId = state.Blockers
+            .Where(b => b.StableId.Length > 0)
+            .GroupBy(b => b.StableId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        foreach (var shared in state.Blockers.Where(b => b.StableId.Length > 0))
+        {
+            if (localByStableId.ContainsKey(shared.StableId))
+                continue;
+            var title = shared.Title ?? shared.Description;
+            AddChange(changes, $"Blocker: {title} — (new blocker)", string.Empty, Describe(shared));
+        }
+
+        foreach (var local in localBlockers.Where(b => b.StableId.Length > 0))
+        {
+            if (sharedByStableId.ContainsKey(local.StableId))
+                continue;
+            AddChange(changes, $"Blocker: {local.TitleOrDescription} — (removed)", Describe(local), string.Empty);
+        }
+
+        foreach (var shared in state.Blockers.Where(b => b.StableId.Length > 0))
+        {
+            if (!localByStableId.TryGetValue(shared.StableId, out var local))
+                continue;
+
+            var title = shared.Title ?? local.TitleOrDescription;
+            var prefix = $"Blocker: {title} — ";
+            var before = changes.Count;
+            AddChange(changes, prefix + "Title", local.Title, shared.Title);
+            AddChange(changes, prefix + "Description", local.Description, shared.Description);
+            AddChange(changes, prefix + "Class", local.BlockerClass, shared.BlockerClass);
+            AddChange(changes, prefix + "Severity", local.Severity, shared.Severity);
+            AddChange(changes, prefix + "Status", local.Status.ToString(), shared.Status);
+            AddChange(changes, prefix + "Evidence", local.Evidence, shared.Evidence);
+            AddChange(changes, prefix + "Next safest step", local.NextSafestStep, shared.NextSafestStep);
+            AddChange(changes, prefix + "Owner", local.Owner, shared.Owner);
+            AddChange(changes, prefix + "Tags",
+                Join(local.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)),
+                Join(shared.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)));
+            AddChange(changes, prefix + "Source reference", local.SourceReference, shared.SourceReference);
+            AddChange(changes, prefix + "Resolved at",
+                local.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"), shared.ResolvedAt?.ToString("yyyy-MM-dd HH:mm"));
+
+            // Per-blocker conflict: BOTH sides touched it since this machine's
+            // last sync. Without a prior sync there is no baseline — and a
+            // stable-id match without a sync cannot happen in practice.
+            if (changes.Count > before
+                && lastSync is { } sync
+                && local.UpdatedAt > sync
+                && shared.UpdatedAt > sync)
+            {
+                conflicts.Add($"Blocker: {title} — changed locally AND in the shared file since the last sync");
+            }
+        }
+
+        return conflicts;
+    }
+
+    private static string Describe(Blocker b) =>
+        $"{b.TitleOrDescription} [{b.Status}]" +
+        (b.Severity is { Length: > 0 } severity ? $" · {severity}" : string.Empty);
+
+    private static string Describe(SharedBlocker b) =>
+        $"{b.Title ?? b.Description} [{b.Status}]" +
+        (b.Severity is { Length: > 0 } severity ? $" · {severity}" : string.Empty);
+
+    public SharedImportResult ApplyImport(SharedProjectState state, Project project, string machineName, bool overwriteBlockerConflicts = false)
     {
         var available = ApplyFields(state, project, machineName);
         projects.Update(project);
@@ -264,8 +479,11 @@ public sealed class SharedStateService(
         ReplaceMilestones(project.Id, state.Milestones);
         ReplaceFrontiers(project.Id, state.FrontierChecklist);
 
+        var lastSync = Max(project.SharedLastImportedAt, project.SharedLastExportedAt);
+        var skipped = UpsertBlockers(project.Id, state, lastSync, overwriteBlockerConflicts);
+
         MarkSynced(project, state, imported: true);
-        return new SharedImportResult(project, Created: false, available);
+        return new SharedImportResult(project, Created: false, available) { SkippedBlockerConflicts = skipped };
     }
 
     public SharedImportResult CreateFromShared(SharedProjectState state, string machineName)
@@ -276,9 +494,113 @@ public sealed class SharedStateService(
 
         ReplaceMilestones(project.Id, state.Milestones);
         ReplaceFrontiers(project.Id, state.FrontierChecklist);
+        UpsertBlockers(project.Id, state, lastSync: null, overwriteConflicts: false);
 
         MarkSynced(project, state, imported: true);
         return new SharedImportResult(project, Created: true, available);
+    }
+
+    /// <summary>
+    /// Upserts blockers by stable id: inserts shared-only ones, updates matched
+    /// ones whose fields differ, and deletes local ones the shared file no
+    /// longer carries (they were shown in the import preview first). Only runs
+    /// for schema ≥ 2 states — a schema-1 file has no blocker concept, so its
+    /// empty list must NOT delete local blockers. Conflicting matched blockers
+    /// (changed on both sides since the last sync) are skipped and returned
+    /// unless <paramref name="overwriteConflicts"/> is set.
+    /// </summary>
+    private List<string> UpsertBlockers(
+        long projectId, SharedProjectState state, DateTimeOffset? lastSync, bool overwriteConflicts)
+    {
+        var skipped = new List<string>();
+        if (state.SchemaVersion < 2)
+            return skipped;
+
+        var local = blockers.GetForProject(projectId);
+        var localByStableId = local
+            .Where(b => b.StableId.Length > 0)
+            .ToDictionary(b => b.StableId, StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var shared in state.Blockers)
+        {
+            if (shared.StableId is not { Length: > 0 } stableId)
+                continue;
+            seen.Add(stableId);
+
+            if (!localByStableId.TryGetValue(stableId, out var existing))
+            {
+                blockers.Add(MapFromShared(shared, projectId));
+                continue;
+            }
+
+            if (!overwriteConflicts
+                && lastSync is { } sync
+                && existing.UpdatedAt > sync
+                && shared.UpdatedAt > sync
+                && !FieldsEqual(existing, shared))
+            {
+                skipped.Add($"Blocker: {shared.Title ?? existing.TitleOrDescription} — kept local (changed on both sides)");
+                continue;
+            }
+
+            if (!FieldsEqual(existing, shared))
+            {
+                ApplyShared(shared, existing);
+                blockers.Update(existing);
+            }
+        }
+
+        foreach (var b in local)
+        {
+            if (b.StableId.Length > 0 && !seen.Contains(b.StableId))
+                blockers.Delete(b.Id);
+        }
+
+        return skipped;
+    }
+
+    /// <summary>The shared content fields — the same set the import preview diffs (timestamps excepted).</summary>
+    private static bool FieldsEqual(Blocker local, SharedBlocker shared) =>
+        string.Equals(local.Title ?? string.Empty, shared.Title ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(local.Description, shared.Description, StringComparison.Ordinal)
+        && string.Equals(local.BlockerClass ?? string.Empty, shared.BlockerClass ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(local.Severity ?? string.Empty, shared.Severity ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(local.Status.ToString(), shared.Status, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(local.Evidence ?? string.Empty, shared.Evidence ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(local.NextSafestStep ?? string.Empty, shared.NextSafestStep ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(local.Owner ?? string.Empty, shared.Owner ?? string.Empty, StringComparison.Ordinal)
+        && local.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+            .SequenceEqual(shared.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))
+        && string.Equals(local.SourceReference ?? string.Empty, shared.SourceReference ?? string.Empty, StringComparison.Ordinal)
+        && Nullable.Equals(local.ResolvedAt, shared.ResolvedAt);
+
+    private static void ApplyShared(SharedBlocker shared, Blocker local)
+    {
+        local.Title = shared.Title;
+        local.Description = shared.Description;
+        local.BlockerClass = shared.BlockerClass;
+        local.Severity = shared.Severity;
+        local.Status = Enum.TryParse<BlockerStatus>(shared.Status, ignoreCase: true, out var status)
+            ? status
+            : BlockerStatus.Active;
+        local.Evidence = shared.Evidence;
+        local.NextSafestStep = shared.NextSafestStep;
+        local.Owner = shared.Owner;
+        local.Tags = [.. shared.Tags];
+        local.SourceReference = shared.SourceReference;
+        local.ResolvedAt = shared.ResolvedAt;
+        // Resolution stays local-only: the shared file deliberately does not carry it.
+    }
+
+    private static Blocker MapFromShared(SharedBlocker shared, long projectId)
+    {
+        var blocker = new Blocker { ProjectId = projectId };
+        ApplyShared(shared, blocker);
+        blocker.StableId = shared.StableId;
+        blocker.CreatedAt = shared.CreatedAt;
+        blocker.UpdatedAt = shared.UpdatedAt;
+        return blocker;
     }
 
     /// <summary>
@@ -299,6 +621,9 @@ public sealed class SharedStateService(
     {
         var summary = new SharedSyncSummary();
         var all = projects.GetAll();
+
+        foreach (var rejection in LoadRejections(sharedFolder))
+            summary.Warnings.Add($"{Path.GetFileName(rejection.FilePath)}: {rejection.Reason} — not imported; its data is untouched.");
 
         foreach (var file in LoadAll(sharedFolder))
         {
@@ -359,14 +684,30 @@ public sealed class SharedStateService(
         Directory.CreateDirectory(projectsFolder);
         status.ProjectsFolderExists = true;
 
+        // Remove only OUR OWN abandoned temp files from interrupted atomic
+        // exports — never anything else in the user's Dropbox folder.
+        foreach (var temp in Directory.EnumerateFiles(projectsFolder, TempFilePattern))
+        {
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                status.Warnings.Add($"{Path.GetFileName(temp)}: could not remove an abandoned temp file — delete it by hand.");
+            }
+        }
+
         foreach (var path in Directory.EnumerateFiles(projectsFolder, "*" + FileSuffix, SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
         {
             status.ProjectFileCount++;
             var name = Path.GetFileName(path);
             if (name.Contains("conflicted copy", StringComparison.OrdinalIgnoreCase))
                 status.Warnings.Add($"{name}: Dropbox conflicted copy — resolve it against the original file.");
-            else if (LoadFile(path) is null)
-                status.Warnings.Add($"{name}: unreadable or corrupt — the file could not be loaded.");
+            else if (!TryLoadFile(path, out _, out var loadError))
+                status.Warnings.Add(loadError is not null
+                    ? $"{name}: {loadError} — not loaded; its data is untouched."
+                    : $"{name}: unreadable or corrupt — the file could not be loaded.");
         }
 
         return status;
@@ -392,8 +733,20 @@ public sealed class SharedStateService(
     public SharedProjectState BuildState(Project project, string machineName, SharedProjectState? existing)
     {
         var projectFrontiers = project.Id > 0 ? frontiers.GetForProject(project.Id) : [];
+        var projectBlockers = project.Id > 0 ? blockers.GetForProject(project.Id) : [];
+
+        // The legacy scalar blocker fields stay for older readers: they mirror
+        // the top open blocker (most recently updated Active, else Monitoring),
+        // falling back to the project's own fields when nothing is open.
+        var topBlocker = projectBlockers
+            .Where(b => b.Status is BlockerStatus.Active or BlockerStatus.Monitoring)
+            .OrderByDescending(b => b.Status == BlockerStatus.Active)
+            .ThenByDescending(b => b.UpdatedAt)
+            .FirstOrDefault();
+
         var state = new SharedProjectState
         {
+            SchemaVersion = SharedProjectState.SupportedSchemaVersion,
             Id = project.SharedId is { Length: > 0 } id ? id : Guid.NewGuid().ToString("N"),
             Name = project.Name,
             Description = project.Description,
@@ -401,9 +754,9 @@ public sealed class SharedStateService(
             Status = project.Status.ToString(),
             ActiveTask = project.ActiveTask,
             CurrentFrontier = projectFrontiers.FirstOrDefault(f => f.Status == FrontierStatus.Current)?.Title,
-            BlockerClass = project.BlockerClass,
-            Evidence = project.Evidence,
-            NextSafestStep = project.NextSafestStep,
+            BlockerClass = topBlocker?.BlockerClass ?? project.BlockerClass,
+            Evidence = topBlocker?.Evidence ?? project.Evidence,
+            NextSafestStep = topBlocker?.NextSafestStep ?? project.NextSafestStep,
             AssignedModel = project.PreferredAiProvider,
             PromptRules = [.. project.PromptRules],
             AiContextPaths = [.. project.AiContextPaths],
@@ -431,6 +784,24 @@ public sealed class SharedStateService(
                 Status = f.Status.ToString(),
                 Notes = f.Notes,
                 CompletedAt = f.CompletedAt,
+            }).ToList(),
+            // All statuses are exported — resolved/dismissed blockers are history, not clutter.
+            Blockers = projectBlockers.Select(b => new SharedBlocker
+            {
+                StableId = b.StableId,
+                Title = b.Title,
+                Description = b.Description,
+                BlockerClass = b.BlockerClass,
+                Severity = b.Severity,
+                Status = b.Status.ToString(),
+                Evidence = b.Evidence,
+                NextSafestStep = b.NextSafestStep,
+                Owner = b.Owner,
+                CreatedAt = b.CreatedAt,
+                UpdatedAt = b.UpdatedAt,
+                ResolvedAt = b.ResolvedAt,
+                Tags = [.. b.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)],
+                SourceReference = b.SourceReference,
             }).ToList(),
             // Tags are a set (the local store keeps them alphabetical) — export
             // them canonically sorted so files diff cleanly across machines.

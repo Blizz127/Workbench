@@ -40,6 +40,7 @@ public sealed class CodeBrowsingHostTests
                 services.AddSingleton<IProjectRepository>(
                     new WebStubs.Projects(WebFixtures.CodeProject()));
                 services.AddSingleton<ITimelineRepository>(new WebStubs.Timeline());
+                services.AddSingleton<IBlockerRepository>(new WebStubs.Blockers());
                 services.AddSingleton<ISystemHealthService>(new WebStubs.SystemHealth());
                 services.AddSingleton<IGitService>(new WebStubs.Git(
                     _ => WebFixtures.BansheeGit() with { RecentCommits = [WebFixtures.CodeCommit()] },

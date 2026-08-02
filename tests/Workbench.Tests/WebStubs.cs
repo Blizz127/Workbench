@@ -42,6 +42,20 @@ internal static class WebStubs
         public long Add(TimelineEntry entry) => throw new NotSupportedException();
     }
 
+    /// <summary>In-memory blockers for the read-only detail summary; mutations are not supported.</summary>
+    public sealed class Blockers(params Blocker[] blockers) : IBlockerRepository
+    {
+        public IReadOnlyList<Blocker> GetForProject(long projectId) =>
+            blockers.Where(b => b.ProjectId == projectId).ToList();
+
+        public IReadOnlyList<Blocker> GetOpen(long projectId) =>
+            blockers.Where(b => b.ProjectId == projectId && !b.IsResolved).ToList();
+
+        public long Add(Blocker blocker) => throw new NotSupportedException();
+        public void Update(Blocker blocker) => throw new NotSupportedException();
+        public void Delete(long id) => throw new NotSupportedException();
+    }
+
     public sealed class Git(
         Func<string?, RepositorySnapshot> snapshotFor,
         Func<string?, string?>? workingTreeDiffFor = null,

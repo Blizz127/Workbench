@@ -39,6 +39,9 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
     [ObservableProperty] private string _importConflictMessage = string.Empty;
     [ObservableProperty] private string _importAvailabilityNote = string.Empty;
 
+    /// <summary>The Shared Blockers section on this page (same component as the Progress page).</summary>
+    public ProjectBlockersViewModel Blockers { get; }
+
     public ObservableCollection<SharedFieldChange> ImportChanges { get; } = [];
 
     /// <summary>Folder probe warnings (missing/unwritable folder, conflicted copies) for the Shared State section.</summary>
@@ -81,6 +84,7 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         _documentationPaths = string.Join(Environment.NewLine, project.DocumentationPaths);
         _aiContextPaths = string.Join(Environment.NewLine, project.AiContextPaths);
         _tags = string.Join(", ", project.Tags);
+        Blockers = new ProjectBlockersViewModel(services, project);
         RefreshSharedFolderWarnings();
     }
 
@@ -199,6 +203,7 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
             ConfirmSharedOverwrite = false;
             SharedStatusMessage = $"Exported to {result.FilePath}";
             NotifySharedInfoChanged();
+            Blockers.Refresh();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -229,10 +234,16 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         foreach (var change in preview.Changes)
             ImportChanges.Add(change);
 
-        ImportConflictMessage = preview.HasConflict
-            ? "⚠ Conflict: this project changed locally AND the shared file changed since the last sync. " +
-              "Applying keeps the shared version and discards local edits; Cancel keeps local."
-            : string.Empty;
+        var conflictLines = new List<string>();
+        if (preview.HasConflict)
+            conflictLines.Add(
+                "⚠ Conflict: this project changed locally AND the shared file changed since the last sync. " +
+                "Applying keeps the shared version and discards local edits; Cancel keeps local.");
+        if (preview.BlockerConflicts.Count > 0)
+            conflictLines.Add(
+                "⚠ Blocker conflicts (changed on both sides — kept local unless \"Overwrite shared file\" is ticked): " +
+                string.Join("; ", preview.BlockerConflicts));
+        ImportConflictMessage = string.Join(Environment.NewLine, conflictLines);
 
         ImportAvailabilityNote = preview.RepositoryAvailable
             ? string.Empty
@@ -249,7 +260,9 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         if (_pendingImport is not { } state)
             return;
 
-        _services.SharedState.ApplyImport(state, _project, _services.AppSettings.MachineName);
+        var result = _services.SharedState.ApplyImport(
+            state, _project, _services.AppSettings.MachineName,
+            overwriteBlockerConflicts: ConfirmSharedOverwrite);
         _services.Timeline.Add(new TimelineEntry
         {
             ProjectId = _project.Id,
@@ -260,8 +273,11 @@ public sealed partial class ProjectSettingsViewModel : ViewModelBase
         CancelSharedImport();
         RefreshFieldsFromProject();
         _headerChanged();
-        SharedStatusMessage = "Shared state applied.";
+        SharedStatusMessage = result.SkippedBlockerConflicts.Count > 0
+            ? $"Shared state applied; kept local for conflicting blockers: {string.Join("; ", result.SkippedBlockerConflicts)}"
+            : "Shared state applied.";
         NotifySharedInfoChanged();
+        Blockers.Refresh();
     }
 
     [RelayCommand]

@@ -242,7 +242,86 @@ public sealed class WorkbenchDatabase
         // Append-only; deliberately NO foreign key to projects — audit records
         // must survive project deletion.
         new Migration(9, AddMobileActionAudit),
+
+        // Rich blockers (shared-state sync): stable cross-machine ids, status
+        // lifecycle, severity/owner/tags, and per-blocker evidence/next step.
+        // Non-destructive column adds with backfills; is_resolved stays and is
+        // kept in sync with status by the repository.
+        new Migration(10, AddRichBlockerColumns),
     ];
+
+    private static void AddRichBlockerColumns(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        (string Name, string Definition)[] columns =
+        [
+            ("stable_id", "TEXT"),
+            ("title", "TEXT"),
+            ("blocker_class", "TEXT"),
+            ("severity", "TEXT"),
+            ("status", "TEXT NOT NULL DEFAULT 'Active'"),
+            ("evidence", "TEXT"),
+            ("next_safest_step", "TEXT"),
+            ("owner", "TEXT"),
+            ("updated_at", "TEXT"),
+            ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+            ("source_reference", "TEXT"),
+        ];
+
+        var existing = GetColumnNames(connection, transaction, "blockers");
+        foreach (var (name, definition) in columns)
+        {
+            if (existing.Contains(name))
+                continue;
+
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = $"ALTER TABLE blockers ADD COLUMN {name} {definition};";
+            command.ExecuteNonQuery();
+        }
+
+        // Backfills, all idempotent: status derives from the legacy flag,
+        // updated_at starts at created_at, every row gets its own stable id.
+        using (var backfill = connection.CreateCommand())
+        {
+            backfill.Transaction = transaction;
+            backfill.CommandText =
+                """
+                UPDATE blockers SET status = 'Resolved' WHERE is_resolved != 0 AND status = 'Active';
+                UPDATE blockers SET updated_at = created_at WHERE updated_at IS NULL;
+                """;
+            backfill.ExecuteNonQuery();
+        }
+
+        // SQLite cannot add a UNIQUE column retroactively, so stable ids are
+        // backfilled one GUID per row and uniqueness is enforced by index.
+        var missingIds = new List<long>();
+        using (var select = connection.CreateCommand())
+        {
+            select.Transaction = transaction;
+            select.CommandText = "SELECT id FROM blockers WHERE stable_id IS NULL OR stable_id = '';";
+            using var reader = select.ExecuteReader();
+            while (reader.Read())
+                missingIds.Add(reader.GetInt64(0));
+        }
+
+        foreach (var id in missingIds)
+        {
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = "UPDATE blockers SET stable_id = $sid WHERE id = $id;";
+            update.Parameters.AddWithValue("$sid", Guid.NewGuid().ToString("N"));
+            update.Parameters.AddWithValue("$id", id);
+            update.ExecuteNonQuery();
+        }
+
+        using (var index = connection.CreateCommand())
+        {
+            index.Transaction = transaction;
+            index.CommandText =
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_blockers_stable_id ON blockers(stable_id) WHERE stable_id IS NOT NULL;";
+            index.ExecuteNonQuery();
+        }
+    }
 
     private static void AddMobileActionAudit(SqliteConnection connection, SqliteTransaction transaction)
     {

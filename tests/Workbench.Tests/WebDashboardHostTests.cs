@@ -37,6 +37,26 @@ public sealed class WebDashboardHostTests
                     new WebStubs.Projects(WebFixtures.Banshee(), WebFixtures.Xenogears()));
                 services.AddSingleton<ITimelineRepository>(
                     new WebStubs.Timeline(WebFixtures.SecretJournalEntry()));
+                services.AddSingleton<IBlockerRepository>(new WebStubs.Blockers(
+                    new Blocker
+                    {
+                        ProjectId = 7,
+                        StableId = "web-stub-blocker-1",
+                        Title = "Map server NAT drops zone traffic",
+                        Severity = "critical",
+                        Status = BlockerStatus.Active,
+                        Evidence = "FFXI-3001 after character select",
+                        NextSafestStep = "Packet capture on host network",
+                        Owner = "blizz",
+                    },
+                    new Blocker
+                    {
+                        ProjectId = 7,
+                        StableId = "web-stub-blocker-2",
+                        Title = "Old login queue stall",
+                        Status = BlockerStatus.Resolved,
+                        IsResolved = true,
+                    }));
                 services.AddSingleton<ISystemHealthService>(new WebStubs.SystemHealth());
                 services.AddSingleton<IGitService>(new WebStubs.Git(path =>
                     path == WebFixtures.BansheeRepoDir
@@ -172,6 +192,33 @@ public sealed class WebDashboardHostTests
         Assert.Contains(">healthy<", html);   // database healthcheck
         Assert.Contains("detached", html);     // tmux session state
         Assert.DoesNotContain("sup3rsecret", html);
+    }
+
+    [Fact]
+    public async Task Detail_page_renders_the_read_only_blocker_summary()
+    {
+        using var factory = new DashboardFactory(withToken: true);
+        using var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/projects/7");
+        request.Headers.Add("X-Workbench-Token", Token);
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains(">Blockers</h2>", html);
+        Assert.Contains("1 active", html);
+        Assert.Contains("1 resolved", html);
+        Assert.Contains("Map server NAT drops zone traffic", html);
+        Assert.Contains(">critical<", html);
+        Assert.Contains("FFXI-3001 after character select", html);
+        Assert.Contains("Packet capture on host network", html);
+        Assert.DoesNotContain("Old login queue stall", html); // resolved: count only
+
+        // Read-only: there is no POST surface for blockers.
+        using var post = new HttpRequestMessage(HttpMethod.Post, "/projects/7");
+        post.Headers.Add("X-Workbench-Token", Token);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.SendAsync(post)).StatusCode);
     }
 
     [Fact]

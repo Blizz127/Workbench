@@ -11,7 +11,8 @@ public sealed class DashboardSnapshotServiceTests
         TimelineEntry[]? timeline = null,
         WebStubs.Docker? docker = null,
         WebStubs.Git? git = null,
-        WebStubs.Tmux? tmux = null) =>
+        WebStubs.Tmux? tmux = null,
+        WebStubs.Blockers? blockers = null) =>
         new(
             new WebStubs.SystemHealth(),
             new WebStubs.Projects(projects),
@@ -20,7 +21,8 @@ public sealed class DashboardSnapshotServiceTests
                 p => p.ComposeFile is null ? null : "/repo/banshee/docker-compose.docker.yml",
                 _ => WebFixtures.BansheeCompose()),
             tmux ?? new WebStubs.Tmux(WebFixtures.TmuxRunning()),
-            new WebStubs.Timeline(timeline ?? []));
+            new WebStubs.Timeline(timeline ?? []),
+            blockers ?? new WebStubs.Blockers());
 
     [Fact]
     public async Task Dashboard_composes_health_tmux_and_compact_project_cards()

@@ -283,7 +283,10 @@ self-contained HTML pages (phone-first, dark, branded "Development Lab").
   project cards that are themselves tap targets ("View project"). The detail
   page has Overview / Git / Docker / Sessions / Recent Activity sections with
   explicit service rows (state AND health as text badges; a one-shot service
-  that exited 0 reads "completed", never failed). Projects whose repository
+  that exited 0 reads "completed", never failed), plus a static, read-only
+  **Blockers** summary (counts by lifecycle status and the open records with
+  evidence/next safest step, redacted and HTML-escaped, outside every
+  JS-polled container; there are no blocker mutation endpoints). Projects whose repository
   path no longer exists are marked "repo missing", never silently dropped or
   deleted (cleanup is a deliberate action in the desktop app).
 - **Live refresh**: each page's embedded script polls its JSON endpoint every
@@ -412,24 +415,46 @@ Cross-machine project state without syncing SQLite. The user selects a
 Workbench never runs sync commands. Each project exports to
 `projects/<slug>.workbench.json`: identity (a stable `id` that dedupes repeated
 imports), configuration, progress shape (objective, active task, frontier
-checklist, milestones, blocker class, evidence, next safest step), AI fields
-(assigned model, prompt rules, context paths), and **machine profiles** — the
-per-PC repository path plus availability. Local history (command runs, logs,
-timeline) is never exported; the file's top-level shape is a whitelist enforced
-by test.
+checklist, milestones), **complete blocker records** (schema version 2: stable
+id, title, class, severity, lifecycle status, evidence, next safest step,
+owner, tags, source reference, timestamps — all statuses, resolved/dismissed
+included; matched across machines by stable id, never by title), the legacy
+scalar blocker fields (class/evidence/next safest step, derived from the top
+open blocker so schema-1 readers stay compatible), AI fields (assigned model,
+prompt rules, context paths), and **machine profiles** — the per-PC repository
+path plus availability. The local resolution text, command history, logs,
+timeline, build/test records, audit records, tokens and session data never
+leave the local SQLite database; the file's top-level shape is a whitelist
+enforced by test.
 
 Sync is explicit and manual — no background watchers, no cloud APIs:
 
-- **Import previews first.** `PreviewImport` returns field-level diffs plus
-  conflict flags; nothing applies until the user confirms. A missing machine
-  profile imports the project as "not available on this machine", never an
-  error.
+- **Import previews first.** `PreviewImport` returns field-level diffs —
+  including blocker additions, removals (shown BEFORE any local deletion can
+  apply), and per-blocker field diffs matched by stable id — plus conflict
+  flags; nothing applies until the user confirms. A missing machine profile
+  imports the project as "not available on this machine", never an error.
 - **Export warns** when the shared file is newer than this machine's last-sync
   stamp (someone else exported); overwriting requires explicit confirmation.
+  The write itself is **atomic**: serialize to a temp file in the same
+  directory, then overwrite-move, so a failure leaves the previous valid file
+  untouched; abandoned `*.workbench.json.*.tmp` files (and only those) are
+  cleaned up by the folder check.
+- **Schema versions** guard against silent data loss: files without a
+  `schemaVersion` (or at 1–2) load fine; anything newer is rejected with an
+  explicit "unsupported schema version" message in the folder check and Import
+  All — newer data is never silently discarded.
 - **Conflict detection** compares the shared file's `updatedAt` against the
   locally stored sync stamp, and local `updated_at` against the last sync —
   sync bookkeeping is written via `UpdateSharedSync`, which does not bump
-  `updated_at`, so syncing never masquerades as a local edit.
+  `updated_at`, so syncing never masquerades as a local edit. Per blocker, a
+  record changed on BOTH sides since the last sync is surfaced as a conflict
+  and skipped (kept local) by `ApplyImport` unless the user explicitly confirms
+  the overwrite.
+- **Blocker upserts are idempotent** — repeated imports of the same file
+  produce zero changes; local blockers absent from a schema ≥ 2 file are
+  deleted only after appearing in the preview, and schema-1 files never touch
+  local blockers at all.
 
 `AppSettingsService` persists the folder path and machine name in
 `settings.json` beside the database. The dashboard surfaces availability and

@@ -80,6 +80,17 @@ and one Next per project; advancing completes the previous Current.
 `id, project_id, description, is_resolved (0/1), resolution, created_at,
 resolved_at` — indexed on `(project_id, is_resolved)`.
 
+Migration 10 extends the table for shared-state blocker sync (all guarded,
+non-destructive column adds): `stable_id` (backfilled with one GUID per row,
+uniqueness enforced by a partial unique index — SQLite cannot add a UNIQUE
+column retroactively), `title, blocker_class, severity, status
+(Active|Monitoring|Resolved|Dismissed, NOT NULL DEFAULT 'Active'), evidence,
+next_safest_step, owner, updated_at` (backfilled from `created_at`), `tags`
+(JSON array), `source_reference`. Existing rows derive `status` from
+`is_resolved`; the repository keeps `is_resolved` in sync with `status` on
+every write (Resolved/Dismissed → 1) so older queries stay correct.
+`resolution` stays local-only — it is never exported to shared state.
+
 ### timeline_entries
 
 `id, project_id, timestamp, category, message, detail` — indexed on

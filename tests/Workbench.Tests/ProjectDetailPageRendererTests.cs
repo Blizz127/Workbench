@@ -24,6 +24,7 @@ public sealed class ProjectDetailPageRendererTests
             new WebComposeService("map", "running", null),
         ]),
         Session: new ProjectSessionBlock("banshee", true, true, true, false, 1, "bash"),
+        Blockers: new BlockerSummaryBlock(0, 0, 0, 0, []),
         RecentActivity:
         [
             new WebActivityEntry("08-01 21:00", "Run", "run failed", "MARIADB_PASSWORD=***"),
@@ -123,5 +124,71 @@ public sealed class ProjectDetailPageRendererTests
         Assert.Contains("Project not found", html);
         Assert.Contains("999", html);
         Assert.Contains("href=\"/\"", html);
+    }
+
+    [Fact]
+    public void Blocker_summary_shows_counts_and_open_entries()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            Blockers = new BlockerSummaryBlock(1, 1, 3, 2,
+            [
+                new WebBlockerEntry("Map server NAT drops zone traffic", "critical", "Active",
+                    "FFXI-3001 after character select", "Packet capture on host network", "blizz"),
+                new WebBlockerEntry("Intermittent search crash", null, "Monitoring", null, null, null),
+            ]),
+        });
+
+        Assert.Contains(">Blockers</h2>", html);
+        // (· is entity-encoded by HtmlEncode; assert the counts piecewise)
+        Assert.Contains("1 active", html);
+        Assert.Contains("1 monitoring", html);
+        Assert.Contains("3 resolved", html);
+        Assert.Contains("2 dismissed", html);
+        Assert.Contains("Map server NAT drops zone traffic", html);
+        Assert.Contains(">critical<", html);
+        Assert.Contains("FFXI-3001 after character select", html);
+        Assert.Contains("Packet capture on host network", html);
+        Assert.Contains("owner: blizz", html);
+        Assert.Contains("Intermittent search crash", html);
+        // Entries without optional fields render no empty badges or labels.
+        Assert.DoesNotContain("owner: <", html);
+    }
+
+    [Fact]
+    public void Blocker_summary_is_html_encoded_and_static()
+    {
+        var html = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            Blockers = new BlockerSummaryBlock(1, 0, 0, 0,
+            [
+                new WebBlockerEntry("<script>alert(1)</script>", "<b>critical</b>", "Active",
+                    "MARIADB_PASSWORD=***", "<img src=x>", null),
+            ]),
+        });
+
+        Assert.DoesNotContain("<script>alert(1)</script>", html);
+        Assert.DoesNotContain("<b>critical</b>", html);
+        Assert.DoesNotContain("<img src=x>", html);
+        Assert.Contains("&lt;script&gt;", html);
+        // The section stays outside the JS-polled containers: no id hooks at all.
+        var section = html.Split(">Blockers</h2>")[1].Split("<h2>")[0];
+        Assert.DoesNotContain("id=\"", section);
+    }
+
+    [Fact]
+    public void No_blockers_and_only_closed_blockers_are_explicit_states()
+    {
+        var empty = ProjectDetailPageRenderer.Render(BansheeDetail());
+        Assert.Contains("No blockers recorded.", empty);
+
+        var closedOnly = ProjectDetailPageRenderer.Render(BansheeDetail() with
+        {
+            Blockers = new BlockerSummaryBlock(0, 0, 2, 1, []),
+        });
+        Assert.Contains("0 active", closedOnly);
+        Assert.Contains("2 resolved", closedOnly);
+        Assert.Contains("1 dismissed", closedOnly);
+        Assert.Contains("Nothing active right now.", closedOnly);
     }
 }

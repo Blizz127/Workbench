@@ -64,7 +64,7 @@ public sealed class AppServices
         Execution = new ExecutionService(Builds, Tests, Timeline, Git, Runner);
         Health = new HealthCheckService(RuntimeHealth, Timeline, Runner);
         AppSettings = new AppSettingsService();
-        SharedState = new SharedStateService(Projects, Milestones, Frontiers);
+        SharedState = new SharedStateService(Projects, Milestones, Frontiers, Blockers);
         GitSync = new GitSyncService(Git, Timeline, Runner);
         SystemHealth = new SystemHealthService();
         Docker = new DockerComposeService(Runner);

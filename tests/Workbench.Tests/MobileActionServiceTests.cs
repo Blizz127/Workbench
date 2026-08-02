@@ -36,7 +36,7 @@ public sealed class MobileActionServiceTests
             var snapshots = new DashboardSnapshotService(
                 new WebStubs.SystemHealth(), harness.Projects,
                 new WebStubs.Git(WebFixtures.BansheeGit()), harness.Docker, harness.Tmux,
-                new WebStubs.Timeline());
+                new WebStubs.Timeline(), new WebStubs.Blockers());
             harness.Service = new MobileActionService(
                 harness.Projects, harness.Configs, harness.Docker, harness.Tmux,
                 harness.Predefined, snapshots, harness.Journal);

@@ -13,6 +13,13 @@ namespace Workbench.Core.Models;
 /// </summary>
 public sealed class SharedProjectState
 {
+    /// <summary>Newest schema this Workbench can read; newer files are rejected, never silently skipped.</summary>
+    public const int SupportedSchemaVersion = 2;
+
+    /// <summary>
+    /// Defaults to 1 so files written before the version field existed (or by
+    /// schema-1 readers) deserialize as version 1; exports set it explicitly.
+    /// </summary>
     public int SchemaVersion { get; set; } = 1;
 
     /// <summary>Stable identity across machines; prevents duplicates on repeated imports.</summary>
@@ -56,6 +63,13 @@ public sealed class SharedProjectState
 
     public List<SharedFrontier> FrontierChecklist { get; set; } = [];
 
+    /// <summary>
+    /// Complete blocker records (all statuses — resolved/dismissed are kept as
+    /// history), matched across machines by <see cref="SharedBlocker.StableId"/>.
+    /// Schema 2; absent in schema-1 files, which load as an empty list.
+    /// </summary>
+    public List<SharedBlocker> Blockers { get; set; } = [];
+
     public List<string> Tags { get; set; } = [];
 
     public string? GitHubRepoUrl { get; set; }
@@ -98,6 +112,45 @@ public sealed class SharedFrontier
 
     public string? Notes { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+}
+
+/// <summary>
+/// One complete blocker record in the shared file. String form of
+/// <see cref="BlockerStatus"/> for <see cref="Status"/> so the file stays
+/// readable. The local-only resolution text deliberately does not travel.
+/// </summary>
+public sealed class SharedBlocker
+{
+    /// <summary>Stable cross-machine identity; inserts/updates/deletes match on this, never on title.</summary>
+    public string StableId { get; set; } = string.Empty;
+
+    public string? Title { get; set; }
+
+    public string Description { get; set; } = string.Empty;
+
+    public string? BlockerClass { get; set; }
+
+    public string? Severity { get; set; }
+
+    /// <summary>String form of <see cref="BlockerStatus"/> (Active/Monitoring/Resolved/Dismissed).</summary>
+    public string Status { get; set; } = nameof(BlockerStatus.Active);
+
+    public string? Evidence { get; set; }
+
+    public string? NextSafestStep { get; set; }
+
+    public string? Owner { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>Per-blocker conflict-detection baseline.</summary>
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public DateTimeOffset? ResolvedAt { get; set; }
+
+    public List<string> Tags { get; set; } = [];
+
+    public string? SourceReference { get; set; }
 }
 
 /// <summary>Where (and whether) a shared project lives on one specific machine.</summary>
