@@ -258,21 +258,24 @@ public sealed class VisualTestRepository(WorkbenchDatabase database) : IVisualTe
     {
         Id = r.GetInt64(0), ProjectId = r.GetInt64(1), StableId = r.GetString(2), Name = r.GetString(3),
         Description = r.IsDBNull(4) ? null : r.GetString(4),
+        // Column order: [5]=launch_kind, [6]=build_command, [7]=launch_command,
+        // [8]=working_directory, [9]=environment, [10]=display, ...
+        // [24]=artifact_kind (appended by migration 13 ALTER TABLE)
         LaunchKind = r.IsDBNull(5) ? VisualTestLaunchKind.Native : Enum.Parse<VisualTestLaunchKind>(r.GetString(5)),
-        ArtifactKind = r.IsDBNull(6) ? VisualTestArtifactKind.NativePort : Enum.Parse<VisualTestArtifactKind>(r.GetString(6)),
-        BuildCommand = r.IsDBNull(6) ? null : r.GetString(7),
-        LaunchCommand = r.GetString(8),
-        WorkingDirectory = r.IsDBNull(8) ? null : r.GetString(9),
-        Environment = r.IsDBNull(9) ? null : r.GetString(10),
-        Display = r.GetString(11), StartupTimeoutSeconds = r.GetInt32(12), ProcessName = r.GetString(13),
-        WindowTitlePattern = r.IsDBNull(13) ? null : r.GetString(14),
-        WindowClassPattern = r.IsDBNull(14) ? null : r.GetString(15),
-        ExpectedExitCodes = r.IsDBNull(15) ? null : r.GetString(16),
-        SuccessLogPatterns = r.IsDBNull(16) ? null : r.GetString(17),
-        FailureLogPatterns = r.IsDBNull(17) ? null : r.GetString(18),
-        ScreenshotFolder = r.GetString(19), RetainLastRuns = r.GetInt32(20),
-        StopAfterCapture = r.GetInt32(21) != 0, LeaveRunning = r.GetInt32(22) != 0,
-        CreatedAt = DateTimeOffset.Parse(r.GetString(23)), UpdatedAt = DateTimeOffset.Parse(r.GetString(24)),
+        BuildCommand = r.IsDBNull(6) ? null : r.GetString(6),
+        LaunchCommand = r.GetString(7),
+        WorkingDirectory = r.IsDBNull(8) ? null : r.GetString(8),
+        Environment = r.IsDBNull(9) ? null : r.GetString(9),
+        Display = r.GetString(10), StartupTimeoutSeconds = r.GetInt32(11), ProcessName = r.GetString(12),
+        WindowTitlePattern = r.IsDBNull(13) ? null : r.GetString(13),
+        WindowClassPattern = r.IsDBNull(14) ? null : r.GetString(14),
+        ExpectedExitCodes = r.IsDBNull(15) ? null : r.GetString(15),
+        SuccessLogPatterns = r.IsDBNull(16) ? null : r.GetString(16),
+        FailureLogPatterns = r.IsDBNull(17) ? null : r.GetString(17),
+        ScreenshotFolder = r.GetString(18), RetainLastRuns = r.GetInt32(19),
+        StopAfterCapture = r.GetInt32(20) != 0, LeaveRunning = r.GetInt32(21) != 0,
+        CreatedAt = DateTimeOffset.Parse(r.GetString(22)), UpdatedAt = DateTimeOffset.Parse(r.GetString(23)),
+        ArtifactKind = r.IsDBNull(24) ? VisualTestArtifactKind.NativePort : Enum.Parse<VisualTestArtifactKind>(r.GetString(24)),
     };
 
     private static void BindProfile(SqliteCommand cmd, VisualTestProfile p)

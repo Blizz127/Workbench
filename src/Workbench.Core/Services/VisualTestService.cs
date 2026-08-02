@@ -12,7 +12,7 @@ namespace Workbench.Core.Services;
 /// (window detection).  All executable paths are resolved from the
 /// project repository — never from web input.
 /// </summary>
-public sealed class VisualTestService : IVisualTestService
+public class VisualTestService : IVisualTestService
 {
     private readonly IVisualTestRepository _repo;
     private readonly IProjectRepository _projects;
@@ -23,6 +23,8 @@ public sealed class VisualTestService : IVisualTestService
     private readonly string _xwininfo = "xwininfo";
     private readonly string _xwd = "xwd";
     private readonly string _xwd2png;  // built-in pure-Python XWD→PNG converter
+
+    private string _currentDisplay = Environment.GetEnvironmentVariable("DISPLAY") ?? ":10.0";
 
     public VisualTestService(IVisualTestRepository repo, IProjectRepository projects, IGitService git)
     {
@@ -45,6 +47,8 @@ public sealed class VisualTestService : IVisualTestService
             StartedAt = DateTimeOffset.UtcNow,
             Result = VisualTestResult.Unknown,
         };
+
+        _currentDisplay = profile.Display;
 
         // Capture git context
         try
@@ -78,13 +82,23 @@ public sealed class VisualTestService : IVisualTestService
             }
         }
 
-        // Launch the application
+        // Launch the application — async output capture feeds this buffer
+        var processOutput = new StringBuilder();
         Process? process = null;
         string? windowId = null;
         try
         {
-            process = LaunchApplication(profile, project);
+            process = LaunchApplication(profile, project, processOutput);
             run.OutputLog += $"[launch] PID={process.Id} CMD={profile.LaunchCommand}\n";
+
+            // Diagnostic: what does xdotool see right now?
+            try
+            {
+                var diag = RunTool(_xdotool, ["search", "--onlyvisible", "--name", "."]);
+                var count = diag.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+                run.OutputLog += $"[diag] xdotool sees {count} visible windows on {_currentDisplay}\n";
+            }
+            catch (Exception ex) { run.OutputLog += $"[diag] xdotool error: {ex.Message}\n"; }
 
             // Wait for the window to appear
             windowId = await WaitForWindowAsync(profile, process, run, cancellationToken);
@@ -146,8 +160,12 @@ public sealed class VisualTestService : IVisualTestService
                     if (!string.IsNullOrWhiteSpace(cp.InputAction))
                         SendInput(windowId, cp.InputAction);
 
-                    // Capture
-                    var filename = $"{cp.SortOrder:D2}_{SanitizeFilename(cp.ScreenshotFilename)}.png";
+                    // Capture — don't double-append .png when the checkpoint filename
+                    // already carries an extension (e.g. "01_boot.png").
+                    var baseName = SanitizeFilename(cp.ScreenshotFilename);
+                    var filename = Path.HasExtension(baseName)
+                        ? $"{cp.SortOrder:D2}_{baseName}"
+                        : $"{cp.SortOrder:D2}_{baseName}.png";
                     var path = Path.Combine(screenshotDir, filename);
 
                     if (cp.WindowOnly && windowId != null)
@@ -171,7 +189,6 @@ public sealed class VisualTestService : IVisualTestService
                 }
 
                 run.Captures.Add(capture);
-                _repo.AddCapture(capture);
             }
 
             run.Result = anyRequiredFailed ? VisualTestResult.Failed
@@ -205,11 +222,46 @@ public sealed class VisualTestService : IVisualTestService
             }
 
             process?.Dispose();
+
+            // Prepend captured process stdout/stderr to the service log
+            var captured = processOutput.ToString();
+            if (captured.Length > 0)
+                run.OutputLog = captured + run.OutputLog;
+
+            // Check success/failure log patterns against captured output
+            DetectLogPatterns(run, profile, captured);
+
             _repo.AddRun(run);
             _repo.TrimRuns(profile.Id, profile.RetainLastRuns);
         }
 
         return run;
+    }
+
+    public async Task<VisualTestBaseline> CreateBaselineAsync(long profileId, long runId, string? notes = null)
+    {
+        var profile = _repo.GetProfile(profileId)
+            ?? throw new InvalidOperationException($"Profile {profileId} not found.");
+
+        var run = _repo.GetRun(runId)
+            ?? throw new InvalidOperationException($"Run {runId} not found.");
+
+        if (run.ProfileId != profileId)
+            throw new InvalidOperationException($"Run {runId} does not belong to profile {profileId}.");
+
+        if (run.Result is not VisualTestResult.Healthy and not VisualTestResult.Degraded)
+            throw new InvalidOperationException(
+                $"Run {runId} result is {run.Result}; only Healthy or Degraded runs can be baselines.");
+
+        var baseline = new VisualTestBaseline
+        {
+            ProfileId = profileId,
+            RunId = runId,
+            SelectedAt = DateTimeOffset.UtcNow,
+            Notes = notes,
+        };
+        _repo.SetBaseline(baseline);
+        return baseline;
     }
 
     private async Task RunBuildAsync(VisualTestProfile profile, Project project,
@@ -257,12 +309,12 @@ public sealed class VisualTestService : IVisualTestService
         }
     }
 
-    private Process LaunchApplication(VisualTestProfile profile, Project project)
+    internal Process LaunchApplication(VisualTestProfile profile, Project project, StringBuilder outputBuffer)
     {
         var psi = new ProcessStartInfo
         {
             FileName = "/bin/bash",
-            Arguments = $"-c \"{profile.LaunchCommand}\"",
+            Arguments = $"-c \"DISPLAY={profile.Display} {profile.LaunchCommand}\"",
             WorkingDirectory = profile.WorkingDirectory ?? project.RepositoryPath ?? Environment.CurrentDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -270,7 +322,7 @@ public sealed class VisualTestService : IVisualTestService
             CreateNoWindow = true,
         };
 
-        // Set DISPLAY for X11
+        // Also set DISPLAY for the bash process itself (belt and suspenders)
         psi.Environment["DISPLAY"] = profile.Display;
 
         // Apply custom environment
@@ -284,8 +336,20 @@ public sealed class VisualTestService : IVisualTestService
             }
         }
 
-        var proc = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start process.");
+        var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        var sync = new object();
+        proc.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is not null) lock (sync) outputBuffer.AppendLine(e.Data);
+        };
+        proc.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is not null) lock (sync) outputBuffer.AppendLine(e.Data);
+        };
+
+        proc.Start();
+        proc.BeginOutputReadLine();
+        proc.BeginErrorReadLine();
         return proc;
     }
 
@@ -332,18 +396,19 @@ public sealed class VisualTestService : IVisualTestService
     {
         try
         {
-            // Use xdotool search to find window by name/class
-            var args = new List<string> { "search", "--onlyvisible", "--name" };
-            if (!string.IsNullOrWhiteSpace(titlePattern))
-                args.Add(titlePattern);
-            else
-                args.Add("."); // match any
+            // Use xdotool search to find window by name/class.
+            // IMPORTANT: flags must come before the pattern argument.
+            var args = new List<string> { "search", "--onlyvisible" };
+            bool hasTitle = !string.IsNullOrWhiteSpace(titlePattern);
+            bool hasClass = !string.IsNullOrWhiteSpace(classPattern);
 
-            if (!string.IsNullOrWhiteSpace(classPattern))
-            {
-                args.Add("--class");
-                args.Add(classPattern);
-            }
+            if (hasTitle) args.Add("--name");
+            if (hasClass) args.Add("--class");
+
+            // The pattern is the last positional argument
+            if (hasTitle) args.Add(titlePattern!);
+            else if (hasClass) args.Add(classPattern!);
+            else args.Add("."); // match any
 
             var result = RunTool(_xdotool, [.. args]);
             var ids = result.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -377,7 +442,14 @@ public sealed class VisualTestService : IVisualTestService
 
     private string? GetWindowClass(string windowId)
     {
-        try { return RunTool(_xdotool, ["getwindowclassname", windowId]).Trim(); }
+        try
+        {
+            // xdotool getwindowclassname not available in older versions; use xprop
+            var output = RunTool("xprop", ["-id", windowId, "WM_CLASS"]);
+            // WM_CLASS(STRING) = "instance", "class"
+            var match = Regex.Match(output, @"""([^""]+)""\s*,\s*""([^""]+)""");
+            return match.Success ? match.Groups[2].Value : null;
+        }
         catch { return null; }
     }
 
@@ -395,25 +467,37 @@ public sealed class VisualTestService : IVisualTestService
         return null;
     }
 
-    private void CaptureWindow(string windowId, string path)
+    internal void CaptureWindow(string windowId, string path)
     {
         try { RunTool(_xdotool, ["windowactivate", "--sync", windowId]); }
         catch { /* best effort */ }
 
         // xwd window capture → xwd2png converter (no external image lib deps)
         var tmp = Path.GetTempFileName();
-        RunTool(_xwd, ["-id", windowId, "-out", tmp]);
-        RunTool("python3", [_xwd2png, tmp, "-o", path]);
-        File.Delete(tmp);
+        try
+        {
+            RunTool(_xwd, ["-id", windowId, "-out", tmp]);
+            RunTool("python3", [_xwd2png, tmp, "-o", path]);
+        }
+        finally
+        {
+            try { File.Delete(tmp); } catch { /* temp dir may already be gone */ }
+        }
     }
 
-    private void CaptureDesktop(string path)
+    internal void CaptureDesktop(string path)
     {
         // xwd root-window capture → xwd2png
         var tmp = Path.GetTempFileName();
-        RunTool(_xwd, ["-root", "-out", tmp]);
-        RunTool("python3", [_xwd2png, tmp, "-o", path]);
-        File.Delete(tmp);
+        try
+        {
+            RunTool(_xwd, ["-root", "-out", tmp]);
+            RunTool("python3", [_xwd2png, tmp, "-o", path]);
+        }
+        finally
+        {
+            try { File.Delete(tmp); } catch { /* temp dir may already be gone */ }
+        }
     }
 
     private void SendInput(string windowId, string action)
@@ -432,7 +516,7 @@ public sealed class VisualTestService : IVisualTestService
         RunTool(_xdotool, ["windowactivate", "--sync", windowId, "key", action]);
     }
 
-    private static string RunTool(string tool, string[] args)
+    internal virtual string RunTool(string tool, string[] args)
     {
         var psi = new ProcessStartInfo
         {
@@ -442,12 +526,23 @@ public sealed class VisualTestService : IVisualTestService
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        // Always inject the profile's display so every tool (xdotool, xprop,
+        // xwininfo, xwd) targets the right virtual desktop, regardless of the
+        // parent process's DISPLAY.  Preserve inherited XAUTHORITY.
+        psi.Environment["DISPLAY"] = _currentDisplay;
+        var xauth = Environment.GetEnvironmentVariable("XAUTHORITY");
+        if (!string.IsNullOrWhiteSpace(xauth))
+            psi.Environment["XAUTHORITY"] = xauth;
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {tool}.");
-        proc.WaitForExit(TimeSpan.FromSeconds(10).Milliseconds);
+        if (!proc.WaitForExit(TimeSpan.FromSeconds(10)))
+        {
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            throw new InvalidOperationException($"{tool} timed out after 10s.");
+        }
         if (proc.ExitCode != 0)
         {
             var err = proc.StandardError.ReadToEnd();
@@ -477,13 +572,39 @@ public sealed class VisualTestService : IVisualTestService
         return scriptName; // fallback: hope it's on PATH
     }
 
-    private static string SanitizeFilename(string name)
+    internal static string SanitizeFilename(string name)
     {
         var invalid = Path.GetInvalidFileNameChars();
         var result = new StringBuilder();
         foreach (var c in name)
             result.Append(invalid.Contains(c) ? '_' : c);
         return result.ToString();
+    }
+
+    internal static void DetectLogPatterns(VisualTestRun run, VisualTestProfile profile, string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+            return;
+
+        if (!string.IsNullOrWhiteSpace(profile.SuccessLogPatterns))
+        {
+            foreach (var pattern in profile.SuccessLogPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var p = pattern.Trim();
+                if (p.Length > 0 && output.Contains(p, StringComparison.OrdinalIgnoreCase))
+                    run.OutputLog += $"[pattern:success] matched '{p}'\n";
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(profile.FailureLogPatterns))
+        {
+            foreach (var pattern in profile.FailureLogPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var p = pattern.Trim();
+                if (p.Length > 0 && output.Contains(p, StringComparison.OrdinalIgnoreCase))
+                    run.OutputLog += $"[pattern:failure] matched '{p}'\n";
+            }
+        }
     }
 }
 

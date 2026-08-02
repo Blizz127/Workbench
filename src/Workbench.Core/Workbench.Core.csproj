@@ -1,3 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Domain layer: entities, enums, and service contracts. No external dependencies. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Workbench.Tests" />
+  </ItemGroup>
 </Project>

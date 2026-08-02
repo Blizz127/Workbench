@@ -11,6 +11,12 @@ namespace Workbench.Core.Services;
 public interface IVisualTestService
 {
     Task<VisualTestRun> ExecuteAsync(VisualTestProfile profile, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Mark a completed (Healthy or Degraded) run as the baseline for its
+    /// profile. Future runs compare their captures against this baseline.
+    /// </summary>
+    Task<VisualTestBaseline> CreateBaselineAsync(long profileId, long runId, string? notes = null);
 }
 
 public interface IVisualTestRepository

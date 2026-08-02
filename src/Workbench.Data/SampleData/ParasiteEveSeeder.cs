@@ -1,3 +1,4 @@
+using System.Linq;
 using Workbench.Core.Models;
 using Workbench.Core.Services;
 using Workbench.Data.Repositories;
@@ -18,6 +19,10 @@ public static class ParasiteEveSeeder
         TimelineRepository timeline, NoteRepository notes,
         VisualTestRepository visualTests, DateTimeOffset now)
     {
+        // Idempotent: if the project already exists, don't double-seed.
+        if (projects.GetAll().Any(p => p.Name == ProjectName))
+            return;
+
         var project = new Project
         {
             Name = ProjectName,
@@ -240,7 +245,7 @@ public static class ParasiteEveSeeder
             ProjectId = projectId, StableId = stableId, Name = name,
             LaunchKind = launchKind, ArtifactKind = artifactKind,
             BuildCommand = buildCommand, LaunchCommand = launchCommand,
-            Display = ":99", StartupTimeoutSeconds = 30,
+            Display = ":10.0", StartupTimeoutSeconds = 30,
             ProcessName = processName, WindowTitlePattern = windowTitlePattern,
             ScreenshotFolder = screenshotFolder,
             RetainLastRuns = 5, StopAfterCapture = true,
