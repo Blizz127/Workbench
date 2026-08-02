@@ -24,6 +24,7 @@ public sealed class AppServices
     public ITestHistoryRepository Tests { get; }
     public IRuntimeHealthRepository RuntimeHealth { get; }
     public IMobileActionAuditRepository MobileAudits { get; }
+    public IVisualTestRepository VisualTests { get; }
 
     public IGitService Git { get; }
     public ITodoScanner Todos { get; }
@@ -59,6 +60,7 @@ public sealed class AppServices
         Tests = new TestHistoryRepository(Database);
         RuntimeHealth = new RuntimeHealthRepository(Database);
         MobileAudits = new MobileActionAuditRepository(Database);
+        VisualTests = new VisualTestRepository(Database);
 
         Git = new GitService();
         Todos = new TodoScanner();

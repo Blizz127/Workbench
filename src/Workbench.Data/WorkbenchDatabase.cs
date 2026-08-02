@@ -253,7 +253,102 @@ public sealed class WorkbenchDatabase
         // column adds; status is backfilled from the legacy is_completed flag,
         // which stays and is kept in sync with status by the repository.
         new Migration(11, AddMilestoneStatusAndWeight),
+
+        // Visual test profiles, checkpoints, runs, captures, and baselines
+        // (Phase 3A: reusable visual validation for any project).
+        new Migration(12, AddVisualTestTables),
     ];
+
+    private static void AddVisualTestTables(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        foreach (var sql in new[]
+        {
+            @"CREATE TABLE IF NOT EXISTS visual_test_profiles (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id              INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                stable_id               TEXT NOT NULL,
+                name                    TEXT NOT NULL,
+                description             TEXT,
+                build_command           TEXT,
+                launch_command          TEXT NOT NULL,
+                working_directory       TEXT,
+                environment             TEXT,
+                display                 TEXT NOT NULL DEFAULT ':10.0',
+                startup_timeout_seconds INTEGER NOT NULL DEFAULT 30,
+                process_name            TEXT NOT NULL DEFAULT '',
+                window_title_pattern    TEXT,
+                window_class_pattern    TEXT,
+                expected_exit_codes     TEXT,
+                success_log_patterns    TEXT,
+                failure_log_patterns    TEXT,
+                screenshot_folder       TEXT NOT NULL DEFAULT '',
+                retain_last_runs        INTEGER NOT NULL DEFAULT 5,
+                stop_after_capture      INTEGER NOT NULL DEFAULT 1,
+                leave_running           INTEGER NOT NULL DEFAULT 0,
+                created_at              TEXT NOT NULL,
+                updated_at              TEXT NOT NULL)",
+            @"CREATE UNIQUE INDEX IF NOT EXISTS ix_vt_profiles_stable ON visual_test_profiles(project_id, stable_id)",
+            @"CREATE TABLE IF NOT EXISTS visual_test_checkpoints (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id            INTEGER NOT NULL REFERENCES visual_test_profiles(id) ON DELETE CASCADE,
+                sort_order            INTEGER NOT NULL DEFAULT 0,
+                name                  TEXT NOT NULL,
+                delay_after_seconds   INTEGER NOT NULL DEFAULT 2,
+                wait_for_window_title TEXT,
+                wait_for_log_pattern  TEXT,
+                input_action          TEXT,
+                screenshot_filename   TEXT NOT NULL DEFAULT '',
+                window_only           INTEGER NOT NULL DEFAULT 1,
+                required              INTEGER NOT NULL DEFAULT 1,
+                notes                 TEXT)",
+            @"CREATE INDEX IF NOT EXISTS ix_vt_checkpoints_profile ON visual_test_checkpoints(profile_id, sort_order)",
+            @"CREATE TABLE IF NOT EXISTS visual_test_runs (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id           INTEGER NOT NULL REFERENCES visual_test_profiles(id) ON DELETE CASCADE,
+                project_id           INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                result               TEXT NOT NULL DEFAULT 'Unknown',
+                started_at           TEXT NOT NULL,
+                completed_at         TEXT,
+                duration_ms          INTEGER NOT NULL DEFAULT 0,
+                commit_sha           TEXT,
+                branch               TEXT,
+                dirty                INTEGER NOT NULL DEFAULT 0,
+                process_exit_code    INTEGER,
+                detected_window_id   TEXT,
+                detected_window_title TEXT,
+                detected_window_class TEXT,
+                resolution           TEXT,
+                output_log           TEXT NOT NULL DEFAULT '')",
+            @"CREATE INDEX IF NOT EXISTS ix_vt_runs_profile ON visual_test_runs(profile_id, started_at DESC)",
+            @"CREATE TABLE IF NOT EXISTS visual_test_captures (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id            INTEGER NOT NULL REFERENCES visual_test_runs(id) ON DELETE CASCADE,
+                checkpoint_id     INTEGER NOT NULL REFERENCES visual_test_checkpoints(id) ON DELETE CASCADE,
+                checkpoint_name   TEXT NOT NULL DEFAULT '',
+                sort_order        INTEGER NOT NULL DEFAULT 0,
+                screenshot_path   TEXT NOT NULL DEFAULT '',
+                succeeded         INTEGER NOT NULL DEFAULT 0,
+                error_message     TEXT,
+                window_title      TEXT,
+                resolution        TEXT,
+                pixel_diff_percent REAL,
+                captured_at       TEXT NOT NULL)",
+            @"CREATE INDEX IF NOT EXISTS ix_vt_captures_run ON visual_test_captures(run_id, sort_order)",
+            @"CREATE TABLE IF NOT EXISTS visual_test_baselines (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id  INTEGER NOT NULL REFERENCES visual_test_profiles(id) ON DELETE CASCADE,
+                run_id      INTEGER NOT NULL REFERENCES visual_test_runs(id) ON DELETE CASCADE,
+                selected_at TEXT NOT NULL,
+                notes       TEXT)",
+            @"CREATE UNIQUE INDEX IF NOT EXISTS ix_vt_baselines_profile ON visual_test_baselines(profile_id)",
+        })
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = sql;
+            cmd.ExecuteNonQuery();
+        }
+    }
 
     private static void AddMilestoneStatusAndWeight(SqliteConnection connection, SqliteTransaction transaction)
     {
