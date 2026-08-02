@@ -162,4 +162,38 @@ public sealed class ProjectConfigServiceTests : IDisposable
 
         Assert.DoesNotContain("launchProfile", json);
     }
+
+    [Fact]
+    public void Save_preserves_the_existing_mobile_actions_allowlist()
+    {
+        var service = new ProjectConfigService();
+        File.WriteAllText(Path.Combine(_directory, "workbench.json"), """
+            {
+              "name": "Banshee",
+              "mobileActions": [
+                { "id": "logs-all", "label": "View all logs", "type": "dockerLogsAll" },
+                { "id": "restart-map", "label": "Restart map", "type": "dockerRestartService", "service": "map" }
+              ]
+            }
+            """);
+
+        // A desktop settings save rewrites the file from the Project model —
+        // which knows nothing about the mobile allowlist.
+        service.Save(new Project
+        {
+            Name = "Banshee",
+            RepositoryPath = _directory,
+            BuildCommand = "make",
+        });
+
+        var loaded = service.Load(_directory);
+        Assert.NotNull(loaded);
+        Assert.Equal("make", loaded.BuildCommand);
+        Assert.Equal(2, loaded.MobileActions.Count);
+        Assert.Equal("logs-all", loaded.MobileActions[0].Id);
+        Assert.Equal("map", loaded.MobileActions[1].Service);
+
+        var json = File.ReadAllText(Path.Combine(_directory, "workbench.json"));
+        Assert.Contains("\"mobileActions\"", json);
+    }
 }

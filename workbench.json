@@ -1,0 +1,22 @@
+{
+  "name": "Workbench",
+  "description": "Avalonia desktop app + ASP.NET Core mobile web dashboard (Development Lab) for monitoring and controlling dev projects.",
+  "buildCommand": "dotnet build Workbench.sln",
+  "testCommand": "dotnet test",
+  "documentationPaths": [
+    "README.md",
+    "docs/architecture.md"
+  ],
+  "tags": [
+    "dotnet",
+    "Avalonia",
+    "ASP.NET Core",
+    "Tooling"
+  ],
+  "tmuxSession": "workbench",
+  "mobileActions": [
+    { "id": "new-session", "label": "Create tmux session", "type": "tmuxCreateSession" },
+    { "id": "build", "label": "Build solution", "type": "predefinedCommand", "commandId": "build" },
+    { "id": "test", "label": "Run tests", "type": "predefinedCommand", "commandId": "test" }
+  ]
+}

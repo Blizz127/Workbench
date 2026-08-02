@@ -134,6 +134,26 @@ public sealed class DashboardSnapshotService(
         }
     }
 
+    /// <summary>
+    /// Drops every cached subsystem value so the next poll rebuilds from the
+    /// source. Used by the mobile refreshStatus action; never throws.
+    /// </summary>
+    public void Invalidate()
+    {
+        _gate.Wait();
+        try
+        {
+            _health = null;
+            _tmux = null;
+            _gitCache.Clear();
+            _dockerCache.Clear();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task<WebProjectCard> BuildCardAsync(
         Project project, TmuxServerStatus tmuxStatus, CancellationToken cancellationToken)
     {

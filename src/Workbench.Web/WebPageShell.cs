@@ -105,6 +105,21 @@ internal static class WebPageShell
                              margin-right: 14px; color: #9aa3b2; }
         .search-form button { background: #4f8ff7; color: #0f1115; border: 0; border-radius: 8px;
                               padding: 8px 18px; font-size: .95rem; font-weight: 600; min-height: 40px; }
+        a.action-btn, div.action-btn { display: flex; align-items: center; gap: 8px; min-height: 52px;
+                              background: #12141a; border: 1px solid #2a2e38; border-radius: 10px;
+                              padding: 12px 14px; margin: 8px 0; color: #e6e8ee;
+                              text-decoration: none; font-weight: 600; }
+        a.action-btn:active, a.action-btn:hover { border-color: #4f8ff7; }
+        .action-btn.mutating { border-color: #5c3a2a; background: #17141a; }
+        .action-btn.disabled { opacity: .55; }
+        .action-reason { margin: -4px 0 8px 4px; }
+        pre.output { background: #12141a; border: 1px solid #2a2e38; border-radius: 8px;
+                     padding: 10px 12px; margin: 8px 0; overflow-x: auto; max-height: 50vh; overflow-y: auto;
+                     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                     font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+        button.action-submit { width: 100%; min-height: 52px; background: #4f8ff7; color: #0f1115;
+                               border: 0; border-radius: 10px; font-size: 1rem; font-weight: 700; margin-top: 8px; }
+        button.action-submit.danger { background: #f47c7c; }
         """;
 
     private const string ClientScript = """

@@ -55,6 +55,51 @@ public sealed class ProjectConfig
 
     /// <summary>Post-launch runtime health validation; null means no health checking.</summary>
     public LaunchProfileConfig? LaunchProfile { get; set; }
+
+    /// <summary>
+    /// The mobile web dashboard's action allowlist. Lives only in this file —
+    /// the Project database model deliberately knows nothing about it, and
+    /// <see cref="ProjectConfigService.Save"/> carries it over from the
+    /// on-disk file so a desktop settings save never wipes the allowlist.
+    /// </summary>
+    public List<MobileActionConfig> MobileActions { get; set; } = [];
+}
+
+/// <summary>One allowlisted mobile action in <c>workbench.json</c>.</summary>
+public sealed class MobileActionConfig
+{
+    /// <summary>Stable identifier used in URLs and the action journal.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Button label on the phone.</summary>
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Action type: dockerLogsAll, dockerLogsService, dockerRestartService,
+    /// dockerRestartAllowed, tmuxCreateSession, or predefinedCommand. Unknown
+    /// types fail closed — the action renders disabled.
+    /// </summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>Compose service name for the *Service action types.</summary>
+    public string? Service { get; set; }
+
+    /// <summary>Command selector for predefinedCommand: build, test, or launch.</summary>
+    public string? CommandId { get; set; }
+
+    /// <summary>
+    /// Safety override: readOnly, requiresConfirmation, or
+    /// requiresDoubleConfirmation. May only RAISE the type's default level,
+    /// never lower it.
+    /// </summary>
+    public string? Safety { get; set; }
+
+    /// <summary>
+    /// Permits restarting database-like services (database, db, mysql,
+    /// mariadb, postgres, postgresql, mongo, mongodb, redis) — refused
+    /// without this explicit opt-in.
+    /// </summary>
+    public bool AllowDatabase { get; set; }
 }
 
 /// <summary>The <c>launchProfile</c> section of <c>workbench.json</c>.</summary>
@@ -129,7 +174,13 @@ public sealed class ProjectConfigService : IProjectConfigService
             throw new InvalidOperationException("The project has no valid repository path to save the configuration into.");
 
         var path = GetConfigPath(project.RepositoryPath);
-        File.WriteAllText(path, JsonSerializer.Serialize(FromProject(project), JsonOptions));
+        var config = FromProject(project);
+
+        // The mobile allowlist lives only in the file, not in the Project
+        // model — carry it over so a settings save never wipes it.
+        config.MobileActions = Load(project.RepositoryPath)?.MobileActions ?? [];
+
+        File.WriteAllText(path, JsonSerializer.Serialize(config, JsonOptions));
     }
 
     public void ApplyTo(ProjectConfig config, Project project)

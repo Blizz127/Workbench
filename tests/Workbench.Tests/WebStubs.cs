@@ -1,5 +1,6 @@
 using Workbench.Core.Models;
 using Workbench.Core.Services;
+using Workbench.Web;
 
 namespace Workbench.Tests;
 
@@ -73,7 +74,8 @@ internal static class WebStubs
 
     public sealed class Docker(
         Func<Project, string?> resolve,
-        Func<Project, ComposeProjectStatus?> inspect) : IDockerComposeService
+        Func<Project, ComposeProjectStatus?> inspect,
+        Func<Project, ComposeOperation, bool, Task<ComposeOperationResult>>? execute = null) : IDockerComposeService
     {
         public Docker(string? composeFile, ComposeProjectStatus? status)
             : this(_ => composeFile, _ => status)
@@ -81,6 +83,9 @@ internal static class WebStubs
         }
 
         public int InspectCount { get; private set; }
+
+        /// <summary>Every operation passed to ExecuteAsync, in order.</summary>
+        public List<(ComposeOperation Operation, bool Confirmed)> Executed { get; } = [];
 
         public string? ResolveComposeFile(Project project) => resolve(project);
 
@@ -91,22 +96,68 @@ internal static class WebStubs
         }
 
         public Task<ComposeOperationResult> ExecuteAsync(
-            Project project, ComposeOperation operation, bool confirmed = false, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("The web dashboard never executes compose operations.");
+            Project project, ComposeOperation operation, bool confirmed = false, CancellationToken cancellationToken = default)
+        {
+            if (execute is null)
+                throw new NotSupportedException("The web dashboard never executes compose operations.");
+
+            Executed.Add((operation, confirmed));
+            return execute(project, operation, confirmed);
+        }
     }
 
-    public sealed class Tmux(TmuxServerStatus status) : ITmuxService
+    public sealed class Tmux(
+        TmuxServerStatus status,
+        Func<TmuxOperation, bool, Task<TmuxOperationResult>>? execute = null,
+        Func<string, bool>? sessionExists = null) : ITmuxService
     {
+        /// <summary>Every operation passed to ExecuteAsync, in order.</summary>
+        public List<TmuxOperation> Executed { get; } = [];
+
         public Task<TmuxServerStatus> InspectAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(status);
 
         public Task<bool> SessionExistsAsync(string sessionName, CancellationToken cancellationToken = default) =>
-            Task.FromResult(status.Sessions.Any(s => s.Name == sessionName));
+            Task.FromResult(sessionExists?.Invoke(sessionName)
+                ?? status.Sessions.Any(s => s.Name == sessionName));
 
         public string ProjectSessionName(Project project) => project.TmuxSession ?? "slug";
 
         public Task<TmuxOperationResult> ExecuteAsync(
-            TmuxOperation operation, bool confirmed = false, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("The web dashboard never executes tmux operations.");
+            TmuxOperation operation, bool confirmed = false, CancellationToken cancellationToken = default)
+        {
+            if (execute is null)
+                throw new NotSupportedException("The web dashboard never executes tmux operations.");
+
+            Executed.Add(operation);
+            return execute(operation, confirmed);
+        }
+    }
+
+    /// <summary>workbench.json contents per repository path — no filesystem involved.</summary>
+    public sealed class ProjectConfigs(Func<string, ProjectConfig?> load) : IProjectConfigService
+    {
+        public string GetConfigPath(string repositoryPath) => Path.Combine(repositoryPath, "workbench.json");
+        public ProjectConfig? Load(string repositoryPath) => load(repositoryPath);
+        public void Save(Project project) => throw new NotSupportedException();
+        public void ApplyTo(ProjectConfig config, Project project) => throw new NotSupportedException();
+        public ProjectConfig FromProject(Project project) => throw new NotSupportedException();
+    }
+
+    /// <summary>Scripted predefined-command runs; records every call.</summary>
+    public sealed class PredefinedCommands(
+        Func<Project, PredefinedCommandKind, string, Task<PredefinedCommandResult?>> run) : IPredefinedCommandRunner
+    {
+        public static PredefinedCommands NeverCalled() =>
+            new((_, _, _) => throw new NotSupportedException("No predefined command should run."));
+
+        public List<(PredefinedCommandKind Kind, string Command)> Calls { get; } = [];
+
+        public Task<PredefinedCommandResult?> RunAsync(
+            Project project, PredefinedCommandKind kind, string command, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((kind, command));
+            return run(project, kind, command);
+        }
     }
 }

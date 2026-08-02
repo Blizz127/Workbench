@@ -11,7 +11,13 @@ namespace Workbench.Web;
 /// </summary>
 public static class ProjectDetailPageRenderer
 {
-    public static string Render(ProjectDetailSnapshot detail)
+    public static string Render(ProjectDetailSnapshot detail) =>
+        Render(detail, [], []);
+
+    public static string Render(
+        ProjectDetailSnapshot detail,
+        IReadOnlyList<MobileActionDescriptor> actions,
+        IReadOnlyList<ActionJournalEntry> recentActions)
     {
         var html = new StringBuilder(capacity: 24 * 1024);
         WebPageShell.WriteHead(html, $"{detail.Name} — Development Lab", "detail", $"/api/projects/{detail.Id}");
@@ -109,6 +115,12 @@ public static class ProjectDetailPageRenderer
         }
 
         html.Append("</ul></div>");
+
+        // Actions + their journal: static, server-rendered, and deliberately
+        // outside every id-tagged container so the polling re-render of the
+        // detail endpoint never wipes them.
+        ActionPageRenderer.WriteActionsSection(html, detail.Id, actions);
+        ActionPageRenderer.WriteRecentActionsSection(html, recentActions);
 
         WebPageShell.WriteScript(html);
         return html.ToString();

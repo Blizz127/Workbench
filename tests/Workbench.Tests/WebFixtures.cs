@@ -1,4 +1,5 @@
 using Workbench.Core.Models;
+using Workbench.Core.Services;
 
 namespace Workbench.Tests;
 
@@ -106,4 +107,47 @@ internal static class WebFixtures
         Message = "run failed",
         Detail = "connecting with MARIADB_PASSWORD=sup3rsecret refused",
     };
+
+    /// <summary>
+    /// Banshee's mobile action allowlist: log viewers, a restartable game
+    /// service, a database restart that must be refused, a group restart, and
+    /// a tmux session creator.
+    /// </summary>
+    public static ProjectConfig BansheeConfig() => new()
+    {
+        Name = "Banshee Realm 11",
+        ComposeFile = "docker-compose.docker.yml",
+        TmuxSession = "banshee",
+        MobileActions =
+        [
+            new() { Id = "logs-all", Label = "View all logs", Type = "dockerLogsAll" },
+            new() { Id = "logs-map", Label = "View map logs", Type = "dockerLogsService", Service = "map" },
+            new() { Id = "restart-map", Label = "Restart map", Type = "dockerRestartService", Service = "map" },
+            new() { Id = "restart-database", Label = "Restart database", Type = "dockerRestartService", Service = "database" },
+            new() { Id = "restart-game", Label = "Restart game services", Type = "dockerRestartAllowed" },
+            new() { Id = "new-session", Label = "Create tmux session", Type = "tmuxCreateSession" },
+        ],
+    };
+
+    /// <summary>Xenogears: a predefined command id nothing implements — must render as blocked, never error.</summary>
+    public static ProjectConfig XenogearsConfig() => new()
+    {
+        Name = "Xenogears Decompilation",
+        MobileActions =
+        [
+            new()
+            {
+                Id = "launch-test-env",
+                Label = "Launch test environment",
+                Type = "predefinedCommand",
+                CommandId = "launch-test-environment",
+            },
+        ],
+    };
+
+    public static ComposeOperationResult ComposeOk(ComposeOperation operation, string output = "ok") =>
+        new(operation, Succeeded: true, WasBlocked: false, ExitCode: 0, TimeSpan.FromSeconds(1), output);
+
+    public static ComposeOperationResult ComposeFailed(ComposeOperation operation, string output = "boom") =>
+        new(operation, Succeeded: false, WasBlocked: false, ExitCode: 1, TimeSpan.FromSeconds(1), output);
 }

@@ -13,15 +13,26 @@ namespace Workbench.Web;
 ///    SameSite=Strict cookie (Secure only under HTTPS), then the request is
 ///    redirected to the same URL without the token so it does not linger in
 ///    browser history or screenshots. Non-GET requests with a valid query
-///    token pass through untouched (routing answers 405 — there are no
-///    mutation endpoints).
+///    token pass through without a session — action endpoints then reject
+///    them at the CSRF check.
 /// 3. the <c>dl_session</c> cookie issued by that exchange.
+///
+/// Every authenticated request is stamped with its session id and CSRF token
+/// in HttpContext items (header-token requests share one stable session), so
+/// page renderers can embed the token in forms and POST handlers can verify
+/// it without touching the cookie themselves.
 ///
 /// An empty configured token means "not set up": every route answers 503 so
 /// a fresh install can never serve the lab unauthenticated.
 /// </summary>
 public sealed class TokenAuthMiddleware(RequestDelegate next)
 {
+    /// <summary>HttpContext item carrying the validated session id for the request.</summary>
+    public const string SessionIdItemKey = "wb.session-id";
+
+    /// <summary>HttpContext item carrying the session's CSRF token for page renderers.</summary>
+    public const string CsrfTokenItemKey = "wb.csrf-token";
+
     public async Task InvokeAsync(HttpContext context, WebDashboardOptions options, SessionStore sessions)
     {
         if (options.AuthToken.Length == 0)
@@ -36,6 +47,9 @@ public sealed class TokenAuthMiddleware(RequestDelegate next)
         var headerToken = context.Request.Headers["X-Workbench-Token"].FirstOrDefault();
         if (Matches(headerToken, options.AuthToken))
         {
+            // Header-authenticated requests share one stable session so pages
+            // rendered for them carry a working CSRF token too.
+            StampSession(context, sessions, sessions.IssueForHeaderToken(headerToken!));
             await next(context);
             return;
         }
@@ -45,7 +59,8 @@ public sealed class TokenAuthMiddleware(RequestDelegate next)
         {
             if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
             {
-                // A valid token on a mutation verb still finds no endpoint — let routing 405 it.
+                // A valid token on a mutation verb carries no session — any
+                // action endpoint will reject it at the CSRF check.
                 await next(context);
                 return;
             }
@@ -62,14 +77,22 @@ public sealed class TokenAuthMiddleware(RequestDelegate next)
             return;
         }
 
-        if (sessions.Validate(context.Request.Cookies[SessionStore.CookieName]))
+        var sessionId = context.Request.Cookies[SessionStore.CookieName];
+        if (sessions.Validate(sessionId))
         {
+            StampSession(context, sessions, sessionId!);
             await next(context);
             return;
         }
 
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await context.Response.WriteAsync("Unauthorized.");
+    }
+
+    private static void StampSession(HttpContext context, SessionStore sessions, string sessionId)
+    {
+        context.Items[SessionIdItemKey] = sessionId;
+        context.Items[CsrfTokenItemKey] = sessions.GetCsrfToken(sessionId);
     }
 
     /// <summary>The request URL minus the token parameter — where the exchange redirects to.</summary>

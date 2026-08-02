@@ -256,17 +256,18 @@ parsing of its own: `DashboardSnapshotService` composes typed snapshots,
 `DashboardPageRenderer` / `ProjectDetailPageRenderer` turn them into
 self-contained HTML pages (phone-first, dark, branded "Development Lab").
 
-- **Read-only by construction**: all routes are GET — `/` (dashboard),
-  `/projects/{id:long}` (project detail), their two JSON twins
-  (`/api/snapshot`, `/api/projects/{id}`), and the Phase 2C code browser:
+- **GET is read-only; mutations are POST-only**: all pages and their JSON
+  twins are GET — `/` (dashboard), `/projects/{id:long}` (project detail),
+  `/api/snapshot`, `/api/projects/{id}`, and the Phase 2C code browser:
   `/projects/{id}/files` (directory listing), `/projects/{id}/file`
   (syntax-highlighted, line-numbered view; `?sha=` serves a historical
   version from the commit), `/projects/{id}/search` (filename or text),
   `/projects/{id}/changes` (working-tree diff), and
   `/projects/{id}/commits/{sha}` (commit detail with its changed files).
-  Any other verb gets 405. Project routes take the database id through a
-  long constraint — never a filesystem path — and unknown ids get a styled
-  404 page.
+  The only non-GET routes are the Phase 2D action endpoints below; a GET on
+  them (or any other verb anywhere) gets 405. Project routes take the
+  database id through a long constraint — never a filesystem path — and
+  unknown ids get a styled 404 page.
 - **Code browsing confinement**: `ProjectCodeService` composes
   `IProjectFileService`, which resolves every requested path against the
   project's repository root and refuses anything that escapes it — rooted
@@ -310,6 +311,54 @@ self-contained HTML pages (phone-first, dark, branded "Development Lab").
 - **Redaction**: journal messages/details pass through `SecretRedactor`
   before leaving the snapshot service; compose errors arrive already
   redacted. No environment values are ever rendered.
+- **Mobile actions (Phase 2D)**: the dashboard's only mutations, behind a
+  strict per-project allowlist. The effective allowlist is two internal
+  read-only actions (`refreshStatus` — invalidates the snapshot TTL caches;
+  `tmuxAttachInfo` — shows the exact `tmux attach-session` command, running
+  nothing) plus the `mobileActions` array of the project's `workbench.json`.
+  Anything not listed cannot run, and unknown type strings fail closed (the
+  action renders disabled with a reason). Supported types: `dockerLogsAll` /
+  `dockerLogsService` / `dockerRestartService` / `dockerRestartAllowed`
+  (restarts each service that has its own `dockerRestartService` entry,
+  sequentially), `tmuxCreateSession` (a clean no-op when the session already
+  exists), and `predefinedCommand` (`build` / `test` / `launch` mapping to
+  the project's `buildCommand` / `testCommand` / `runCommand` — unconfigured
+  ids render as blocked "not configured"). Every command comes from the
+  existing typed builders (`ComposeCommandBuilder`, `TmuxCommandBuilder`)
+  and services (`IDockerComposeService`, `ITmuxService`,
+  `IPredefinedCommandRunner` wrapping `ExecutionService`) — the web layer
+  constructs no command text and spawns no process of its own, and all
+  output is secret-redacted before rendering. `ProjectConfigService.Save`
+  carries `mobileActions` over from the on-disk file, so a desktop settings
+  save never wipes the allowlist; the Project database model deliberately
+  knows nothing about it.
+- **Action safety model**: every action has a safety level — `readOnly`,
+  `requiresConfirmation`, or `requiresDoubleConfirmation`. Defaults follow
+  the type (log viewers read-only; restarts and `launch` double; tmux
+  session creation, `build` and `test` single), and a config entry may only
+  RAISE its level, never lower it. A hard guard refuses to restart
+  database-like services (`database`, `db`, `mysql`, `mariadb`, `postgres`,
+  `postgresql`, `mongo`, `mongodb`, `redis` — exact or prefix match,
+  case-insensitive) unless the entry sets `allowDatabase: true`. Execution
+  is serialized per project: a second concurrent action gets an "already
+  running" blocked result, never a queue. Every attempt — attempted,
+  blocked, rejected, succeeded, failed — lands in the bounded (last 200)
+  in-memory `ActionJournal`, rendered as "Recent Actions" on the detail
+  page.
+- **Action flow (CSRF + one-time nonces)**: three routes, all behind the
+  same auth — `GET /projects/{id}/actions/{actionId}/confirm` renders the
+  exact command preview and issues a nonce; double-confirmation actions
+  then `POST .../confirm2` (validates the CSRF token and step-one nonce,
+  issues a fresh step-two nonce on the "Are you sure?" page); the final
+  `POST .../execute` validates the session's CSRF token (403 before anything
+  else runs), consumes the nonce, and only then executes. Nonces
+  (`ConfirmationNonceService`) are random, bound to (project, action, step),
+  expire after 2 minutes, and are consumed on use — replay fails, and the
+  step-one nonce cannot execute by purpose binding. The CSRF token
+  (`SessionStore`) is a per-session random value stamped into HttpContext
+  items by `TokenAuthMiddleware` and embedded as a hidden `csrf` form field;
+  header-token requests share one stable keyed-hash session so API clients
+  get the same protection.
 - The database is opened lazily (WAL mode already allows the desktop app and
   the web host to read concurrently), and the web host never runs discovery
   scans or migrations beyond the existing idempotent ones. Deployment as a
